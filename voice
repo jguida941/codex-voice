@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+# Simple wrapper for Codex Voice with easy configuration
+
+# Parse command-line arguments
+SECONDS=10  # Default to 10 seconds (more practical)
+
+usage() {
+    echo "Usage: voice [options]"
+    echo ""
+    echo "Options:"
+    echo "  -s, --seconds N     Recording duration in seconds (default: 10)"
+    echo "  -m, --model MODEL   Whisper model to use (default: base)"
+    echo "                      Options: tiny, base, small, medium, large"
+    echo "  -h, --help          Show this help message"
+    echo ""
+    echo "Examples:"
+    echo "  voice                  # 10 seconds recording with base model"
+    echo "  voice -s 15            # 15 seconds recording"
+    echo "  voice --seconds 20     # 20 seconds recording"
+    echo "  voice -s 30 -m small   # 30 seconds with small model"
+}
+
+MODEL="base"
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -s|--seconds)
+            SECONDS="$2"
+            shift 2
+            ;;
+        -m|--model)
+            MODEL="$2"
+            shift 2
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        *)
+            echo "Unknown option: $1"
+            usage
+            exit 1
+            ;;
+    esac
+done
+
+# Get script directory
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+echo "Starting Codex Voice TUI..."
+echo "  Recording duration: ${SECONDS} seconds"
+echo "  Whisper model: ${MODEL}"
+echo ""
+echo "Controls:"
+echo "  Ctrl+R : Start voice recording"
+echo "  Enter  : Send message to Codex"
+echo "  Ctrl+C : Exit"
+echo ""
+
+# Run with settings
+export SECONDS_OVERRIDE="$SECONDS"
+export WHISPER_MODEL_OVERRIDE="$MODEL"
+
+exec "${SCRIPT_DIR}/scripts/run_tui.sh"

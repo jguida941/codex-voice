@@ -1,0 +1,42 @@
+#!/usr/bin/env python3
+"""
+Test stub that mimics the OpenAI `whisper` CLI by writing a transcript file.
+Designed for codex_voice.py smoke tests.
+"""
+
+from pathlib import Path
+import sys
+
+
+def main() -> None:
+    """Create a placeholder transcript file for the provided audio clip."""
+    """Create a placeholder transcript file for the provided audio clip."""
+    args = sys.argv[1:]
+    if not args:
+        print("fake_whisper missing arguments", file=sys.stderr)
+        sys.exit(1)
+
+    audio_path = None
+    out_dir = None
+
+    for arg in args:
+        if not arg.startswith("-"):
+            audio_path = Path(arg)
+            break
+
+    for idx, arg in enumerate(args):
+        if arg == "--output_dir" and idx + 1 < len(args):
+            out_dir = Path(args[idx + 1])
+            break
+
+    if audio_path is None or out_dir is None:
+        print("fake_whisper requires audio path and --output_dir", file=sys.stderr)
+        sys.exit(1)
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+    transcript_path = out_dir / f"{audio_path.stem}.txt"
+    transcript_path.write_text("fake transcript from fake_whisper", encoding="utf-8")
+
+
+if __name__ == "__main__":
+    main()

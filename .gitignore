@@ -1,0 +1,66 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+ENV/
+env/
+*.egg-info/
+dist/
+build/
+
+# Rust
+/rust_tui/target/
+**/*.rs.bk
+*.pdb
+Cargo.lock
+
+# Audio/Media
+*.wav
+*.mp3
+*.m4a
+
+# Whisper output
+*.txt
+*.srt
+*.vtt
+*.json
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+/tmp/
+/temp/
+*.tmp
+
+# Environment variables
+.env
+.env.local
+
+# Test outputs
+test_output/
+*.test
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Credentials (important!)
+credentials.json
+*.pem
+*.key
+*.cert

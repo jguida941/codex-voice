@@ -1,0 +1,29 @@
+#!/usr/bin/env python3
+"""
+Test stub that mimics `ffmpeg` by writing a short silent WAV file.
+Used for smoke-testing codex_voice.py without real audio capture.
+"""
+
+import sys
+import wave
+
+
+def main() -> None:
+    """Write a deterministic silent WAV file to mimic ffmpeg capture."""
+    if len(sys.argv) < 2:
+        print("fake_ffmpeg expects at least an output path", file=sys.stderr)
+        sys.exit(1)
+
+    out_path = sys.argv[-1]
+
+    # Generate 1 second of silence at 16 kHz, 16-bit PCM mono.
+    with wave.open(out_path, "w") as f:
+        f.setnchannels(1)
+        f.setsampwidth(2)
+        f.setframerate(16000)
+        frames = 16000
+        f.writeframes(b"\x00\x00" * frames)
+
+
+if __name__ == "__main__":
+    main()
