@@ -38,9 +38,9 @@ cd codex-voice
 - Enter key fixed
 
 ### 🚧 In Progress
-- Persistent Codex sessions (PTY implemented, needs testing)
-- Streaming output
-- Session context preservation
+- Persistent Codex sessions (PTY has terminal emulation issues - disabled for now)
+- Streaming output (disabled until PTY fixed)
+- Session context preservation (needs proper PTY)
 
 ### ❌ Known Issues
 - 3-4 second delay (spawning new processes)

@@ -96,18 +96,18 @@ fn app_loop(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App
     loop {
         terminal.draw(|frame| ui(frame, app))?;
 
-        // Check for streaming output from PTY session
-        if let Some(ref session) = app.codex_session {
-            let output = session.read_output();
-            if !output.is_empty() {
-                // Join output chunks and split by lines
-                let text = output.join("");
-                let lines: Vec<String> = text.lines().map(|l| l.to_string()).collect();
-                if !lines.is_empty() {
-                    app.append_output(lines);
-                }
-            }
-        }
+        // PTY streaming disabled until cursor position issue is fixed
+        // if let Some(ref session) = app.codex_session {
+        //     let output = session.read_output();
+        //     if !output.is_empty() {
+        //         // Join output chunks and split by lines
+        //         let text = output.join("");
+        //         let lines: Vec<String> = text.lines().map(|l| l.to_string()).collect();
+        //         if !lines.is_empty() {
+        //             app.append_output(lines);
+        //         }
+        //     }
+        // }
 
         if event::poll(Duration::from_millis(100)).context("failed to poll events")? {
             if let Event::Key(key) = event::read().context("failed to read key event")? {
@@ -349,42 +349,19 @@ fn send_prompt(app: &mut App) -> Result<Option<Vec<String>>> {
         return Ok(None);
     }
 
-    // Ensure we have a persistent Codex session
-    app.ensure_codex_session()?;
+    // For now, disable PTY until cursor position issue is fixed
+    // The PTY isn't properly emulating terminal capabilities that Codex needs
+    // app.ensure_codex_session()?;
 
-    app.status = "Sending to persistent Codex...".into();
+    app.status = "Calling Codex...".into();
 
-    // Send prompt to persistent PTY session
-    let lines = if let Some(ref mut session) = app.codex_session {
-        session.send(&prompt)?;
-
-        // Give Codex a moment to process
-        std::thread::sleep(Duration::from_millis(200));
-
-        // Read response with timeout
-        let response_lines = session.read_output_timeout(Duration::from_secs(3));
-
-        let mut lines = Vec::new();
-        lines.push(format!("> {}", prompt));
-
-        // Join response lines (they may come in chunks)
-        let response_text = response_lines.join("");
-        lines.extend(response_text.lines().map(|line| line.to_string()));
-
-        app.status = format!("Codex responded (session alive)");
-        app.input.clear();
-
-        lines
-    } else {
-        // Fallback to old method if PTY fails
-        app.status = "PTY failed, using fallback...".into();
-        let codex_output = call_codex(&app.config, &prompt)?;
-        let mut lines = Vec::new();
-        lines.push(format!("> {}", prompt));
-        lines.extend(codex_output.lines().map(|line| line.to_string()));
-        app.input.clear();
-        lines
-    };
+    // Use the working implementation
+    let codex_output = call_codex(&app.config, &prompt)?;
+    let mut lines = Vec::new();
+    lines.push(format!("> {}", prompt));
+    lines.extend(codex_output.lines().map(|line| line.to_string()));
+    app.status = format!("Codex returned {} lines.", codex_output.lines().count());
+    app.input.clear();
 
     if app.voice_enabled {
         // Use terminal wrapper for voice capture in continuous mode
