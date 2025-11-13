@@ -615,6 +615,10 @@ impl App {
         self.scroll_offset
     }
 
+    pub(crate) fn has_active_jobs(&self) -> bool {
+        self.codex_job.is_some() || self.voice_job.is_some()
+    }
+
     pub(crate) fn push_input_char(&mut self, ch: char) {
         self.input.push(ch);
     }

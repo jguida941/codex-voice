@@ -47,19 +47,38 @@ pub fn run_app(app: &mut App) -> Result<()> {
 /// Core event/render loop for the test-friendly UI entrypoint.
 fn app_loop(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App) -> Result<()> {
     loop {
+        // Poll jobs BEFORE drawing so we catch updates immediately
         app.poll_codex_job()?;
         app.poll_voice_job()?;
-        app.update_codex_spinner();
-        terminal.draw(|frame| crate::ui::draw(frame, app))?;
+
+        // Only update spinner and redraw if there's an active job
+        // This prevents excessive redraws (20 Hz) when idle
+        let has_active_job = app.has_active_jobs();
+        if has_active_job {
+            app.update_codex_spinner();
+        }
 
         app.drain_persistent_output();
 
-        if event::poll(Duration::from_millis(100))? {
+        // Poll for keyboard events with appropriate timeout
+        // 50ms when jobs active (responsive), 100ms when idle (lower CPU)
+        let poll_duration = if has_active_job {
+            Duration::from_millis(50)
+        } else {
+            Duration::from_millis(100)
+        };
+
+        if event::poll(poll_duration)? {
             if let Event::Key(key) = event::read()? {
+                // Always redraw after key event since state likely changed
+                terminal.draw(|frame| crate::ui::draw(frame, app))?;
                 if handle_key_event(app, key)? {
                     break;
                 }
             }
+        } else if has_active_job {
+            // No keyboard input but job is running - redraw to show progress
+            terminal.draw(|frame| crate::ui::draw(frame, app))?;
         }
     }
     Ok(())
