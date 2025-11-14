@@ -1,11 +1,15 @@
 # Daily Changelog — 2025-11-13
 
+## CRITICAL UPDATE (Evening Session)
+- **Phase 2B Design Correction**: Identified fatal flaw in original "chunked Whisper" proposal - sequential chunk processing provides NO latency improvement (often slower than batch). User confirmed requirement for true low latency ("we need to do option 2 i want it to be responsive not slow"). Created comprehensive corrected design in `PHASE_2B_CORRECTED_DESIGN.md` specifying streaming mel + Whisper FFI architecture (Option B) as only viable path to <750ms voice latency. Document includes measurement gates, implementation plan (5-6 weeks), fallback strategies, and approval gates before any coding begins.
+
 ## Added
 - Exposed runtime VAD selection via `--voice-vad-engine <earshot|simple>`, threaded the enum through `VoicePipelineConfig`, and documented the flag in `docs/references/quick_start.md` so operators can switch implementations without rebuilding.
 - Added the benchmark harness: `audio::offline_capture_from_pcm`, the `voice_benchmark` binary (synthetic clips + Earshot/Simple VAD), `scripts/benchmark_voice.sh`, and the evidence log in `docs/architecture/2025-11-13/BENCHMARKS.md` capturing the short/medium/long clip metrics.
 - Created the Earshot-aware SLA for short utterances (≤3 s speech) based on today’s measurements: conservative guardrails of `capture_ms ≤ 1.8 s` for ~1 s speech and `≤ 4.2 s` for <3 s speech (≈20 % headroom above today’s data); future perf smoke runs will adopt these thresholds.
 - Deferred config file support (documented in `ARCHITECTURE.md`) to keep Phase 2A focused on CLI exposure + benchmarks per today’s approval.
 - Logged the Phase 1 backend decision (“Option 2.5”) in `ARCHITECTURE.md`, including the full Wrapper Scope Correction + Instruction blocks to confirm SDLC alignment before coding.
+- Drafted the Phase 2B design proposal (chunked capture + overlapped STT) with three architectural options, tradeoffs, and a recommended bounded SPSC queue approach awaiting approval.
 - Created `.github/workflows/perf_smoke.yml` (timing log enforcement) and `.github/workflows/memory_guard.yml` (backend thread cleanup loop) so CI now checks the telemetry and worker-lifecycle gates mandated by the latency plan.
 - Added `app::tests::perf_smoke_emits_timing_log` and `memory_guard_backend_threads_drop` plus the supporting backend thread counters so perf/memory guards can run deterministically in CI.
 - Implemented the `CodexBackend` trait, `BackendJob` event queue, and `CliBackend` (bounded channel + drop-oldest policy) plus the refactored `run_codex_job` emitting `BackendEventKind` streams so the UI is now decoupled from PTY/CLI details.

@@ -247,6 +247,77 @@ Silence-aware capture (Phase 2A) is considered *done* when all of the following 
 - Complete the implementation tasks above, log results in `docs/architecture/2025-11-13/` along with benchmarks, then begin Phase 2B design updates once exit criteria are met.
 - Ensure `PROJECT_OVERVIEW.md` “You Are Here” section references this folder after today’s session.
 
+## Phase 2B Design Proposal — Streaming Capture + Overlapped STT (Pending Approval)
+
+### Problem & Goals
+- **Remaining bottleneck:** Even with the Phase 2A recorder, Whisper still waits for the entire utterance before running, so total voice→Codex latency = capture duration + STT duration (often >3 s for modest speech). This blocks the SLA of “few hundred milliseconds” articulated in the latency plan.
+- **Requirements from `agents.md` + latency plan:** Phase 2B must introduce chunked capture feeding a bounded SPSC queue, start Whisper once ≈1 s of audio is buffered, enforce drop-oldest backpressure, emit structured streaming metrics, and respect the fallback ladder (streaming ➜ batch ➜ dev-only Python ➜ manual).
+- **Target behavior:** Recorder still owns capture/VAD decisions, but STT starts within ~1 s of speech and keeps processing in parallel. CI perf smoke must observe `ttfb_ms` (time-to-first-byte transcript) significantly below total capture time, and logs must expose capture/stt overlap to prove compliance.
+
+### Race / Performance Risks
+- CPAL callbacks cannot block; STT must run on its own worker fed by a queue so we do not starve audio input.
+- Whisper threads are CPU hungry; overlapping STT risks starving capture unless we bound thread counts and isolate workloads per utterance.
+- Queue overflow must be visible; when the STT worker falls behind we must drop oldest chunks, increment counters, and fail back to the batch path instead of spinning forever.
+- Streaming errors must never silently downgrade accuracy—any failure must emit telemetry (`voice_stream|fallback=batch`) and re-use the known-good batch recorder or Python fallback.
+
+### Architectural Options
+| Option | Summary | Pros | Cons / Risks |
+| --- | --- | --- | --- |
+| **A. Bounded chunk channel + chunked Whisper worker (recommended)** | Split the current recorder into a `CaptureSupervisor` (VAD + metrics) and a `StreamingVoicePipeline`. Frames still flow through `FrameAccumulator` for stop control, but we also feed a bounded `ChunkChannel`. Once ≥`stt_prefetch_ms` buffered, spawn an `SttWorker` that batches ~800 ms of PCM + 200 ms lookback per chunk and runs the existing Whisper binding on each batch. Partial transcripts stream back via new `VoiceJobMessage::StreamingUpdate` messages until capture completes. | Reuses existing Earshot + accumulator code; no new FFI. Meets SPSC, drop-oldest, and fallback requirements with moderate complexity. Enables incremental UX improvements (partial transcript UI) without blocking batch fallback. | Chunked Whisper calls duplicate a small amount of work at chunk boundaries; requires tuning chunk/overlap sizes to avoid audible artifacts. Needs queue plumbing + UI changes. |
+| **B. Rolling mel cache + Whisper state reuse** | Build a new `StreamingTranscriber` in `stt.rs` that converts PCM frames to mel spectrograms incrementally, feeds `whisper_process`/`whisper_decode` via raw FFI, and keeps decoder state alive across frames. Capture pushes PCM into a shared ring; STT yields tokens as soon as enough mel frames accumulate. | Best possible latency and accuracy—Whisper sees the full context and produces continuous transcripts. Provides a clean bridge to eventual cloud/async backends. | Requires deep whisper.cpp knowledge, unsafe FFI, and extensive testing. Considerably larger scope (2–3× Phase 2B budget) with high regression risk. |
+| **C. Double-buffered batch STT** | Keep the recorder + batch STT but attempt to “overlap” by capturing utterance *N+1* while transcribing utterance *N*. | Minimal engineering cost and zero Whisper changes. | Does not satisfy the latency plan (per-utterance capture + STT remain serial). Provides negligible benefit toward the SLA; fails SDLC approval gate. |
+
+### Recommended Approach (Option A Details)
+**Core components**
+1. `StreamingVoicePipeline` orchestrator invoked from `voice::capture_voice_native`. It holds:
+   - `CaptureSupervisor`: wraps the existing `record_with_vad_impl` loop but adds hooks to fan frames into both `FrameAccumulator` and the streaming queue while preserving Phase 2A metrics.
+   - `ChunkChannel`: bounded SPSC queue (built on `crossbeam_channel::bounded`) storing `ChunkMessage { seq, samples, label }`. On `TrySendError::Full` we drop the oldest chunk (not frame) and increment `stt_chunks_dropped`.
+   - `SttWorker`: dedicated thread that starts once `prefetch_ms` of audio accumulated, drains `ChunkChannel`, and runs Whisper on chunk batches until capture completes or the sender closes.
+2. `ChunkBatchBuilder`: ensures each Whisper call receives `chunk_ms` of fresh PCM plus `chunk_overlap_ms` of lookback to prevent word clipping at chunk boundaries.
+3. `StreamingAggregator`: concatenates partial transcripts, emits `VoiceJobMessage::StreamingUpdate { text_so_far, is_final }`, and logs `voice_stream|phase=stt|chunk=…|ms=…` metrics.
+
+**State machine**
+- `Priming`: capture active, queue filling. Once `prefetch_ms` satisfied we record `prefetch_timestamp` and notify the worker.
+- `Streaming`: worker drains queue, building batches and running Whisper per chunk. Failures push status messages + fallback instructions to the UI.
+- `Flushing`: after sender closes, worker transcribes any remainder (including trailing lookback) and emits a final `Transcript`.
+- `Fallback`: triggered when `stt_chunks_dropped > stt_drop_budget` or Whisper errors. Close streaming path, stitch captured PCM from `FrameAccumulator`, and run the existing batch STT path so accuracy is preserved.
+
+**Config + metrics**
+- New keys (documented + validated):
+  - `voice.stt_prefetch_ms` (default 1000)
+  - `voice.stt_chunk_ms` (default 800)
+  - `voice.stt_chunk_overlap_ms` (default 200)
+  - `voice.stt_channel_capacity` (default 32 chunks ≈ 25 s)
+  - `voice.stt_drop_budget` (default 2 chunks)  
+  These live next to the existing voice knobs and surface through CLI flags/env vars.
+- Metrics additions: extend `voice_metrics|…` with `ttfb_ms`, `stt_ms`, `chunks_total`, `chunks_dropped`, and `fallback_path`. Perf smoke + CI gate on `ttfb_ms <= 1.2s`, zero drops, and existing capture SLA.
+
+**Testing hooks**
+- `chunk_channel_drop_oldest_when_full` (unit).
+- `stt_worker_streams_after_prefetch` using a fake transcriber that records invocation order.
+- `streaming_pipeline_falls_back_after_drop_budget` verifying telemetry + fallback path.
+- Integration test hooking the new pipeline to CPAL simulator to prove `ttfb_ms < capture_ms`.
+- Extend `voice_benchmark` with `--mode streaming` so we can benchmark TTFB vs capture_k under deterministic input.
+
+**UI + UX**
+- Add `VoiceJobMessage::StreamingUpdate` so the TUI can render partial transcripts and “thinking…” state simultaneously. Gate initial UI display behind `--voice-streaming-preview` until accuracy validated.
+- Spinner/cancel UX already exists from the Codex worker; we reuse it to show streaming status updates without blocking.
+
+### Implementation Plan (awaiting approval)
+1. Add config keys + validation + documentation updates (quick start, overview, master index).
+2. Extract `CaptureSupervisor` + `StreamingVoicePipeline` scaffolding from `record_with_vad_impl`, keeping the batch recorder as a fallback path.
+3. Implement `ChunkChannel` + drop-oldest accounting + unit tests.
+4. Introduce `SttWorker` + aggregator with fake transcriber harness for deterministic tests.
+5. Wire `voice::capture_voice_native` to try streaming first, fall back to batch, then Python if needed.
+6. Update telemetry (logs + perf_smoke) and docs (BENCHMARKS.md, latency plan appendix) with the new metrics + SLAs.
+
+### Open Questions / Approvals Needed
+1. **Chunk sizing:** Start with 800 ms chunks + 200 ms overlap? Approve initial numbers with expectation we may retune after benchmarking.
+2. **Partial transcript UX:** Should we ship UI streaming immediately or hide behind an opt-in flag until QA completes?
+3. **Worker lifecycle:** Is “one STT worker per utterance” sufficient for Phase 2B, or do we need to design for future worker pools now?
+
+Implementation will begin only after confirming this Option A plan (or alternative) is approved.
+
 ## Async Codex Worker (Blocking Fix)
 - **Problem:** `send_prompt()` in `app.rs` performs a blocking Codex call on the UI thread, freezing the entire TUI for 30–60 seconds per request. This prevents practical testing of voice latency and contradicts the nonblocking worker pattern already used for voice capture.
 - **Decision:** Pause Phase 2A implementation until the Codex call path is reworked to use a background worker (CodexJob) plus a channel, mirroring the `VoiceJob` design. This restores responsiveness and lets us collect metrics while Codex processes.

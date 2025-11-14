@@ -3,6 +3,13 @@
 All notable changes to this project will be documented here, following the SDLC policy defined in `agents.md`.
 
 ## [Unreleased]
+
+### CRITICAL - Phase 2B Design Correction (2025-11-13 Evening)
+- **Rejected original Phase 2B "chunked Whisper" proposal (Option A)** after identifying fatal architectural flaw: sequential chunk transcription provides NO latency improvement (capture + Σchunks often slower than capture + single_batch). Original proposal would have wasted weeks implementing slower approach.
+- **Documented corrected design** in `docs/architecture/2025-11-13/PHASE_2B_CORRECTED_DESIGN.md` specifying streaming mel + Whisper FFI architecture (Option B) as only viable path to <750ms voice latency target. User confirmed requirement: "we need to do option 2 i want it to be responsive not slow".
+- **Design includes:** Three-worker parallel architecture (capture/mel/stt), streaming Whisper FFI wrapper, fallback ladder (streaming→batch→Python), comprehensive measurement gates, 5-6 week implementation plan, and mandatory approval gates before any coding begins.
+- **Next steps:** (1) Measure full pipeline latency to identify bottleneck, (2) User approves architecture choice (local streaming vs cloud STT vs defer), (3) Confirm complexity budget (5-6 weeks acceptable).
+
 ### Added
 - Completed the Phase 2A recorder work: `FrameAccumulator` maintains bounded frame buffers with lookback-aware trimming, `CaptureMetrics` now report `capture_ms`, and perf smoke parses the real `voice_metrics|…` log lines emitted by `voice.rs`.
 - Added `CaptureState` helpers plus unit tests covering max-duration timeout, min-speech gating, and manual stop semantics so recorder edge cases stay regression-tested.
