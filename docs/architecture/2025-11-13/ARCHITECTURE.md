@@ -253,8 +253,15 @@ Silence-aware capture (Phase 2A) is considered *done* when all of the following 
 - **Corrected direction (Option B streaming Whisper):** True overlap requires feeding mel frames into Whisper incrementally while capture runs. The full production-grade design, risk analysis, fallback ladder, and six-phase implementation plan live in [`docs/architecture/2025-11-13/PHASE_2B_CORRECTED_DESIGN.md`](PHASE_2B_CORRECTED_DESIGN.md). That document also covers the cloud STT fallback option if local streaming proves infeasible.
 - **Measurement gate (must complete before coding):** instrument capture start → STT complete → Codex response → UI render, run 10 short + 10 medium utterances, and store raw data + analysis in `LATENCY_MEASUREMENTS.md`. Only after stakeholders confirm that voice is the dominant bottleneck do we select the local streaming vs. cloud STT path and start implementation.
 - **Open decisions:** confirm hard latency target (<750 ms voice), offline vs. cloud requirement, and acceptance of a 5–6 week scope to land streaming Whisper. These answers, plus the measurement results, govern whether Phase 2B proceeds with Option B, switches to a cloud STT backend, or defers.
+- **Measurement outcome (2025-11-13):** `LATENCY_MEASUREMENTS.md` shows the voice pipeline averages 1.19 s while Codex averages 9.2 s; Codex accounts for ~88 % of end-to-end latency. Phase 2B remains blocked until Codex latency is addressed or stakeholders explicitly choose to proceed despite the low ROI. See [`CODEX_LATENCY_PLAN.md`](CODEX_LATENCY_PLAN.md) for the remediation plan and gating tasks.
 
 Implementation remains blocked until the measurement document and stakeholder approvals land.
+
+## Persistent Codex Session — Health Check Fix (2025-11-14)
+- **Issue:** The earlier PTY health check sent `hi\n` and required Codex to echo within 200 ms, which polluted the session and marked every persistent instance as “unresponsive,” forcing CLI spawns on every request.
+- **Fix:** Health check now waits up to 5 s and only verifies the process is alive (`PTY_HEALTHCHECK_TIMEOUT_MS = 5000`). No prompts are injected, so conversations start clean and the PTY stays alive between prompts. Python helper path was removed; persistent mode is now pure Rust.
+- **Effect:** Log shows `PTY health check: process alive, assuming responsive` followed by `CliBackend: persistent PTY session ready and responsive`. Subsequent requests re-use the session, eliminating spawn overhead. End-to-end latency is still dominated by Codex thinking time, but there is no session pollution.
+- **Next focus:** With PTY stable, the next Codex task is to stream partial output (emit `BackendEventKind::Token` updates) so the TUI mirrors the native Codex “thinking” UX while the model generates a response.
 
 ## Async Codex Worker (Blocking Fix)
 - **Problem:** `send_prompt()` in `app.rs` performs a blocking Codex call on the UI thread, freezing the entire TUI for 30–60 seconds per request. This prevents practical testing of voice latency and contradicts the nonblocking worker pattern already used for voice capture.

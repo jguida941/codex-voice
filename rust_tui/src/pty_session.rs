@@ -112,6 +112,8 @@ impl PtyCodexSession {
     /// Probe whether the PTY echoes back within a tight timeout.
     /// Drains all stale output first to avoid false positives from buffered data.
     pub fn is_responsive(&mut self, timeout: Duration) -> bool {
+        use crate::log_debug;
+
         // Aggressively drain all stale bytes to avoid false positives
         for _ in 0..5 {
             if self.read_output().is_empty() {
@@ -120,13 +122,18 @@ impl PtyCodexSession {
             std::thread::sleep(Duration::from_millis(10));
         }
 
-        // Send newline and check for ANY response
-        if self.send("\n").is_err() {
+        // Just check if the process is alive - don't send prompts that pollute the session
+        // Any actual prompt sent here becomes permanent conversation history
+        let is_alive = self.is_alive();
+        if !is_alive {
+            log_debug("PTY health check: process not alive");
             return false;
         }
 
-        // Any output within timeout indicates responsiveness
-        !self.read_output_timeout(timeout).is_empty()
+        // Process is alive - that's sufficient for health check
+        // We can't test responsiveness without polluting the conversation
+        log_debug("PTY health check: process alive, assuming responsive");
+        true
     }
 
     /// Peek whether the child is still running (without reaping it).

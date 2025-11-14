@@ -30,7 +30,7 @@ const ISO_639_1_CODES: &[&str] = &[
 // FFmpeg devices are passed to the shell, so strip characters that would let users sneak commands in.
 const FORBIDDEN_DEVICE_CHARS: &[char] = &[';', '|', '&', '$', '`', '<', '>', '\\', '\'', '"'];
 const DEFAULT_PIPELINE_SCRIPT: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../codex_voice.py");
-const DEFAULT_PTY_HELPER: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../scripts/run_in_pty.py");
+// PTY helper removed - using native Rust PtyCodexSession instead
 
 /// CLI options for the Codex Voice TUI. Validated values keep downstream subprocesses safe.
 #[derive(Debug, Parser, Clone)]
@@ -56,9 +56,7 @@ pub struct AppConfig {
     #[arg(long = "term", default_value_t = default_term())]
     pub term_value: String,
 
-    /// PTY helper script path
-    #[arg(long, default_value = DEFAULT_PTY_HELPER)]
-    pub pty_helper: PathBuf,
+    // PTY helper removed - using native Rust PtyCodexSession instead
 
     /// Preferred audio input device name
     #[arg(long)]
@@ -219,7 +217,7 @@ impl AppConfig {
     }
 
     /// Check CLI values and normalize paths.
-    pub(crate) fn validate(&mut self) -> Result<()> {
+    pub fn validate(&mut self) -> Result<()> {
         const MIN_RECORD_SECONDS: u64 = 1;
         const MAX_RECORD_SECONDS: u64 = 60;
         let repo_root = canonical_repo_root()?;
@@ -317,7 +315,7 @@ impl AppConfig {
         // Keep helper scripts inside this repo.
         self.pipeline_script =
             canonicalize_within_repo(&self.pipeline_script, "pipeline script", &repo_root)?;
-        self.pty_helper = canonicalize_within_repo(&self.pty_helper, "pty helper", &repo_root)?;
+        // PTY helper removed - using native Rust PtyCodexSession instead
 
         if self.whisper_model_path.is_none() {
             if let Some(auto_model) =

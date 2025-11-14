@@ -57,6 +57,11 @@ def run_with_pty(argv: list[str], stdin_data: bytes | None) -> int:
         try:
             os.close(master_fd)
             os.environ.setdefault("TERM", os.environ.get("TERM", "xterm-256color"))
+            # Attach PTY slave to stdin/stdout/stderr so the child sees a real TTY.
+            os.dup2(slave_fd, 0)
+            os.dup2(slave_fd, 1)
+            os.dup2(slave_fd, 2)
+            os.close(slave_fd)
             os.execvp(argv[0], argv)
         finally:  # pragma: no cover - defensive only
             os._exit(1)

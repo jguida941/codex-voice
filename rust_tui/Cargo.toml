@@ -35,3 +35,7 @@ path = "tst/test_audio.rs"
 [[bin]]
 name = "voice_benchmark"
 path = "src/bin/voice_benchmark.rs"
+
+[[bin]]
+name = "latency_measurement"
+path = "src/bin/latency_measurement.rs"

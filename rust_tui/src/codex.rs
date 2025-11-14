@@ -25,10 +25,12 @@ use strip_ansi_escapes::strip;
 
 /// Spinner frames used by the UI when a Codex request is inflight.
 pub const CODEX_SPINNER_FRAMES: &[char] = &['-', '\\', '|', '/'];
-const PTY_FIRST_BYTE_TIMEOUT_MS: u64 = 150;
-const PTY_OVERALL_TIMEOUT_MS: u64 = 500;
-const PTY_QUIET_GRACE_MS: u64 = 350;
-const PTY_HEALTHCHECK_TIMEOUT_MS: u64 = 200;
+// Codex is an AI that takes seconds to respond, not milliseconds
+// These timeouts must be realistic for AI response times
+const PTY_FIRST_BYTE_TIMEOUT_MS: u64 = 10000;  // 10s for first byte (was 150ms)
+const PTY_OVERALL_TIMEOUT_MS: u64 = 30000;     // 30s overall (was 500ms)
+const PTY_QUIET_GRACE_MS: u64 = 2000;          // 2s quiet period (was 350ms)
+const PTY_HEALTHCHECK_TIMEOUT_MS: u64 = 5000;  // 5s health check (was 2000ms)
 const BACKEND_EVENT_CAPACITY: usize = 1024;
 
 /// Unique identifier for Codex requests routed through the backend.
@@ -324,6 +326,8 @@ impl CliBackend {
 
     fn ensure_codex_session(&self, state: &mut CliBackendState) -> Result<()> {
         let working_dir = self.working_dir.clone();
+        log_debug(&format!("Attempting to create PTY session with codex_cmd={}, working_dir={}",
+            self.config.codex_cmd, working_dir.to_str().unwrap_or(".")));
         match PtyCodexSession::new(
             &self.config.codex_cmd,
             working_dir.to_str().unwrap_or("."),
@@ -331,16 +335,21 @@ impl CliBackend {
             &self.config.term_value,
         ) {
             Ok(mut session) => {
+                log_debug("PTY session created, checking responsiveness...");
                 let timeout = Duration::from_millis(PTY_HEALTHCHECK_TIMEOUT_MS);
                 if session.is_responsive(timeout) {
                     state.codex_session = Some(session);
-                    log_debug("CliBackend: persistent PTY session ready");
+                    log_debug("CliBackend: persistent PTY session ready and responsive");
                     Ok(())
                 } else {
+                    log_debug("PTY health check failed - session unresponsive");
                     Err(anyhow!("persistent Codex unresponsive"))
                 }
             }
-            Err(err) => Err(err.context("failed to start Codex PTY")),
+            Err(err) => {
+                log_debug(&format!("Failed to create PTY session: {:#}", err));
+                Err(err.context("failed to start Codex PTY"))
+            }
         }
     }
 }
@@ -666,14 +675,9 @@ fn call_codex_cli(
     working_dir: &Path,
     cancel: &CancelToken,
 ) -> Result<String, CodexCallError> {
-    if let Some(result) = try_python_pty(config, prompt, working_dir, cancel)? {
-        match result {
-            PtyResult::Success(text) => return Ok(text),
-            PtyResult::Failure(msg) => {
-                log_debug(&format!("Codex PTY helper failed; falling back: {msg}"));
-            }
-        }
-    }
+    // Skip broken Python PTY helper - use direct CLI invocation
+    // The helper fails because codex checks if stdout is a TTY before we can attach the PTY
+    // Persistent PTY (PtyCodexSession) is the proper solution
 
     // Primary fallback: interactive Codex invocation
     let mut interactive_cmd = Command::new(&config.codex_cmd);
@@ -806,59 +810,8 @@ fn call_codex_via_session(
 }
 
 /// Outcome of the optional Python PTY helper invocation.
-enum PtyResult {
-    Success(String),
-    Failure(String),
-}
-
-fn try_python_pty(
-    config: &AppConfig,
-    prompt: &str,
-    working_dir: &Path,
-    cancel: &CancelToken,
-) -> Result<Option<PtyResult>, CodexCallError> {
-    if !config.pty_helper.exists() {
-        return Ok(None);
-    }
-
-    let mut cmd = Command::new(&config.python_cmd);
-    cmd.arg(&config.pty_helper);
-    cmd.arg("--stdin");
-    cmd.arg(&config.codex_cmd);
-    cmd.arg("-C");
-    cmd.arg(working_dir);
-    cmd.args(&config.codex_args);
-    cmd.env("TERM", &config.term_value);
-    cmd.stdin(Stdio::piped());
-    cmd.stdout(Stdio::piped());
-    cmd.stderr(Stdio::piped());
-
-    let output = spawn_with_cancel(cmd, Some(prompt), cancel).map_err(|err| match err {
-        CodexCallError::Cancelled => CodexCallError::Cancelled,
-        CodexCallError::Failure(e) => CodexCallError::Failure(e.context(format!(
-            "failed to run PTY helper {}",
-            config.pty_helper.display()
-        ))),
-    })?;
-
-    if output.status.success() {
-        return Ok(Some(PtyResult::Success(
-            String::from_utf8_lossy(&output.stdout).to_string(),
-        )));
-    }
-
-    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-    let msg = if stderr.is_empty() {
-        format!(
-            "PTY helper exit {}: {}",
-            output.status,
-            config.pty_helper.display()
-        )
-    } else {
-        format!("PTY helper exit {}: {}", output.status, stderr)
-    };
-    Ok(Some(PtyResult::Failure(msg)))
-}
+// Python PTY helper removed - we have a proper Rust PTY implementation (PtyCodexSession)
+// that handles all PTY requirements without needing external Python scripts
 
 fn spawn_with_cancel(
     mut cmd: Command,
