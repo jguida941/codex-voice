@@ -1,5 +1,3 @@
-#![cfg(feature = "vad_earshot")]
-
 //! Earshot-powered Voice Activity Detector adapter implementing `VadEngine`.
 
 use crate::audio::{VadDecision, VadEngine};

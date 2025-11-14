@@ -1,104 +1,439 @@
-//! Async Codex worker that mirrors the `VoiceJob` pattern so Codex calls never
-//! block the UI thread. Also hosts shared Codex helpers (PTY sanitization, prompt
-//! formatting) so the rest of the app can stay lean.
+//! Codex backend interfaces plus the async worker used by the TUI. The backend
+//! exposes a `CodexBackend` trait that emits structured events so the UI can
+//! render streaming output, show “thinking…” indicators, and react to
+//! recoverable vs fatal failures without duplicating business logic.
 
-use crate::{
-    config::AppConfig, log_debug, pty_session::PtyCodexSession, utf8_safe::window_by_columns,
-};
+use crate::{config::AppConfig, log_debug, pty_session::PtyCodexSession};
 use anyhow::{anyhow, Context, Result};
 use std::{
-    env, fmt,
+    collections::{HashMap, VecDeque},
+    env,
     io::{self, Write},
     path::{Path, PathBuf},
     process::{Child, Command, Output, Stdio},
     sync::{
-        atomic::{AtomicBool, Ordering},
-        mpsc::{self, TryRecvError},
-        Arc,
+        atomic::{AtomicBool, AtomicU64, Ordering},
+        mpsc::{self, Receiver, TryRecvError},
+        Arc, Mutex,
     },
-    thread,
+    thread::{self, JoinHandle},
     time::{Duration, Instant},
 };
+#[cfg(test)]
+use std::sync::atomic::AtomicUsize;
 use strip_ansi_escapes::strip;
-use unicode_width::UnicodeWidthStr;
 
 /// Spinner frames used by the UI when a Codex request is inflight.
 pub const CODEX_SPINNER_FRAMES: &[char] = &['-', '\\', '|', '/'];
 const PTY_FIRST_BYTE_TIMEOUT_MS: u64 = 150;
 const PTY_OVERALL_TIMEOUT_MS: u64 = 500;
 const PTY_QUIET_GRACE_MS: u64 = 350;
+const PTY_HEALTHCHECK_TIMEOUT_MS: u64 = 200;
+const BACKEND_EVENT_CAPACITY: usize = 1024;
 
-/// Handle to an asynchronous Codex invocation.
-pub struct CodexJob {
-    pub receiver: mpsc::Receiver<CodexJobMessage>,
-    pub handle: Option<thread::JoinHandle<()>>,
-    cancel_token: CancelToken,
+/// Unique identifier for Codex requests routed through the backend.
+pub type JobId = u64;
+
+/// User-facing mode describing how Codex should treat the request.
+#[derive(Debug, Clone, Copy)]
+pub enum RequestMode {
+    Chat,
 }
 
-impl CodexJob {
-    /// Request cancellation; the worker best-effort terminates subprocesses and
-    /// emits `CodexJobMessage::Canceled`.
-    pub fn cancel(&self) {
-        self.cancel_token.cancel();
-    }
-
-    /// Whether cancellation has been requested.
-    pub fn is_cancelled(&self) -> bool {
-        self.cancel_token.is_cancelled()
-    }
+/// Payload variants supported by the backend.
+#[derive(Debug, Clone)]
+pub enum RequestPayload {
+    Chat { prompt: String },
 }
 
-/// Worker → UI messages describing Codex outcomes.
-pub enum CodexJobMessage {
-    Completed {
-        lines: Vec<String>,
-        status: String,
-        codex_session: Option<PtyCodexSession>,
-        disable_pty: bool,
-    },
-    Failed {
-        error: String,
-        codex_session: Option<PtyCodexSession>,
-        disable_pty: bool,
-    },
-    Canceled {
-        codex_session: Option<PtyCodexSession>,
-        disable_pty: bool,
-    },
+/// Structured Codex request routed through the backend.
+#[derive(Debug, Clone)]
+pub struct CodexRequest {
+    pub payload: RequestPayload,
+    pub timeout: Option<Duration>,
+    pub workspace_files: Vec<PathBuf>,
 }
 
-impl fmt::Debug for CodexJobMessage {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            CodexJobMessage::Completed { status, .. } => {
-                f.debug_struct("Completed").field("status", status).finish()
-            }
-            CodexJobMessage::Failed { error, .. } => {
-                f.debug_struct("Failed").field("error", error).finish()
-            }
-            CodexJobMessage::Canceled { .. } => f.debug_struct("Canceled").finish(),
+impl CodexRequest {
+    pub fn chat(prompt: String) -> Self {
+        Self {
+            payload: RequestPayload::Chat { prompt },
+            timeout: None,
+            workspace_files: Vec::new(),
         }
     }
 }
 
-/// Spawn a Codex worker thread and return a handle the UI can poll.
-pub fn start_codex_job(
-    prompt: String,
-    config: AppConfig,
-    codex_session: Option<PtyCodexSession>,
-) -> CodexJob {
-    let (tx, rx) = mpsc::channel();
-    let cancel_token = CancelToken::new();
-    let cancel_for_worker = cancel_token.clone();
-    let handle = thread::spawn(move || {
-        let message = run_codex_job(prompt, config, codex_session, cancel_for_worker);
-        let _ = tx.send(message);
-    });
+/// Telemetry produced for every Codex job so latency regressions can be audited.
+#[derive(Debug, Clone)]
+pub struct BackendStats {
+    pub backend_type: &'static str,
+    pub started_at: Instant,
+    pub first_token_at: Option<Instant>,
+    pub finished_at: Instant,
+    pub tokens_received: usize,
+    pub bytes_transferred: usize,
+    pub pty_attempts: u32,
+    pub cli_fallback_used: bool,
+    pub disable_pty: bool,
+}
 
-    CodexJob {
-        receiver: rx,
-        handle: Some(handle),
-        cancel_token,
+impl BackendStats {
+    fn new(now: Instant) -> Self {
+        Self {
+            backend_type: "cli",
+            started_at: now,
+            first_token_at: None,
+            finished_at: now,
+            tokens_received: 0,
+            bytes_transferred: 0,
+            pty_attempts: 0,
+            cli_fallback_used: false,
+            disable_pty: false,
+        }
+    }
+}
+
+/// Event emitted by the backend describing job progress.
+#[derive(Debug, Clone)]
+pub struct BackendEvent {
+    pub job_id: JobId,
+    pub kind: BackendEventKind,
+}
+
+/// Classified event payload.
+#[derive(Debug, Clone)]
+pub enum BackendEventKind {
+    Started {
+        mode: RequestMode,
+    },
+    Status {
+        message: String,
+    },
+    Token {
+        text: String,
+    },
+    RecoverableError {
+        phase: &'static str,
+        message: String,
+        retry_available: bool,
+    },
+    FatalError {
+        phase: &'static str,
+        message: String,
+        disable_pty: bool,
+    },
+    Finished {
+        lines: Vec<String>,
+        status: String,
+        stats: BackendStats,
+    },
+    Canceled {
+        disable_pty: bool,
+    },
+}
+
+/// Errors surfaced synchronously when a backend cannot start a job.
+#[derive(Debug)]
+pub enum BackendError {
+    InvalidRequest(&'static str),
+    BackendDisabled(String),
+}
+
+/// Runtime implementation of the Codex backend interface.
+pub trait CodexBackend: Send + Sync {
+    fn start(&self, request: CodexRequest) -> Result<BackendJob, BackendError>;
+    fn cancel(&self, job_id: JobId);
+    fn working_dir(&self) -> &Path;
+}
+
+/// Handle to an asynchronous Codex invocation routed through the backend.
+pub struct BackendJob {
+    pub id: JobId,
+    events: Arc<BoundedEventQueue>,
+    signal_rx: Receiver<()>,
+    handle: Option<JoinHandle<()>>,
+    cancel_token: CancelToken,
+}
+
+impl BackendJob {
+    fn new(
+        id: JobId,
+        events: Arc<BoundedEventQueue>,
+        signal_rx: Receiver<()>,
+        handle: JoinHandle<()>,
+        cancel_token: CancelToken,
+    ) -> Self {
+        Self {
+            id,
+            events,
+            signal_rx,
+            handle: Some(handle),
+            cancel_token,
+        }
+    }
+
+    /// Request cancellation; the worker best-effort terminates subprocesses and emits a
+    /// `BackendEventKind::Canceled` terminal event.
+    pub fn cancel(&self) {
+        self.cancel_token.cancel();
+    }
+
+    /// Poll the signal channel without blocking to determine whether new events exist.
+    pub fn try_recv_signal(&self) -> Result<(), TryRecvError> {
+        self.signal_rx.try_recv().map(|_| ())
+    }
+
+    /// Drain any queued backend events.
+    pub fn drain_events(&self) -> Vec<BackendEvent> {
+        self.events.drain()
+    }
+
+    /// Take ownership of the worker handle so the caller can join it once the job finishes.
+    pub fn take_handle(&mut self) -> Option<JoinHandle<()>> {
+        self.handle.take()
+    }
+}
+
+/// Backing store for all events emitted by a job. Ensures bounded capacity with drop-oldest semantics.
+struct BoundedEventQueue {
+    capacity: usize,
+    inner: Mutex<VecDeque<BackendEvent>>,
+}
+
+impl BoundedEventQueue {
+    fn new(capacity: usize) -> Self {
+        Self {
+            capacity,
+            inner: Mutex::new(VecDeque::with_capacity(capacity)),
+        }
+    }
+
+    fn push(&self, event: BackendEvent) -> Result<(), BackendQueueError> {
+        let mut queue = self.inner.lock().unwrap();
+        if queue.len() >= self.capacity && !Self::drop_non_terminal(&mut queue) {
+            return Err(BackendQueueError);
+        }
+        queue.push_back(event);
+        Ok(())
+    }
+
+    fn drain(&self) -> Vec<BackendEvent> {
+        let mut queue = self.inner.lock().unwrap();
+        queue.drain(..).collect()
+    }
+
+    fn drop_non_terminal(queue: &mut VecDeque<BackendEvent>) -> bool {
+        if let Some(idx) = queue
+            .iter()
+            .position(|event| matches!(event.kind, BackendEventKind::Token { .. }))
+        {
+            queue.remove(idx);
+            return true;
+        }
+        if let Some(idx) = queue
+            .iter()
+            .position(|event| matches!(event.kind, BackendEventKind::Status { .. }))
+        {
+            queue.remove(idx);
+            return true;
+        }
+        if let Some(idx) = queue.iter().position(|event| {
+            matches!(
+                event.kind,
+                BackendEventKind::RecoverableError { .. } | BackendEventKind::Started { .. }
+            )
+        }) {
+            queue.remove(idx);
+            return true;
+        }
+        false
+    }
+}
+
+#[derive(Debug)]
+struct BackendQueueError;
+
+/// Sender that writes backend events into the bounded queue and notifies the UI.
+struct EventSender {
+    queue: Arc<BoundedEventQueue>,
+    signal_tx: mpsc::Sender<()>,
+}
+
+impl EventSender {
+    fn new(queue: Arc<BoundedEventQueue>, signal_tx: mpsc::Sender<()>) -> Self {
+        Self { queue, signal_tx }
+    }
+
+    fn emit(&self, event: BackendEvent) -> Result<(), BackendQueueError> {
+        self.queue.push(event)?;
+        let _ = self.signal_tx.send(());
+        Ok(())
+    }
+}
+
+/// Default CLI/PTY backend implementation driving the `codex` binary.
+pub struct CliBackend {
+    config: AppConfig,
+    working_dir: PathBuf,
+    next_job_id: AtomicU64,
+    state: Arc<Mutex<CliBackendState>>,
+    cancel_tokens: Arc<Mutex<HashMap<JobId, CancelToken>>>,
+}
+
+struct CliBackendState {
+    codex_session: Option<PtyCodexSession>,
+    pty_disabled: bool,
+}
+
+impl CliBackend {
+    pub fn new(config: AppConfig) -> Self {
+        let working_dir = env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+        let state = CliBackendState {
+            codex_session: None,
+            pty_disabled: !config.persistent_codex,
+        };
+        Self {
+            config,
+            working_dir,
+            next_job_id: AtomicU64::new(0),
+            state: Arc::new(Mutex::new(state)),
+            cancel_tokens: Arc::new(Mutex::new(HashMap::new())),
+        }
+    }
+
+    fn take_codex_session_for_job(&self) -> Option<PtyCodexSession> {
+        if !self.config.persistent_codex {
+            return None;
+        }
+        let mut state = self.state.lock().unwrap();
+        if state.pty_disabled {
+            return None;
+        }
+        if state.codex_session.is_none() {
+            if let Err(err) = self.ensure_codex_session(&mut state) {
+                log_debug(&format!(
+                    "CliBackend: persistent Codex unavailable: {err:#}"
+                ));
+                state.pty_disabled = true;
+                return None;
+            }
+        }
+        state.codex_session.take()
+    }
+
+    fn ensure_codex_session(&self, state: &mut CliBackendState) -> Result<()> {
+        let working_dir = self.working_dir.clone();
+        match PtyCodexSession::new(
+            &self.config.codex_cmd,
+            working_dir.to_str().unwrap_or("."),
+            &self.config.codex_args,
+            &self.config.term_value,
+        ) {
+            Ok(mut session) => {
+                let timeout = Duration::from_millis(PTY_HEALTHCHECK_TIMEOUT_MS);
+                if session.is_responsive(timeout) {
+                    state.codex_session = Some(session);
+                    log_debug("CliBackend: persistent PTY session ready");
+                    Ok(())
+                } else {
+                    Err(anyhow!("persistent Codex unresponsive"))
+                }
+            }
+            Err(err) => Err(err.context("failed to start Codex PTY")),
+        }
+    }
+}
+
+impl CodexBackend for CliBackend {
+    fn start(&self, request: CodexRequest) -> Result<BackendJob, BackendError> {
+        let mode = match &request.payload {
+            RequestPayload::Chat { prompt } => {
+                if prompt.trim().is_empty() {
+                    return Err(BackendError::InvalidRequest("Prompt is empty"));
+                }
+                RequestMode::Chat
+            }
+        };
+
+        let job_id = self.next_job_id.fetch_add(1, Ordering::Relaxed) + 1;
+        let queue = Arc::new(BoundedEventQueue::new(BACKEND_EVENT_CAPACITY));
+        let queue_for_worker = Arc::clone(&queue);
+        let (signal_tx, signal_rx) = mpsc::channel();
+        let cancel_token = CancelToken::new();
+        let cancel_for_worker = cancel_token.clone();
+        let mut session_for_job = self.take_codex_session_for_job();
+        let config = self.config.clone();
+        let working_dir = self.working_dir.clone();
+        let state = Arc::clone(&self.state);
+        let cancel_registry = Arc::clone(&self.cancel_tokens);
+
+        {
+            let mut registry = cancel_registry.lock().unwrap();
+            registry.insert(job_id, cancel_token.clone());
+        }
+
+        let context = JobContext {
+            job_id,
+            request,
+            mode,
+            config,
+            working_dir,
+        };
+        let handle = thread::spawn(move || {
+            #[cfg(test)]
+            let _thread_guard = BackendThreadGuard::new();
+            let sender = EventSender::new(queue_for_worker, signal_tx);
+            let outcome =
+                run_codex_job(context, session_for_job.take(), cancel_for_worker, &sender);
+            CliBackend::cleanup_job(cancel_registry, job_id);
+            CliBackend::restore_static_state(state, outcome.codex_session, outcome.disable_pty);
+        });
+
+        Ok(BackendJob::new(
+            job_id,
+            queue,
+            signal_rx,
+            handle,
+            cancel_token,
+        ))
+    }
+
+    fn cancel(&self, job_id: JobId) {
+        let maybe_token = {
+            let registry = self.cancel_tokens.lock().unwrap();
+            registry.get(&job_id).cloned()
+        };
+        if let Some(token) = maybe_token {
+            token.cancel();
+        }
+    }
+
+    fn working_dir(&self) -> &Path {
+        &self.working_dir
+    }
+}
+
+impl CliBackend {
+    fn cleanup_job(registry: Arc<Mutex<HashMap<JobId, CancelToken>>>, job_id: JobId) {
+        let mut registry = registry.lock().unwrap();
+        registry.remove(&job_id);
+    }
+
+    fn restore_static_state(
+        state: Arc<Mutex<CliBackendState>>,
+        session: Option<PtyCodexSession>,
+        disable_pty: bool,
+    ) {
+        let mut state = state.lock().unwrap();
+        if disable_pty {
+            state.pty_disabled = true;
+            state.codex_session = None;
+            return;
+        }
+        if let Some(session) = session {
+            state.codex_session = Some(session);
+        }
     }
 }
 
@@ -141,154 +476,197 @@ impl From<std::io::Error> for CodexCallError {
     }
 }
 
-fn run_codex_job(
-    prompt: String,
+struct CodexRunOutcome {
+    codex_session: Option<PtyCodexSession>,
+    disable_pty: bool,
+}
+
+struct JobContext {
+    job_id: JobId,
+    request: CodexRequest,
+    mode: RequestMode,
     config: AppConfig,
-    mut codex_session: Option<PtyCodexSession>,
+    working_dir: PathBuf,
+}
+
+fn run_codex_job(
+    context: JobContext,
+    codex_session: Option<PtyCodexSession>,
     cancel: CancelToken,
-) -> CodexJobMessage {
+    sender: &EventSender,
+) -> CodexRunOutcome {
+    let JobContext {
+        job_id,
+        request,
+        mode,
+        config,
+        working_dir,
+    } = context;
+    let mut outcome = CodexRunOutcome {
+        codex_session,
+        disable_pty: false,
+    };
+
+    if sender
+        .emit(BackendEvent {
+            job_id,
+            kind: BackendEventKind::Started { mode },
+        })
+        .is_err()
+    {
+        log_debug("CodexBackend: failed to emit Started event (queue overflow)");
+        return outcome;
+    }
+
+    let prompt = match request.payload {
+        RequestPayload::Chat { prompt } => prompt,
+    };
+
     #[cfg(test)]
-    if let Some(message) = try_job_hook(&prompt, &cancel) {
-        return message;
+    if let Some(events) = try_job_hook(&prompt, &cancel) {
+        for kind in events {
+            let _ = sender.emit(BackendEvent { job_id, kind });
+        }
+        return outcome;
     }
 
     if prompt.trim().is_empty() {
-        return CodexJobMessage::Failed {
-            error: "Prompt is empty.".into(),
-            codex_session,
-            disable_pty: false,
-        };
+        let _ = sender.emit(BackendEvent {
+            job_id,
+            kind: BackendEventKind::FatalError {
+                phase: "input_validation",
+                message: "Prompt is empty.".into(),
+                disable_pty: false,
+            },
+        });
+        return outcome;
     }
 
-    let codex_start = Instant::now();
-    let mut used_persistent = false;
+    let started_at = Instant::now();
+    let mut stats = BackendStats::new(started_at);
     let mut codex_output: Option<String> = None;
-    let mut disable_pty = false;
-    let mut pty_attempted = false;
-    let mut pty_elapsed_ms = 0.0;
-    let mut cli_elapsed_ms = 0.0;
 
     if config.persistent_codex {
-        if let Some(mut session) = codex_session.take() {
-            pty_attempted = true;
-            log_debug("CodexJob: Trying persistent Codex session");
-            let pty_start = Instant::now();
+        if let Some(mut session) = outcome.codex_session.take() {
+            stats.pty_attempts = 1;
+            log_debug("CodexBackend: attempting persistent Codex session");
             match call_codex_via_session(&mut session, &prompt, &cancel) {
                 Ok(text) => {
-                    used_persistent = true;
-                    codex_session = Some(session);
                     codex_output = Some(text);
+                    outcome.codex_session = Some(session);
                 }
                 Err(CodexCallError::Cancelled) => {
-                    pty_elapsed_ms = elapsed_ms(pty_start);
-                    return CodexJobMessage::Canceled {
-                        codex_session: Some(session),
-                        disable_pty,
-                    };
+                    let _ = sender.emit(BackendEvent {
+                        job_id,
+                        kind: BackendEventKind::Canceled { disable_pty: false },
+                    });
+                    outcome.codex_session = Some(session);
+                    return outcome;
                 }
                 Err(err) => {
-                    pty_elapsed_ms = elapsed_ms(pty_start);
-                    disable_pty = true;
-                    log_debug(&format!(
-                        "Persistent Codex session failed, disabling PTY: {err:?}"
-                    ));
+                    outcome.disable_pty = true;
+                    let _ = sender.emit(BackendEvent {
+                        job_id,
+                        kind: BackendEventKind::RecoverableError {
+                            phase: "pty_session",
+                            message: format!("Persistent Codex failed: {err:?}"),
+                            retry_available: true,
+                        },
+                    });
                 }
-            }
-            if pty_elapsed_ms == 0.0 {
-                pty_elapsed_ms = elapsed_ms(pty_start);
             }
         }
     }
 
     if cancel.is_cancelled() {
-        return CodexJobMessage::Canceled {
-            codex_session,
-            disable_pty,
-        };
+        let _ = sender.emit(BackendEvent {
+            job_id,
+            kind: BackendEventKind::Canceled {
+                disable_pty: outcome.disable_pty,
+            },
+        });
+        return outcome;
     }
 
     let output_text = match codex_output {
         Some(text) => text,
-        None => {
-            let cli_start = Instant::now();
-            match call_codex_cli(&config, &prompt, &cancel) {
-                Ok(text) => {
-                    cli_elapsed_ms = elapsed_ms(cli_start);
-                    text
-                }
-                Err(CodexCallError::Cancelled) => {
-                    cli_elapsed_ms = elapsed_ms(cli_start);
-                    return CodexJobMessage::Canceled {
-                        codex_session,
-                        disable_pty,
-                    };
-                }
-                Err(CodexCallError::Failure(err)) => {
-                    cli_elapsed_ms = elapsed_ms(cli_start);
-                    return CodexJobMessage::Failed {
-                        error: format!("{err:#}"),
-                        codex_session,
-                        disable_pty,
-                    };
-                }
+        None => match call_codex_cli(&config, &prompt, &working_dir, &cancel) {
+            Ok(text) => {
+                stats.cli_fallback_used = true;
+                text
             }
-        }
+            Err(CodexCallError::Cancelled) => {
+                let _ = sender.emit(BackendEvent {
+                    job_id,
+                    kind: BackendEventKind::Canceled {
+                        disable_pty: outcome.disable_pty,
+                    },
+                });
+                return outcome;
+            }
+            Err(CodexCallError::Failure(err)) => {
+                let _ = sender.emit(BackendEvent {
+                    job_id,
+                    kind: BackendEventKind::FatalError {
+                        phase: "cli",
+                        message: format!("{err:#}"),
+                        disable_pty: outcome.disable_pty,
+                    },
+                });
+                return outcome;
+            }
+        },
     };
 
-    let elapsed = codex_start.elapsed().as_secs_f64();
-    let line_count = output_text.lines().count();
-    if config.log_timings {
-        log_debug(&format!(
-            "timing|phase=codex_job|pty_attempted={pty_attempted}|pty_ms={pty_elapsed_ms:.1}|cli_ms={cli_elapsed_ms:.1}|disable_pty={disable_pty}|total_ms={:.1}|lines={}|chars={}",
-            elapsed * 1000.0,
-            line_count,
-            output_text.len()
-        ));
-    }
+    stats.finished_at = Instant::now();
+    stats.bytes_transferred = output_text.len();
+    stats.disable_pty = outcome.disable_pty;
 
-    let sanitized_output = if used_persistent {
+    let sanitized_output = if outcome.codex_session.is_some() && config.persistent_codex {
         output_text
     } else {
         sanitize_pty_output(output_text.as_bytes())
     };
     let sanitized_lines = prepare_for_display(&sanitized_output);
-
     let mut lines = Vec::with_capacity(sanitized_lines.len() + 4);
     let prompt_line = format!("> {}", prompt.trim());
-    log_debug(&format!(
-        "CodexJob: Adding prompt line to output: {}",
-        preview_for_log(&prompt_line, 50)
-    ));
     lines.push(prompt_line);
     lines.push(String::new());
-
-    for (idx, line) in sanitized_lines.iter().enumerate() {
-        if !line.is_empty() {
-            log_debug(&format!(
-                "CodexJob: sanitized_line[{idx}] {}",
-                preview_for_log(line, 50)
-            ));
-        }
-    }
-
     lines.extend(sanitized_lines);
     lines.push(String::new());
-    CodexJobMessage::Completed {
-        lines,
-        status: format!("Codex returned {line_count} lines."),
-        codex_session,
-        disable_pty,
+
+    let line_count = lines.len();
+    if config.log_timings {
+        let total_ms = stats
+            .finished_at
+            .duration_since(stats.started_at)
+            .as_secs_f64()
+            * 1000.0;
+        log_debug(&format!(
+            "timing|phase=codex_job|job_id={job_id}|pty_attempts={}|cli_fallback={}|disable_pty={}|total_ms={total_ms:.1}|lines={line_count}",
+            stats.pty_attempts, stats.cli_fallback_used, outcome.disable_pty
+        ));
     }
+
+    let status = format!("Codex returned {line_count} lines.");
+    let _ = sender.emit(BackendEvent {
+        job_id,
+        kind: BackendEventKind::Finished {
+            lines,
+            status,
+            stats,
+        },
+    });
+    outcome
 }
 
 fn call_codex_cli(
     config: &AppConfig,
     prompt: &str,
+    working_dir: &Path,
     cancel: &CancelToken,
 ) -> Result<String, CodexCallError> {
-    let codex_working_dir = env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-
-    if let Some(result) = try_python_pty(config, prompt, &codex_working_dir, cancel)? {
+    if let Some(result) = try_python_pty(config, prompt, working_dir, cancel)? {
         match result {
             PtyResult::Success(text) => return Ok(text),
             PtyResult::Failure(msg) => {
@@ -302,7 +680,7 @@ fn call_codex_cli(
     interactive_cmd
         .args(&config.codex_args)
         .arg("-C")
-        .arg(&codex_working_dir)
+        .arg(working_dir)
         .env("TERM", &config.term_value)
         .env("CODEX_NONINTERACTIVE", "1")
         .stdin(Stdio::piped())
@@ -328,7 +706,7 @@ fn call_codex_cli(
     exec_cmd
         .arg("exec")
         .arg("-C")
-        .arg(&codex_working_dir)
+        .arg(working_dir)
         .args(&config.codex_args)
         .env("TERM", &config.term_value)
         .arg("-")
@@ -409,8 +787,7 @@ fn call_codex_via_session(
             let now = Instant::now();
             if now >= first_output_deadline {
                 log_debug(&format!(
-                    "Persistent Codex session produced no output within {}ms; falling back",
-                    PTY_FIRST_BYTE_TIMEOUT_MS
+                    "Persistent Codex session produced no output within {PTY_FIRST_BYTE_TIMEOUT_MS}ms; falling back"
                 ));
                 return Err(CodexCallError::Failure(anyhow!(
                     "persistent Codex session timed out before producing output"
@@ -426,10 +803,6 @@ fn call_codex_via_session(
     Err(CodexCallError::Failure(anyhow!(
         "persistent Codex session returned no text"
     )))
-}
-
-fn elapsed_ms(start: Instant) -> f64 {
-    start.elapsed().as_secs_f64() * 1000.0
 }
 
 /// Outcome of the optional Python PTY helper invocation.
@@ -601,34 +974,6 @@ pub fn prepare_for_display(text: &str) -> Vec<String> {
     text.lines().map(|line| line.to_string()).collect()
 }
 
-fn preview_for_log(text: &str, max_cols: usize) -> String {
-    if max_cols == 0 || text.is_empty() {
-        return String::new();
-    }
-    let slice = window_by_columns(text, 0, max_cols);
-    let needs_ellipsis = UnicodeWidthStr::width(text) > UnicodeWidthStr::width(slice);
-    if needs_ellipsis {
-        format!("{slice}…")
-    } else {
-        slice.to_string()
-    }
-}
-
-fn format_bytes_for_log(bytes: &[u8]) -> String {
-    const MAX_BYTES: usize = 64;
-    let mut parts = Vec::new();
-    for (idx, b) in bytes.iter().take(MAX_BYTES).enumerate() {
-        parts.push(format!("{b:02X}"));
-        if idx >= MAX_BYTES - 1 {
-            break;
-        }
-    }
-    if bytes.len() > MAX_BYTES {
-        parts.push("...".into());
-    }
-    parts.join(" ")
-}
-
 fn normalize_control_bytes(raw: &[u8]) -> Vec<u8> {
     let mut output = Vec::with_capacity(raw.len());
     let mut idx = 0;
@@ -748,7 +1093,7 @@ fn write_prompt_with_newline<W: Write>(writer: &mut W, prompt: &str) -> io::Resu
 }
 
 #[cfg(test)]
-use std::sync::{Mutex, MutexGuard, OnceLock};
+use std::sync::{MutexGuard, OnceLock};
 
 #[cfg(test)]
 #[derive(Clone)]
@@ -762,15 +1107,40 @@ impl CancelProbe {
 }
 
 #[cfg(test)]
-type CodexJobHook = Box<dyn Fn(&str, CancelProbe) -> CodexJobMessage + Send + Sync + 'static>;
+type CodexJobHook = Box<dyn Fn(&str, CancelProbe) -> Vec<BackendEventKind> + Send + Sync + 'static>;
 
 #[cfg(test)]
 static CODEX_JOB_HOOK: OnceLock<Mutex<Option<CodexJobHook>>> = OnceLock::new();
 #[cfg(test)]
 static JOB_HOOK_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+#[cfg(test)]
+static ACTIVE_BACKEND_THREADS: AtomicUsize = AtomicUsize::new(0);
 
 #[cfg(test)]
-fn try_job_hook(prompt: &str, cancel: &CancelToken) -> Option<CodexJobMessage> {
+pub(crate) fn active_backend_threads() -> usize {
+    ACTIVE_BACKEND_THREADS.load(Ordering::SeqCst)
+}
+
+#[cfg(test)]
+struct BackendThreadGuard;
+
+#[cfg(test)]
+impl BackendThreadGuard {
+    fn new() -> Self {
+        ACTIVE_BACKEND_THREADS.fetch_add(1, Ordering::SeqCst);
+        Self
+    }
+}
+
+#[cfg(test)]
+impl Drop for BackendThreadGuard {
+    fn drop(&mut self) {
+        ACTIVE_BACKEND_THREADS.fetch_sub(1, Ordering::SeqCst);
+    }
+}
+
+#[cfg(test)]
+fn try_job_hook(prompt: &str, cancel: &CancelToken) -> Option<Vec<BackendEventKind>> {
     let storage = CODEX_JOB_HOOK.get_or_init(|| Mutex::new(None));
     let guard = storage.lock().unwrap_or_else(|e| e.into_inner());
     guard
@@ -808,14 +1178,7 @@ pub(crate) fn with_job_hook<R>(hook: CodexJobHook, f: impl FnOnce() -> R) -> (R,
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::AppConfig;
-    use clap::Parser;
-
-    fn test_config() -> AppConfig {
-        let mut config = AppConfig::parse_from(["codex-job-test"]);
-        config.no_python_fallback = true;
-        config
-    }
+    use std::sync::Arc;
 
     #[test]
     fn sanitize_handles_backspace() {
@@ -850,68 +1213,61 @@ mod tests {
     }
 
     #[test]
-    fn codex_job_reports_success() {
-        let config = test_config();
-        let (job, hook_guard) = with_job_hook(
-            Box::new(|prompt, _| CodexJobMessage::Completed {
-                lines: vec![prompt.to_string()],
-                status: "ok".into(),
-                codex_session: None,
-                disable_pty: false,
-            }),
-            || start_codex_job("hello".into(), config, None),
-        );
-        let message = job.receiver.recv().expect("message");
-        drop(hook_guard);
-        match message {
-            CodexJobMessage::Completed { lines, status, .. } => {
-                assert_eq!(lines, vec!["hello"]);
-                assert_eq!(status, "ok");
-            }
-            other => panic!("unexpected message: {other:?}"),
-        }
+    fn bounded_queue_drops_token_before_status() {
+        let queue = BoundedEventQueue::new(2);
+        queue
+            .push(BackendEvent {
+                job_id: 1,
+                kind: BackendEventKind::Token {
+                    text: "token".into(),
+                },
+            })
+            .unwrap();
+        queue
+            .push(BackendEvent {
+                job_id: 1,
+                kind: BackendEventKind::Status {
+                    message: "status".into(),
+                },
+            })
+            .unwrap();
+        // Force overflow; token event should be dropped first.
+        queue
+            .push(BackendEvent {
+                job_id: 1,
+                kind: BackendEventKind::RecoverableError {
+                    phase: "test",
+                    message: "backpressure".into(),
+                    retry_available: true,
+                },
+            })
+            .unwrap();
+        let events = queue.drain();
+        assert_eq!(events.len(), 2);
+        assert!(events
+            .iter()
+            .any(|e| matches!(e.kind, BackendEventKind::Status { .. })));
+        assert!(events
+            .iter()
+            .any(|e| matches!(e.kind, BackendEventKind::RecoverableError { .. })));
     }
 
     #[test]
-    fn codex_job_reports_failure() {
-        let config = test_config();
-        let (job, hook_guard) = with_job_hook(
-            Box::new(|_, _| CodexJobMessage::Failed {
-                error: "boom".into(),
-                codex_session: None,
-                disable_pty: false,
-            }),
-            || start_codex_job("hello".into(), config, None),
-        );
-        let message = job.receiver.recv().expect("message");
-        drop(hook_guard);
-        match message {
-            CodexJobMessage::Failed { error, .. } => assert_eq!(error, "boom"),
-            other => panic!("unexpected message: {other:?}"),
-        }
-    }
-
-    #[test]
-    fn codex_job_can_cancel() {
-        let config = test_config();
-        let (job, hook_guard) = with_job_hook(
-            Box::new(|_, cancel| {
-                while !cancel.is_cancelled() {
-                    thread::sleep(Duration::from_millis(10));
-                }
-                CodexJobMessage::Canceled {
-                    codex_session: None,
-                    disable_pty: false,
-                }
-            }),
-            || start_codex_job("hello".into(), config, None),
-        );
-        job.cancel();
-        let message = job.receiver.recv().expect("message");
-        drop(hook_guard);
-        match message {
-            CodexJobMessage::Canceled { .. } => {}
-            other => panic!("unexpected message: {other:?}"),
-        }
+    fn event_sender_notifies_listener() {
+        let queue = Arc::new(BoundedEventQueue::new(8));
+        let (tx, rx) = mpsc::channel();
+        let sender = EventSender::new(Arc::clone(&queue), tx);
+        sender
+            .emit(BackendEvent {
+                job_id: 7,
+                kind: BackendEventKind::Status {
+                    message: "hello".into(),
+                },
+            })
+            .unwrap();
+        rx.try_recv().expect("signal");
+        let events = queue.drain();
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].job_id, 7);
     }
 }

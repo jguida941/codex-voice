@@ -433,7 +433,7 @@ fn csi_reply(params: &[u8], final_b: u8, rows: u16, cols: u16) -> Option<Vec<u8>
         // DSR: cursor position request → ESC[row;colR
         b'n' if p == b"6" => {
             let (r, c) = (rows.max(1), cols.max(1));
-            Some(format!("\x1b[{};{}R", r, c).into_bytes())
+            Some(format!("\x1b[{r};{c}R").into_bytes())
         }
 
         // DA: primary device attributes → safe VT220-ish reply

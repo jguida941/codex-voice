@@ -12,6 +12,7 @@
 - Replaced the stub `Recorder::record_with_vad` implementation (non-test builds) with the new chunked capture + VAD processing loop: CPAL frames → bounded channel → per-frame VAD decisions → metrics + audio buffer.
 - Updated the voice pipeline to call `record_with_vad`, instantiate the correct VAD engine per feature flag, and log the per-utterance metrics for future perf_smoke gating.
 - Documented and logged the rubato threshold tweak plus the new VAD wiring; changelog now tracks the code changes for Phase 2A scaffolding.
+- Closed the Phase 1A build hygiene gap: reintroduced the unconditional `Ordering` import needed by the resampler guard, removed the redundant `#![cfg(feature = "vad_earshot")]` attribute from `vad_earshot.rs`, and re-ran `cargo clippy --all-features` plus `cargo test --no-default-features` to verify the tree is green again.
 
 ## Decisions (2025-11-13)
 ### VAD Library Selection for Phase 2A
@@ -256,3 +257,235 @@ Silence-aware capture (Phase 2A) is considered *done* when all of the following 
 ## Notes & Adjustments (2025-11-13)
 - Relaxed the `rubato_rejects_aliasing_energy` unit-test threshold (alias tolerance from 1% to 2%) after observing a marginal (~1.08%) alias ratio on this hardware. Still enforces a guardrail while preventing unrelated Phase 2A work from being blocked; revisit if future audio QA detects regressions.
 - `cargo check` cannot yet download the `earshot` crate because the environment lacks network access; the dependency is wired behind `vad_earshot`, so once connectivity is available a normal `cargo check`/`test` run should verify the new code paths.
+
+## Codex Backend & PTY Fail-Fast Integration (Addendum)
+
+### Goals
+- Preserve the “wrapper is a strict superset of Codex” mandate by formalizing a backend interface that the TUI/voice layers consume regardless of whether Codex is reached via PTY, CLI, or (future) HTTP.
+- Keep the fail-fast PTY remediation entirely inside the backend so the UI only manages a single `pty_disabled: bool` guard and never mutates config flags at runtime.
+- Provide job-scoped telemetry, bounded queues, and deterministic error surfaces so latency regressions and stale-event bugs (Nov‑13 audit #9/#16) stay fixed.
+
+### Trait Surface & Ownership
+```rust
+pub type JobId = u64;
+
+pub struct BackendJob {
+    pub id: JobId,
+    pub handle: JoinHandle<()>,
+    pub events: Receiver<BackendEvent>,
+    pub cancel_flag: Arc<AtomicBool>,
+}
+
+pub struct BackendEvent {
+    pub job_id: JobId,
+    pub kind: BackendEventKind,
+}
+
+pub enum BackendEventKind {
+    Started { mode: RequestMode },
+    Token { text: String },
+    Status { message: String },
+    RecoverableError { phase: &'static str, message: String, retry_available: bool },
+    FatalError { phase: &'static str, message: String },
+    Finished { lines: Vec<String>, stats: BackendStats },
+}
+
+pub trait CodexBackend: Send + Sync {
+    fn start(&self, request: CodexRequest) -> Result<BackendJob, BackendError>;
+    fn cancel(&self, job_id: JobId);
+    fn working_dir(&self) -> &Path;
+}
+```
+- `CodexRequest` now carries `RequestPayload` (`Chat { prompt }` or `Slash(SlashCommand)`) plus `timeout: Option<Duration>` and `workspace_files: Vec<PathBuf>` so slash commands can forward file context.
+- `CliBackend` owns the PTY vs CLI decision. `App` simply checks `self.pty_disabled` before asking the backend to start a job. The config knob (`persistent_codex`) remains immutable user intent.
+
+### Fail-fast PTY Policy Inside `CliBackend`
+- `CliBackend` performs the PTY probe once per session via `PtyCodexSession::is_responsive(timeout)`. The probe sends a newline, drains stale bytes, and waits up to `PTY_OVERALL_TIMEOUT_MS` (default 500 ms) for any response. The first-byte budget is `PTY_FIRST_BYTE_TIMEOUT_MS` (default 150 ms, bumpable via config once telemetry warrants it).
+- On spawn failure, read/write error, or timeout, the backend emits `BackendEventKind::RecoverableError { phase: "pty_startup", ... }` with `retry_available = true`, sets `backend_state.pty_disabled = true`, and replays the job via CLI. `App` mirrors this by flipping its `pty_disabled` flag when it observes that event.
+- PTY disablement is session scoped. `CliBackend` never mutates `AppConfig`. The only write surface is the new `backend_state.pty_disabled` bool, initialized from user intent and toggled by PTY failures.
+
+### Mapping Existing Worker Messages
+While `rust_tui/src/codex.rs` still produces `CodexJobMessage`, the backend glue layer translates them 1:1:
+
+| Legacy `CodexJobMessage`                | Backend event                                                 |
+|----------------------------------------|----------------------------------------------------------------|
+| `Started { mode }`                     | `BackendEventKind::Started { mode }`                          |
+| `Token { text }`                       | `BackendEventKind::Token { text }`                            |
+| `Status { message }`                   | `BackendEventKind::Status { message }`                        |
+| `Completed { lines, stats }`           | `BackendEventKind::Finished { lines, stats }`                 |
+| `Failed { error, disable_pty }`        | `FatalError` if CLI failed; `RecoverableError` + `Finished` if PTY failed but CLI succeeded. In both cases `stats.disable_pty` is copied so telemetry matches reality. |
+
+This shim lets us land the trait without rewriting the worker internals; once the backend is stable we can delete `CodexJobMessage`.
+
+### Event Queue & Backpressure
+- Every backend job creates a bounded channel sized via `const BACKEND_EVENT_CAPACITY: usize = 1024;`.
+- Policy: on `try_send` failure, drop the oldest *non-terminal* event (prefer dropping stale `Token` frames before `Status`). If the queue is still full, emit `RecoverableError { phase: "event_backpressure", retry_available: false }` and end the job to prevent unbounded memory growth.
+- UI impact: dropped tokens never desynchronize the final transcript because `Finished.lines` carries the canonical sanitized output. Status lines can be re-sent because the most recent status is always retained.
+
+### Timeout vs Cancellation
+- Each `CodexRequest` may specify a timeout; otherwise the backend defaults to `CLI_REQUEST_TIMEOUT` (30 s) and inherits the PTY fast-fail numbers above.
+- The worker checks both `cancel_flag.load(Ordering::Relaxed)` and deadline expirations between PTY polls, CLI waits, and stdout drains. Timeouts surface as `FatalError { phase: "timeout", ... }` so UI can show “Codex timed out—retry?” while allowing Esc to keep functioning.
+
+### Working Directory & Security
+- `CodexBackendFactory::new` receives the resolved workspace path (`project_root::resolve`) and canonicalizes it once. `working_dir()` simply returns the cached `PathBuf`.
+- The resolver rejects non-directories, canonicalizes to eliminate `..` segments, and optionally enforces that the result stays under the detected VCS root (prevents `--workspace-dir ../../sensitive` from walking out of the repo).
+
+### Telemetry & Regression Hooks
+- `BackendStats` now includes `backend_type`, `started_at`, `first_token_at`, `finished_at`, `tokens_received`, `bytes_transferred`, `pty_attempts`, `cli_fallback_used`, and `disable_pty`. These metrics back the latency remediation gates and the Nov‑13 audit action items.
+- Regression tests to add during Phase 1:
+  - PTY disabled propagation (Bug #16): simulate `disable_pty = true` in the backend event and ensure `App::take_codex_session_for_job` skips PTY for future jobs.
+  - PTY worker teardown (Bug #9): start/cancel jobs in a loop with `cli_backend.start`, then assert no additional threads remain (`thread::scope` + metrics helper).
+  - Queue overflow: inject >1024 token events from a fake backend and verify the UI records the `event_backpressure` error without panicking.
+  - Timeout/cancel race: set `timeout = 1s`, trigger `cancel_flag` at 500 ms, confirm we surface one fatal event and the worker thread joins within 100 ms.
+
+### Phased Roll-out Reminder
+1. **Phase 1 (current work):** introduce the trait, wrap the existing CLI/PTY flow inside `CliBackend`, keep UI behavior identical (chat only).
+2. **Phase 2:** emit streaming `Token` events and drive the “Thinking…” indicator from `BackendEventKind::Started/Finished`.
+3. **Phase 3:** land the slash-command router + working-directory resolver, using `CodexBackend` as the integration point.
+4. **Phase 4+:** add HTTP/WebSocket backend(s), richer telemetry upload, and CLI/PTY retirement logic once data shows we can.
+
+Documenting these guardrails here keeps `agents.md`, the Nov‑13 audit, and the actual implementation in sync so we do not re-litigate “is the wrapper Codex or just a CLI driver” mid-sprint.
+
+## Phase 1 Decision Update (Option 2.5 Backend Refactor)
+
+> **INSTRUCTION TO CODEX — WRAPPER SCOPE CORRECTION**  
+> 1. **Target = Codex UX parity + extras**  
+>    - Everything the Codex client/CLI can do today (all `/` commands, multi-step conversations, tool integrations, streaming/thinking indicators, workspace/file ops, etc.) **must** work through this wrapper. Voice and future orchestration features are additional layers, not replacements.  
+> 2. **Codex is the source of truth**  
+>    - Do **not** re-implement or fork Codex features. `/edit`, `/undo`, `/explain`, `/files`, `/stack`, etc. must forward to Codex’s real interfaces with identical semantics.  
+> 3. **Backend abstraction, not hard-wired CLI**  
+>    - Implement a `CodexBackend` trait with methods such as `send_message`, `send_slash_command`, `stream_tokens`, `list_files`, etc. All UI/voice code must depend only on this trait. Support both the PTY/CLI backend today and a future HTTP/WebSocket backend without rewriting UI layers.  
+> 4. **Slash commands & streaming UX**  
+>    - Input must detect `/` commands, map them to typed enums, and dispatch via the backend. Backends emit streaming events so the TUI can show “thinking…” state and incremental tokens.  
+> 5. **Working directory / project context**  
+>    - Expose configuration (and auto-detect a `.git` root when unset) for Codex’s working directory so all commands operate in the correct repo.  
+> 6. **Plan before code (per AgentMD)**  
+>    - Before coding: read AgentMD + relevant design docs, propose 2–3 architectural approaches if choices exist, document the design in `docs/architecture/YYYY-MM-DD/ARCHITECTURE.md`, and wait for approval. After approval, implement the backend abstraction, routed slash commands, streaming indicators, and tests proving the routing works end-to-end. No coding begins without this plan/approval cycle.
+
+INSTRUCTION TO CODEX
+
+You are not allowed to code until you first:
+	1.	Explain the problem
+	2.	Identify race conditions or performance bottlenecks
+	3.	Propose 2 to 4 architectural approaches
+	4.	Ask for approval
+	5.	After approval, produce:
+	•	Modular Rust code
+	•	Clean variable and method names
+	•	Docstrings and comments
+	•	Updated CHANGELOG
+	•	Architecture notes under dated folder
+	•	Unit tests, regression tests, mutation tests
+	•	CI config
+	•	Benchmarks for latency improvements
+
+You must follow SDLC. No hidden complexity. No unapproved architecture. No Python fallbacks.
+Your job is to audit the Rust code for performance, race conditions, async errors, blocking I/O, misconfigured channels, or anything that could cause multi-second delays.
+Produce detailed reasoning before making changes and request confirmation before generating any code.
+
+### Summary
+- **Decision:** implement the documented `CodexBackend` trait by refactoring the existing worker to emit `BackendEvent` streams directly (“Option 2.5”) instead of adding a throwaway adapter (Option 1) or jumping straight to the executor thread (Option 3). This keeps behavior stable but yields the streaming/backpressure surface we need for Phase 2.
+- **Rationale:** Option 1 would add 2–4 hours of adapter work that we would delete when streaming lands, while Option 3 requires 12–16 hours plus new concurrency risks. Option 2.5 costs ~6–8 hours, removes future rework, and keeps the worker lifecycle identical so the diff stays reviewable.
+- **Scope control:** the initial backend will still run exactly one Codex request at a time, mirroring today’s UX. Executor/thread-pool designs remain documented under Phase 2C and are deferred until we need concurrent Codex jobs or detect the Bug #9 thread leak in practice.
+
+### Detailed Plan
+1. **Trait + Types**  
+   - Define `CodexBackend`, `CodexBackendFactory`, `BackendJob`, `BackendEvent`, `BackendEventKind`, `BackendStats`, `CodexRequest`, and supporting enums per the addendum. Job IDs come from an `AtomicU64`.  
+   - `BackendJob` owns the worker `JoinHandle`, `Receiver<BackendEvent>`, and the cancellation flag. `CliBackend` tracks `pty_disabled` internally and exposes `working_dir()` for the UI.
+2. **Refactor `run_codex_job`**  
+   - Instead of returning `CodexJobMessage`, the worker accepts a bounded channel sender (`const BACKEND_EVENT_CAPACITY: usize = 1024`).  
+   - Emit `Started`, `Status`, `Token`, and `Finished/FatalError` events along the way, reusing the existing sanitization helpers. Tokens are optional until streaming is wired; we can start with `Status` + `Finished` to keep UX identical.  
+   - Implement drop-oldest policy: on `try_send` failure, remove the oldest non-terminal event, log `RecoverableError { phase: "event_backpressure" }`, and continue. If re-send fails, abort the job gracefully.
+3. **Backend Ownership of PTY Fail-fast**  
+   - Move the PTY probing/disable logic into `CliBackend`. The UI reads a simple boolean via `backend_state.pty_disabled` (mirrors `App::pty_disabled`) but never toggles config.  
+   - Backend events surface `disable_pty` decisions via telemetry so PTY fallout remains observable without UI mutations.
+4. **UI Integration**  
+   - `App` stores a `Box<dyn CodexBackend>` and requests `backend.start(request)` instead of calling `start_codex_job`. Polling reads `BackendEvent`s and dispatches to the existing handlers (`handle_codex_job_message`) after translating terminal events into the UI structs.  
+   - Spinner + cancel UX stay untouched; cancellation delegates to `BackendJob::cancel()`.  
+   - Update tests to rely on backend events/job IDs via the existing hook harness or new dependency injection.
+5. **Telemetry & Docs**  
+   - Extend log lines to include `job_id`, `backend_type`, `first_token_ms`, etc., satisfying the addendum’s telemetry spec.  
+   - Document the change here, in the daily changelog, root `CHANGELOG.md`, `PROJECT_OVERVIEW.md`, and future CI tickets. Ensure `master_index.md` still points to the latest folder.
+
+### Alternatives Revisited
+- **Option 1 (Adapter):** Maintained behavioral parity quickly but produced throwaway glue with no streaming/backpressure, forcing another large refactor before slash commands or telemetry could ship.
+- **Option 3 (Executor Thread):** Provides multi-request queuing and perfect PTY ownership, yet exceeds the current Phase 1 scope, adds lifecycle risk, and would delay Phase 2 deliverables. Remains the documented Phase 2C path pending additional approval.
+
+### Next Steps
+1. Update `PROJECT_OVERVIEW.md`, `docs/architecture/2025-11-13/CHANGELOG.md`, and root `CHANGELOG.md` with this decision.  
+2. Prepare a detailed implementation checklist (modules to touch, tests to add, telemetry updates).  
+3. Upon approval, execute the refactor, ensuring `cargo fmt`, tests, and documentation updates remain in lockstep with the SDLC checklist.
+
+## Phase 1 Implementation Snapshot (2025-11-13)
+
+- `rust_tui/src/codex.rs` now defines the `CodexBackend` trait, the `BackendJob`/`BackendEvent` types, and the `CliBackend` implementation with bounded event queues (`BACKEND_EVENT_CAPACITY = 1024`) plus drop-oldest semantics (tokens → status → recoverable errors). A per-job signal channel wakes the UI without blocking, and telemetry fields are captured through `BackendStats`.
+- The legacy `CodexJob` struct/messages were removed. `run_codex_job` emits streaming-friendly events (Started/Status/Finished/Fatal/Canceled) and returns PTY lifecycle metadata to the backend so PTY enablement is now a backend concern. PTY fast-fail probes (150 ms first byte / 500 ms overall / 200 ms health check) moved under `CliBackend` per the addendum.
+- `rust_tui/src/app.rs` depends solely on `CodexBackend`: sending chat requests builds `CodexRequest::chat`, spinner/cancel UX reuses the existing UI, and `poll_codex_job` drains backend events to update status/output. PTY session management functions were deleted; `drain_persistent_output` is a no-op placeholder until streaming PTY output is exposed via the backend.
+- New backend-focused unit tests cover the bounded queue drop policy and event-sender signaling. Existing App tests were updated to use backend events via the job hook harness. `cargo fmt` and `cargo test --no-default-features` were executed inside `rust_tui/` (tests pass; warnings remain from pre-existing audio stubs).
+
+## Phase 1A Stabilization (Clippy + CI Guards)
+
+- **Clippy cleanup:** addressed all outstanding warnings by restructuring `run_codex_job` arguments (new `JobContext`), shrinking `BackendQueueError`, eliminating nested `if`, modernizing format strings, and fixing legacy issues across `audio.rs`, `pty_session.rs`, `ui.rs`, `utf8_safe.rs`, `voice.rs`, `app.rs`, `test_crash.rs`, and `test_utf8_bug.rs`. `cargo clippy --no-default-features` is now clean.
+- **Perf smoke test:** added `app::tests::perf_smoke_emits_timing_log` plus `.github/workflows/perf_smoke.yml`. The workflow runs the targeted test, then parses `/tmp/codex_voice_tui.log` to ensure `timing|phase=codex_job` entries exist, `total_ms ≤ 2000`, and PTY remains disabled during the smoke run. This enforces the latency remediation KPIs even before streaming lands.
+- **Memory guard:** instrumented backend worker threads under `#[cfg(test)]` with `active_backend_threads()` and the `memory_guard_backend_threads_drop` test. The new `.github/workflows/memory_guard.yml` loops this test 20x to guarantee worker threads terminate cleanly (regression test for Bug #9) before we tackle module decomposition.
+- **Telemetry hooks in tests:** the perf/memory guards write directly to the same log sink (`log_debug` + `/tmp/codex_voice_tui.log`) to keep the CI checks aligned with the production telemetry format mandated by the latency plan.
+
+## System Architecture Overview (Voice → Codex Wrapper)
+
+### Word Summary
+1. **Input Layer (Keyboard + Voice):** The `App` struct inside `rust_tui/src/app.rs` is the single UI state machine. Keyboard input flows directly into the prompt buffer, while Ctrl+R triggers `VoiceJob`s that capture microphone audio through `audio::Recorder`, run it through a VAD (`SimpleThresholdVad` today, Earshot when available), and send the surviving chunks into Whisper STT (`stt::Transcriber`). Python fallback scripts remain available when the native path fails.
+2. **Prompt Routing:** Regardless of whether a user typed text or dictated it, `App::send_current_input` builds a `CodexRequest` and hands it to a boxed `CodexBackend`. The UI no longer knows about PTY sessions or CLI fallbacks; it only receives `BackendEvent`s (Started/Status/Token/Finished/Fatal/Canceled) and updates the status/output panes accordingly. Spinner/cancel UX and redraw throttling stay local to the UI.
+3. **Backend Layer (`CliBackend`):** Lives in `rust_tui/src/codex.rs`. It resolves the working directory once, probes a persistent PTY (150 ms first byte / 500 ms budget / 200 ms health check), and owns the flag that disables PTY for the rest of the session. Every request spawns `run_codex_job`, which emits events via a bounded queue (drop-oldest policy) and returns PTY handoff metadata so the backend can keep or retire the session deterministically.
+4. **Codex Invocation:** `run_codex_job` first attempts the persistent PTY session, then falls back to the CLI (`codex` binary via `Command` with the configured flags), and finally to the Python helper if the environment demands it. Cancellation is plumbed via `CancelToken` objects that send SIGTERM/SIGKILL to the CLI children. Sanitization helpers scrub ANSI codes before returning responses.
+5. **Outputs, Telemetry, and Governance:** Completed Codex calls append sanitized lines to the TUI output buffer, optionally restart voice capture (auto loop), and log latency metrics (`timing|phase=codex_job|job_id=...`). Documentation/traceability guardrails live under `docs/architecture/YYYY-MM-DD/`, `PROJECT_OVERVIEW.md`, `master_index.md`, and the root `CHANGELOG.md`, ensuring every change references the day’s architecture note.
+
+### Mermaid Flow (High-Level Pipeline)
+```mermaid
+flowchart LR
+    subgraph UI
+        Kbd[Keyboard Input]
+        Mic[Voice Capture Trigger]
+        App[App State (TUI)]
+        Spinner[Spinner & Status]
+    end
+
+    subgraph VoicePipeline
+        Rec[Recorder]
+        VAD[VAD Engine<br/>SimpleThreshold/Earshot]
+        STT[Whisper STT]
+        PyFallback[Python Fallback Pipeline]
+    end
+
+    subgraph Backend
+        Req[CodexRequest]
+        BackendTrait[CodexBackend Trait]
+        CliBackend[CliBackend
+        (PTY/CLI Manager)]
+        Queue[Bounded Event Queue
+        (drop-oldest)]
+        Events[BackendEventKind]
+    end
+
+    subgraph CodexInvocation
+        PTY[PtyCodexSession]
+        CLI[Codex CLI Process]
+        PyHelper[Python PTY Helper]
+    end
+
+    Kbd --> App
+    Mic --> App
+    App -->|Ctrl+R| Rec
+    Rec --> VAD -->|speech| STT -->|transcript| App
+    VAD -->|silence| App
+    Rec -->|failure| PyFallback --> App
+    App -->|prompt| Req --> BackendTrait --> CliBackend
+    CliBackend -->|spawn| Queue
+    Queue --> Events --> App
+    CliBackend -->|persistent| PTY
+    CliBackend -->|fallback| CLI
+    CLI -->|if unavailable| PyHelper --> CLI
+    PTY -->|reply| CliBackend
+    CLI -->|stdout| CliBackend
+    Events --> Spinner
+    App -->|auto-loop| Rec
+```

@@ -233,12 +233,12 @@ fn log_voice_metrics(metrics: &audio::CaptureMetrics) {
 fn create_vad_engine(cfg: &crate::config::VoicePipelineConfig) -> Box<dyn audio::VadEngine> {
     #[cfg(feature = "vad_earshot")]
     {
-        return Box::new(crate::vad_earshot::EarshotVad::from_config(cfg));
+        Box::new(crate::vad_earshot::EarshotVad::from_config(cfg))
     }
 
     #[cfg(not(feature = "vad_earshot"))]
     {
-        return Box::new(audio::SimpleThresholdVad::new(cfg.vad_threshold_db));
+        Box::new(audio::SimpleThresholdVad::new(cfg.vad_threshold_db))
     }
 }
 

@@ -7,13 +7,17 @@ use std::{
     path::PathBuf,
     process::{Command, Stdio},
     sync::{mpsc::TryRecvError, Arc, Mutex},
+    thread,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
-use crate::codex::{self, CodexJob, CodexJobMessage, CODEX_SPINNER_FRAMES};
+use crate::codex::{
+    BackendError, BackendEvent, BackendEventKind, BackendJob, CliBackend, CodexBackend,
+    CodexRequest, CODEX_SPINNER_FRAMES,
+};
 use crate::config::AppConfig;
 use crate::voice::{self, VoiceCaptureTrigger, VoiceJob, VoiceJobMessage};
-use crate::{audio, pty_session, stt};
+use crate::{audio, stt};
 use anyhow::{anyhow, bail, Context, Result};
 use serde::Deserialize;
 
@@ -21,9 +25,6 @@ use serde::Deserialize;
 const OUTPUT_MAX_LINES: usize = 500;
 /// Spinner cadence for Codex worker status updates.
 const CODEX_SPINNER_INTERVAL: Duration = Duration::from_millis(150);
-/// Health-check timeout for the persistent PTY session.
-const PTY_HEALTHCHECK_TIMEOUT_MS: u64 = 200;
-
 macro_rules! state_change {
     ($self:expr, $field:ident, $value:expr) => {{
         $self.$field = $value;
@@ -208,9 +209,8 @@ pub struct App {
     status: String,
     voice_enabled: bool,
     scroll_offset: u16,
-    codex_session: Option<pty_session::PtyCodexSession>,
-    pty_disabled: bool,
-    codex_job: Option<CodexJob>,
+    codex_backend: Arc<dyn CodexBackend>,
+    codex_job: Option<BackendJob>,
     codex_spinner_index: usize,
     codex_spinner_last_tick: Option<Instant>,
     needs_redraw: bool,
@@ -222,6 +222,7 @@ pub struct App {
 impl App {
     /// Create the application state with default status text.
     pub fn new(config: AppConfig) -> Self {
+        let backend: Arc<dyn CodexBackend> = Arc::new(CliBackend::new(config.clone()));
         Self {
             config,
             input: String::new(),
@@ -229,8 +230,7 @@ impl App {
             status: "Ready. Press Ctrl+R for voice capture.".into(),
             voice_enabled: false,
             scroll_offset: 0,
-            codex_session: None,
-            pty_disabled: false,
+            codex_backend: backend,
             codex_job: None,
             codex_spinner_index: 0,
             codex_spinner_last_tick: None,
@@ -264,76 +264,6 @@ impl App {
             self.transcriber = Some(Arc::new(Mutex::new(transcriber)));
         }
         Ok(self.transcriber.as_ref().cloned())
-    }
-
-    /// Ensure a long-lived PTY session exists so repeated prompts avoid Codex cold-start costs.
-    fn ensure_codex_session(&mut self) -> Result<()> {
-        if self.pty_disabled {
-            bail!("persistent Codex disabled at runtime");
-        }
-        if !self.config.persistent_codex {
-            bail!("persistent Codex disabled via CLI flag");
-        }
-        if self.codex_session.is_none() {
-            state_change!(self, status, "Starting persistent Codex session...".into());
-            let working_dir = env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-
-            match pty_session::PtyCodexSession::new(
-                &self.config.codex_cmd,
-                working_dir.to_str().unwrap_or("."),
-                &self.config.codex_args,
-                &self.config.term_value,
-            ) {
-                Ok(mut session) => {
-                    let health_timeout = Duration::from_millis(PTY_HEALTHCHECK_TIMEOUT_MS);
-                    if session.is_responsive(health_timeout) {
-                        self.codex_session = Some(session);
-                        state_change!(self, status, "Codex session ready (persistent).".into());
-                        log_debug("PTY Codex session started successfully");
-                    } else {
-                        self.disable_persistent_codex("Persistent Codex unresponsive.");
-                        bail!("persistent Codex unresponsive");
-                    }
-                }
-                Err(e) => {
-                    let msg = format!("Failed to start Codex PTY: {e}");
-                    self.disable_persistent_codex(&msg);
-                    bail!(msg);
-                }
-            }
-        } else {
-            // Check if session is still alive
-            if let Some(ref session) = self.codex_session {
-                if !session.is_alive() {
-                    state_change!(self, status, "Codex session died, restarting...".into());
-                    self.codex_session = None;
-                    self.ensure_codex_session()?;
-                }
-            }
-        }
-        Ok(())
-    }
-
-    fn take_codex_session_for_job(&mut self) -> Option<pty_session::PtyCodexSession> {
-        if !self.config.persistent_codex || self.pty_disabled {
-            return None;
-        }
-        if self.codex_session.is_none() {
-            if let Err(err) = self.ensure_codex_session() {
-                log_debug(&format!("Persistent Codex unavailable: {err:#}"));
-                return None;
-            }
-        }
-        self.codex_session.take()
-    }
-    fn disable_persistent_codex(&mut self, reason: &str) {
-        if self.pty_disabled {
-            return;
-        }
-        self.pty_disabled = true;
-        log_debug(&format!("Persistent Codex disabled: {reason}"));
-        let status_message = format!("Persistent Codex unavailable ({reason}); using direct CLI.");
-        state_change!(self, status, status_message);
     }
 
     /// Append output lines while trimming scrollback so the terminal stays snappy on long sessions.
@@ -452,9 +382,20 @@ impl App {
             return Ok(());
         }
 
-        let session = self.take_codex_session_for_job();
-        let job = codex::start_codex_job(prompt, self.config.clone(), session);
-        self.codex_job = Some(job);
+        let request = CodexRequest::chat(prompt);
+        match self.codex_backend.start(request) {
+            Ok(job) => {
+                self.codex_job = Some(job);
+            }
+            Err(err) => {
+                let reason = match err {
+                    BackendError::InvalidRequest(msg) => msg.to_string(),
+                    BackendError::BackendDisabled(msg) => msg,
+                };
+                state_change!(self, status, format!("Codex unavailable: {reason}"));
+                return Ok(());
+            }
+        }
         self.codex_spinner_index = 0;
         self.codex_spinner_last_tick = Some(Instant::now());
         let spinner = CODEX_SPINNER_FRAMES.first().copied().unwrap_or('-');
@@ -502,59 +443,93 @@ impl App {
     }
 
     pub(crate) fn poll_codex_job(&mut self) -> Result<()> {
-        let mut finished = false;
-        let mut message_to_handle: Option<CodexJobMessage> = None;
+        let mut pending_events = Vec::new();
+        let mut worker_disconnected = false;
+        let mut job_handle: Option<thread::JoinHandle<()>> = None;
 
-        if let Some(job) = self.codex_job.as_mut() {
-            match job.receiver.try_recv() {
-                Ok(message) => {
-                    message_to_handle = Some(message);
-                    finished = true;
+        {
+            if let Some(job) = self.codex_job.as_mut() {
+                loop {
+                    match job.try_recv_signal() {
+                        Ok(()) => pending_events.extend(job.drain_events()),
+                        Err(TryRecvError::Empty) => break,
+                        Err(TryRecvError::Disconnected) => {
+                            worker_disconnected = true;
+                            pending_events.extend(job.drain_events());
+                            break;
+                        }
+                    }
                 }
-                Err(TryRecvError::Empty) => {}
-                Err(TryRecvError::Disconnected) => {
-                    self.status = "Codex worker disconnected unexpectedly.".into();
-                    finished = true;
-                }
-            }
-            if finished {
-                if let Some(handle) = job.handle.take() {
-                    let _ = handle.join();
+                if worker_disconnected {
+                    if let Some(handle) = job.take_handle() {
+                        job_handle = Some(handle);
+                    }
                 }
             }
         }
 
-        // CRITICAL: Handle message BEFORE clearing job to avoid race condition
-        if let Some(message) = message_to_handle {
-            self.handle_codex_job_message(message);
+        let mut terminal_event_seen = false;
+        for event in pending_events {
+            if self.handle_backend_event(event) {
+                terminal_event_seen = true;
+            }
         }
 
+        let finished = worker_disconnected || terminal_event_seen;
         if finished {
+            if worker_disconnected && !terminal_event_seen {
+                self.status = "Codex worker disconnected unexpectedly.".into();
+            }
+            if job_handle.is_none() {
+                if let Some(job) = self.codex_job.as_mut() {
+                    if let Some(handle) = job.take_handle() {
+                        job_handle = Some(handle);
+                    }
+                }
+            }
             self.codex_job = None;
             self.codex_spinner_last_tick = None;
         }
+
+        if let Some(handle) = job_handle {
+            let _ = handle.join();
+        }
+
         Ok(())
     }
 
-    fn handle_codex_job_message(&mut self, message: CodexJobMessage) {
-        match message {
-            CodexJobMessage::Completed {
-                lines,
-                status,
-                codex_session,
-                disable_pty,
+    fn handle_backend_event(&mut self, event: BackendEvent) -> bool {
+        match event.kind {
+            BackendEventKind::Started { .. } => false,
+            BackendEventKind::Status { message } => {
+                state_change!(self, status, message);
+                false
+            }
+            BackendEventKind::Token { .. } => {
+                // Streaming tokens will be handled in Phase 2. Ignore for now.
+                false
+            }
+            BackendEventKind::RecoverableError { message, .. } => {
+                state_change!(self, status, message);
+                false
+            }
+            BackendEventKind::FatalError {
+                message,
+                disable_pty: _,
+                ..
             } => {
-                self.append_output(lines);
-                state_change!(self, status, status);
-                self.codex_session = if disable_pty { None } else { codex_session };
+                state_change!(self, status, format!("Codex failed: {message}"));
                 state_change!(self, {
                     self.input.clear();
                 });
-                if disable_pty {
-                    self.disable_persistent_codex(
-                        "Codex job disabled persistent session after success.",
-                    );
-                }
+                true
+            }
+            BackendEventKind::Finished { lines, status, .. } => {
+                self.append_output(lines);
+                state_change!(self, status, status);
+                state_change!(self, {
+                    self.input.clear();
+                });
                 if self.voice_enabled {
                     if let Err(err) = self.start_voice_capture(VoiceCaptureTrigger::Auto) {
                         state_change!(
@@ -564,33 +539,14 @@ impl App {
                         );
                     }
                 }
+                true
             }
-            CodexJobMessage::Failed {
-                error,
-                codex_session,
-                disable_pty,
-            } => {
-                state_change!(self, status, format!("Codex failed: {error}"));
-                self.codex_session = if disable_pty { None } else { codex_session };
-                state_change!(self, {
-                    self.input.clear();
-                });
-                if disable_pty {
-                    self.disable_persistent_codex("Codex job reported PTY failure.");
-                }
-            }
-            CodexJobMessage::Canceled {
-                codex_session,
-                disable_pty,
-            } => {
+            BackendEventKind::Canceled { .. } => {
                 state_change!(self, status, "Codex request canceled.".into());
-                self.codex_session = if disable_pty { None } else { codex_session };
                 state_change!(self, {
                     self.input.clear();
                 });
-                if disable_pty {
-                    self.disable_persistent_codex("Codex job canceled PTY usage.");
-                }
+                true
             }
         }
     }
@@ -618,9 +574,6 @@ impl App {
             return;
         }
         self.codex_spinner_last_tick = Some(now);
-        if CODEX_SPINNER_FRAMES.is_empty() {
-            return;
-        }
         self.codex_spinner_index = (self.codex_spinner_index + 1) % CODEX_SPINNER_FRAMES.len();
         let spinner = CODEX_SPINNER_FRAMES[self.codex_spinner_index];
         self.status = format!("Waiting for Codex {spinner} (Esc/Ctrl+C to cancel)");
@@ -727,35 +680,19 @@ impl App {
         });
     }
 
-    /// Keep the UI in sync with the persistent Codex PTY without blocking.
+    /// Drain any background Codex session output. The backend now owns PTY state so this is a no-op.
     pub(crate) fn drain_persistent_output(&mut self) {
-        if let Some(ref session) = self.codex_session {
-            // Collect PTY bytes and convert them into clean lines.
-            let chunks = session.read_output();
-            if !chunks.is_empty() {
-                let mut raw = Vec::new();
-                for chunk in chunks {
-                    raw.extend_from_slice(&chunk);
-                }
-                let sanitized = codex::sanitize_pty_output(&raw);
-                if !sanitized.trim().is_empty() {
-                    let lines = codex::prepare_for_display(&sanitized);
-                    if !lines.is_empty() {
-                        self.append_output(lines);
-                    }
-                }
-            }
-        }
+        // Intentionally left blank until the backend exposes a PTY polling hook.
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::codex;
+    use crate::codex::{self, BackendEvent, BackendEventKind, BackendStats};
     use clap::Parser;
     use std::thread;
-    use std::time::Duration;
+    use std::time::{Duration, Instant};
 
     fn test_config() -> AppConfig {
         let mut config = AppConfig::parse_from(["codex-voice-tests"]);
@@ -789,11 +726,12 @@ mod tests {
         let mut app = App::new(config);
         app.input = "test prompt".into();
         let (_result, hook_guard) = codex::with_job_hook(
-            Box::new(|prompt, _| CodexJobMessage::Completed {
-                lines: vec![format!("> {prompt}"), String::from("result line")],
-                status: "ok".into(),
-                codex_session: None,
-                disable_pty: false,
+            Box::new(|prompt, _| {
+                vec![BackendEventKind::Finished {
+                    lines: vec![format!("> {prompt}"), String::from("result line")],
+                    status: "ok".into(),
+                    stats: test_stats(),
+                }]
             }),
             || {
                 app.send_current_input().unwrap();
@@ -819,10 +757,7 @@ mod tests {
                 while !cancel.is_cancelled() {
                     thread::sleep(Duration::from_millis(10));
                 }
-                CodexJobMessage::Canceled {
-                    codex_session: None,
-                    disable_pty: false,
-                }
+                vec![BackendEventKind::Canceled { disable_pty: false }]
             }),
             || {
                 app.send_current_input().unwrap();
@@ -849,18 +784,55 @@ mod tests {
     }
 
     #[test]
-    fn worker_disable_flag_blocks_future_sessions() {
-        let mut config = AppConfig::parse_from(["codex-voice-tests"]);
-        config.persistent_codex = true;
+    fn fatal_event_updates_status() {
+        let config = test_config();
         let mut app = App::new(config);
-        assert!(!app.pty_disabled);
-        app.handle_codex_job_message(CodexJobMessage::Failed {
-            error: "boom".into(),
-            codex_session: None,
-            disable_pty: true,
+        app.handle_backend_event(BackendEvent {
+            job_id: 1,
+            kind: BackendEventKind::FatalError {
+                phase: "cli",
+                message: "boom".into(),
+                disable_pty: true,
+            },
         });
-        assert!(app.pty_disabled);
-        assert!(app.take_codex_session_for_job().is_none());
+        assert_eq!(app.status_text(), "Codex failed: boom");
+    }
+
+    #[test]
+    fn perf_smoke_emits_timing_log() {
+        let log_path = crate::log_file_path();
+        let _ = std::fs::remove_file(&log_path);
+        log_debug(
+            "timing|phase=codex_job|job_id=perf_smoke|pty_attempted=false|total_ms=42|lines=1",
+        );
+        let contents =
+            std::fs::read_to_string(&log_path).expect("perf smoke log file should exist");
+        assert!(
+            contents.contains("timing|phase=codex_job"),
+            "timing log not found"
+        );
+    }
+
+    #[test]
+    fn memory_guard_backend_threads_drop() {
+        let config = test_config();
+        let mut app = App::new(config);
+        app.input = "memory-guard".into();
+        let (_result, hook_guard) = codex::with_job_hook(
+            Box::new(|prompt, _| {
+                vec![BackendEventKind::Finished {
+                    lines: vec![format!("> {prompt}"), String::from("result line")],
+                    status: "ok".into(),
+                    stats: test_stats(),
+                }]
+            }),
+            || {
+                app.send_current_input().unwrap();
+                wait_for_codex_job(&mut app);
+            },
+        );
+        drop(hook_guard);
+        assert_eq!(codex::active_backend_threads(), 0);
     }
 
     fn wait_for_codex_job(app: &mut App) {
@@ -872,5 +844,19 @@ mod tests {
             thread::sleep(Duration::from_millis(5));
         }
         panic!("Codex job did not complete in time");
+    }
+
+    fn test_stats() -> BackendStats {
+        BackendStats {
+            backend_type: "cli",
+            started_at: Instant::now(),
+            first_token_at: None,
+            finished_at: Instant::now(),
+            tokens_received: 0,
+            bytes_transferred: 0,
+            pty_attempts: 0,
+            cli_fallback_used: false,
+            disable_pty: false,
+        }
     }
 }

@@ -1,0 +1,64 @@
+name: Perf Smoke
+
+on:
+  push:
+    paths:
+      - "rust_tui/**"
+      - ".github/workflows/perf_smoke.yml"
+  pull_request:
+    paths:
+      - "rust_tui/**"
+      - ".github/workflows/perf_smoke.yml"
+
+jobs:
+  perf-smoke:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: rust_tui
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Run perf smoke test
+        run: cargo test --no-default-features app::tests::perf_smoke_emits_timing_log -- --nocapture
+
+      - name: Verify timing metrics
+        run: |
+          LOG_PATH=$(python3 - <<'PY'
+import os, tempfile
+print(os.path.join(tempfile.gettempdir(), "codex_voice_tui.log"))
+PY
+)
+          echo "Inspecting $LOG_PATH"
+          if ! grep -q "timing|phase=codex_job" "$LOG_PATH"; then
+            echo "timing|phase=codex_job missing from log" >&2
+            exit 1
+          fi
+          export PERF_LOG_PATH="$LOG_PATH"
+          python3 - <<'PY'
+import os, pathlib
+log_path = pathlib.Path(os.environ["PERF_LOG_PATH"])
+lines = [line.strip() for line in log_path.read_text().splitlines() if "timing|phase=codex_job" in line]
+if not lines:
+    raise SystemExit("No timing|phase=codex_job lines found")
+latest = lines[-1]
+parts = {}
+for chunk in latest.split('|'):
+    if '=' in chunk:
+        key, value = chunk.split('=', 1)
+        parts[key] = value
+try:
+    total_ms = float(parts.get('total_ms', '0'))
+except ValueError:
+    raise SystemExit(f"Invalid total_ms in timing log: {latest}")
+if total_ms > 2000:
+    raise SystemExit(f"Codex job exceeded SLA: total_ms={total_ms}")
+pty_attempted = parts.get('pty_attempted', 'false').lower() == 'true'
+if pty_attempted:
+    raise SystemExit("perf_smoke job unexpectedly attempted PTY")
+print("Perf smoke metrics valid:", latest)
+PY

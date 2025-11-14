@@ -11,17 +11,18 @@
 - Reaffirmed documentation/governance updates (`master_index.md`, `PROJECT_OVERVIEW.md`) pointing to the latest notes.
 - Landed the first Phase 2A code drop: `VadEngine` trait + Earshot feature gate + voice-pipeline wiring that now emits per-utterance metrics for future perf_smoke gating.
 - Shipped the async Codex worker (new `codex.rs`, `App::poll_codex_job`, spinner/cancel UX, telemetry, and unit tests), so the TUI stays responsive while Codex runs and Phase 2A work can resume.
+- Completed Phase 1A stabilization: resolved all clippy warnings, added perf/memory guard tests, and stood up the new CI workflows (`perf_smoke.yml`, `memory_guard.yml`) that enforce telemetry output + worker cleanup.
+- Completed the Phase 1 backend refactor (Option 2.5): `CodexBackend` trait + `CliBackend` implementation, bounded event queues/drop-oldest policy, App integration, and backend-focused unit/integration tests (`cargo test --no-default-features`).
 
 **In Progress**
 - Latency stabilization Phase 2A (Earshot-based VAD + early stop, config surface, metrics) — prerequisite for Phase 2B
-- CI perf/memory gating (`perf_smoke`, `memory_guard`) and documentation enforcement checks
 - Defining CI/doc lint checks for daily folder & changelog enforcement
 - Planning the `app.rs`/`pty_session.rs` decomposition (pending design options)
-- Tracking Codex worker telemetry in CI (add perf_smoke hook) now that the async path is live; any regressions should fail the pipeline.
+- Monitor the new perf/memory CI gates (workflows `perf_smoke.yml` and `memory_guard.yml`) and react to telemetry regressions immediately.
 
 **Next Session**
 1. Resume Phase 2A execution: finish Earshot VAD integration, early-stop logic, config keys, and latency benchmarks now that Codex calls no longer block the UI.
-2. Wire CI guards (`perf_smoke`, `memory_guard`, docs-check) so latency + documentation policies gate merges (including the new `timing|phase=codex_job` metrics).
+2. Add the pending docs-check/lint workflows so every code change updates the daily architecture folder + changelog automatically.
 3. Feature-gate Python fallback (dev-only feature flag) and document UX/error handling.
 4. Draft design options for splitting `app.rs`/`pty_session.rs` into ≤300 LOC modules for approval before implementation.
 

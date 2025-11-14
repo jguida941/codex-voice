@@ -162,66 +162,44 @@ pub fn draw(frame: &mut ratatui::Frame<'_>, app: &App) {
         let lines: Vec<Line> = app
             .output_lines()
             .iter()
-            .filter_map(|s| {
-                // Skip completely empty lines (but keep lines that should be blank)
+            .map(|s| {
                 if s.trim().is_empty() && !s.is_empty() {
-                    // This is a line with only whitespace - keep as blank
-                    return Some(Line::from(""));
+                    return Line::from("");
                 }
 
-                // CRITICAL: Clone the string to ensure we own it completely
                 let owned_line = s.to_string();
-
-                // Final safety filter before passing to ratatui
-                // Remove any remaining control characters that could cause issues
                 let cleaned = owned_line
                     .chars()
                     .filter(|c| !c.is_control() || *c == '\n' || *c == '\t')
                     .collect::<String>();
-
-                // Also ensure no leading/trailing invisible characters
                 let mut final_text = cleaned
                     .trim_matches(|c: char| {
                         c.is_control() || (c as u32) < 32 || c == '\u{200B}' || c == '\u{FEFF}'
                     })
                     .to_string();
-
-                // CRITICAL FIX: Ensure the string has valid UTF-8 boundaries
-                // Replace any invalid sequences with safe characters
                 if final_text.is_empty() {
-                    // Don't pass empty strings to Line::from, use a space instead
                     final_text = " ".to_string();
                 }
 
-                // Ensure the string doesn't have any weird width issues
-                // that could cause ratatui's wrapper to miscalculate
                 let safe_text = final_text
                     .chars()
                     .map(|c| {
-                        // Replace any zero-width or problematic characters
                         if c.width().unwrap_or(0) == 0 && c != '\n' && c != '\t' {
-                            ' ' // Replace with space
+                            ' '
                         } else {
                             c
                         }
                     })
                     .collect::<String>();
-
-                // CRITICAL: Replace backticks that can cause wrapping panics
                 let safe_text = safe_text.replace('`', "'");
 
-                // Ensure we don't have lines that are too long and might cause wrapping issues
-                // Truncate at a safe length with ellipsis if needed
                 const MAX_LINE_WIDTH: usize = 500;
                 let trimmed = window_by_columns(&safe_text, 0, MAX_LINE_WIDTH);
                 let mut final_safe_text = trimmed.to_string();
                 if UnicodeWidthStr::width(safe_text.as_str()) > UnicodeWidthStr::width(trimmed) {
                     final_safe_text.push('…');
                 }
-
-                // IMPORTANT: Create Line with an owned String to avoid lifetime issues
-                // This ensures ratatui gets a properly owned value
-                Some(Line::from(final_safe_text))
+                Line::from(final_safe_text)
             })
             .collect();
         Text::from(lines)

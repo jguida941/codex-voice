@@ -3,14 +3,21 @@ use crate::log_debug;
 use anyhow::{anyhow, Context, Result};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{SampleFormat, StreamConfig};
-use crossbeam_channel::{bounded, RecvTimeoutError, Sender, TrySendError};
+#[cfg(not(test))]
+use crossbeam_channel::{bounded, RecvTimeoutError};
+#[cfg(not(test))]
+use crossbeam_channel::{Sender, TrySendError};
 #[cfg(feature = "high-quality-audio")]
 use rubato::{InterpolationParameters, InterpolationType, Resampler, SincFixedIn, WindowFunction};
+#[cfg(not(test))]
 use std::collections::VecDeque;
 use std::f32::consts::PI;
 #[cfg(feature = "high-quality-audio")]
 use std::sync::atomic::AtomicBool;
-use std::sync::atomic::{AtomicUsize, Ordering};
+#[cfg(not(test))]
+use std::sync::atomic::AtomicUsize;
+#[cfg(any(feature = "high-quality-audio", not(test)))]
+use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -18,6 +25,7 @@ use std::time::Duration;
 /// The Whisper model requires mono audio at 16 kHz for accurate transcription
 pub const TARGET_RATE: u32 = 16_000;
 pub const TARGET_CHANNELS: u32 = 1;
+#[cfg(test)]
 const SAMPLE_RATE: u32 = TARGET_RATE;
 
 #[cfg(feature = "high-quality-audio")]
@@ -387,13 +395,13 @@ fn record_with_vad_impl(
 
     let mut frames = VecDeque::new();
     let mut total_samples = 0usize;
-    let max_samples = ((cfg.buffer_ms as u64 * cfg.sample_rate as u64) / 1000).max(1) as usize;
+    let max_samples = ((cfg.buffer_ms * u64::from(cfg.sample_rate)) / 1000).max(1) as usize;
     let mut metrics = CaptureMetrics::default();
     let mut speech_ms = 0u64;
     let mut silence_streak_ms = 0u64;
     let mut total_ms = 0u64;
     let mut stop_reason = StopReason::MaxDuration;
-    let wait_time = Duration::from_millis(frame_ms as u64);
+    let wait_time = Duration::from_millis(frame_ms);
 
     while total_ms < cfg.max_recording_duration_ms {
         match receiver.recv_timeout(wait_time) {

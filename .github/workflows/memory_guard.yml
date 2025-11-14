@@ -1,0 +1,32 @@
+name: Memory Guard
+
+on:
+  push:
+    paths:
+      - "rust_tui/**"
+      - ".github/workflows/memory_guard.yml"
+  pull_request:
+    paths:
+      - "rust_tui/**"
+      - ".github/workflows/memory_guard.yml"
+
+jobs:
+  memory-guard:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: rust_tui
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Run memory guard loop
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 20); do
+            echo "Iteration $i"
+            cargo test --no-default-features app::tests::memory_guard_backend_threads_drop -- --nocapture
+          done

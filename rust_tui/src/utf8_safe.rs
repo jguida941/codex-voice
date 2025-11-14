@@ -13,13 +13,10 @@ pub fn safe_prefix(s: &str, max_chars: usize) -> &str {
     }
 
     let mut end = s.len();
-    let mut count = 0usize;
-
-    for (idx, ch) in s.char_indices() {
+    for (count, (idx, ch)) in s.char_indices().enumerate() {
         if count == max_chars {
             return &s[..idx];
         }
-        count += 1;
         end = idx + ch.len_utf8();
     }
 
@@ -35,30 +32,24 @@ pub fn safe_slice(s: &str, start_chars: usize, len_chars: usize) -> &str {
 
     let mut start_byte = 0usize;
     let mut end_byte = s.len();
-    let mut char_count = 0usize;
-
-    // Find the starting byte position
-    for (i, _) in s.char_indices() {
+    let mut start_found = start_chars == 0;
+    for (char_count, (i, _)) in s.char_indices().enumerate() {
         if char_count == start_chars {
             start_byte = i;
+            start_found = true;
             break;
         }
-        char_count += 1;
     }
-
-    // If start is beyond the string, return empty
-    if char_count < start_chars {
+    if !start_found {
         return "";
     }
 
     // Find the ending byte position
-    char_count = 0;
-    for (i, _) in s[start_byte..].char_indices() {
+    for (char_count, (i, _)) in s[start_byte..].char_indices().enumerate() {
         if char_count == len_chars {
             end_byte = start_byte + i;
             break;
         }
-        char_count += 1;
     }
 
     &s[start_byte..end_byte.min(s.len())]
@@ -78,14 +69,11 @@ pub fn safe_suffix(s: &str, max_chars: usize) -> &str {
 
     let skip_chars = total_chars - max_chars;
     let mut start_byte = 0;
-    let mut char_count = 0;
-
-    for (i, _) in s.char_indices() {
+    for (char_count, (i, _)) in s.char_indices().enumerate() {
         if char_count == skip_chars {
             start_byte = i;
             break;
         }
-        char_count += 1;
     }
 
     &s[start_byte..]
@@ -112,7 +100,7 @@ pub fn ellipsize(s: &str, max_chars: usize) -> String {
 
 /// Return a slice of the string bounded by display columns rather than raw characters.
 /// This prevents splitting a multi-byte or double-width glyph when showing a viewport.
-pub fn window_by_columns<'a>(s: &'a str, start_cols: usize, width_cols: usize) -> &'a str {
+pub fn window_by_columns(s: &str, start_cols: usize, width_cols: usize) -> &str {
     if width_cols == 0 || s.is_empty() {
         return "";
     }
