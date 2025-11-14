@@ -11,6 +11,7 @@
 - Added the `vad_earshot` feature and optional dependency placeholder in `rust_tui/Cargo.toml`.
 - Introduced `rust_tui/src/vad_earshot.rs` (feature gated) plus the trait-based VAD factory used by `voice.rs`.
 - Reworked `Recorder::record_with_vad` to prepare for chunked capture (non-test builds) and added per-utterance metrics scaffolding/logging.
+- Implemented the Phase 2A `FrameAccumulator` (lookback-aware buffer) plus `CaptureMetrics::capture_ms`, updated `voice_metrics|` logging, and added six accumulator + `CaptureState` unit tests to keep silence trimming, drop-oldest, max-duration, timeout, and manual/min-speech guard logic covered.
 - Updated `voice.rs` to call the new VAD-aware recorder path and emit capture metrics alongside transcripts.
 - Captured the detailed Option 1 Codex worker design (state flow, cancellation, spinner plan, telemetry) in `ARCHITECTURE.md` so implementation can proceed under SDLC.
 - Implemented the nonblocking Codex worker (`rust_tui/src/codex.rs` + `App::poll_codex_job`), spinner/cancel UX, and session handoff; TUI no longer freezes during 30–60 s Codex calls and cancellation now surfaces via Esc/Ctrl+C.
@@ -31,6 +32,7 @@
 - `App::poll_codex_job` no longer races cleared jobs vs. final events; the backend event queue drains fully, joins worker threads deterministically, and avoids the prior “worker disconnected” false-positive statuses in tests.
 - Restored Phase 1A build hygiene after the audit by importing `Ordering` under all relevant cfgs and deleting the duplicate `#![cfg(feature = "vad_earshot")]` attribute, then re-running `cargo clippy --all-features` and `cargo test --no-default-features` to confirm green builds.
 - Fixed the codex backend import ordering issue raised by CI (moved the `#[cfg(test)]` attribute directly above the `AtomicUsize` import), ran `cargo fmt`/`cargo clippy --no-default-features`, and updated both perf/memory workflows to install ALSA headers so Ubuntu runners can build `cpal`.
+- Rewired `perf_smoke` (`app::tests::perf_smoke_emits_voice_metrics`, `.github/workflows/perf_smoke.yml`, `.github/scripts/verify_perf_metrics.py`) to parse the real `voice_metrics|` entries instead of the synthetic Codex timing log, so CI now validates capture_ms/speech_ms/frames_dropped directly.
 
 ## Pending
 - Implementation of Earshot-based silence-aware capture and the accompanying metrics/tests.

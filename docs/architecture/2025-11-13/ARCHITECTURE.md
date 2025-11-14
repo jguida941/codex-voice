@@ -12,6 +12,8 @@
 - Replaced the stub `Recorder::record_with_vad` implementation (non-test builds) with the new chunked capture + VAD processing loop: CPAL frames → bounded channel → per-frame VAD decisions → metrics + audio buffer.
 - Updated the voice pipeline to call `record_with_vad`, instantiate the correct VAD engine per feature flag, and log the per-utterance metrics for future perf_smoke gating.
 - Documented and logged the rubato threshold tweak plus the new VAD wiring; changelog now tracks the code changes for Phase 2A scaffolding.
+- Landed the `FrameAccumulator` (lookback-aware frame buffer) plus capture metrics upgrade (`capture_ms`, `voice_metrics|` schema) and rewired `perf_smoke` to parse those logs so Phase 2A latency gains are now verifiable in CI.
+- Added `CaptureState` to encapsulate stop-condition bookkeeping (speech_ms, silence tail, min-speech gating, manual stop) and wrote dedicated unit tests covering max-duration, timeout, manual stop, and silence-tail enforcement.
 - Closed the Phase 1A build hygiene gap: reintroduced the unconditional `Ordering` import needed by the resampler guard, removed the redundant `#![cfg(feature = "vad_earshot")]` attribute from `vad_earshot.rs`, and re-ran `cargo clippy --all-features` plus `cargo test --no-default-features` to verify the tree is green again.
 - Followed up on the CI failures noted earlier: moved the `#[cfg(test)]` gate ahead of the `AtomicUsize` import in `codex.rs`, ran `cargo fmt` + `cargo clippy --no-default-features`, and added ALSA header installation to both perf/memory workflows so Linux runners satisfy `cpal`’s `alsa-sys` dependency.
 
@@ -209,6 +211,13 @@ Silence-aware capture (Phase 2A) is considered *done* when all of the following 
   - Earshot usage is fully encapsulated inside `EarshotVad`; recorder, voice, and STT modules depend only on the trait.
   - The CPAL callback must never block; when the ring buffer fills, drop oldest frames and increment `frames_dropped`.
   - Phase 2B will replace the “concatenate frames” step with a bounded channel, reusing these types verbatim.
+
+### FrameAccumulator implementation (2025-11-13)
+- Added `FrameAccumulator` (pub(crate)) to own the frame queue, enforce `buffer_ms`/`lookback_ms`, and drop-oldest without leaking Earshot types to callers.
+- `FrameAccumulator::trim_trailing_silence()` now guarantees we retain at most `lookback_ms` of trailing silence when stop reason = `VadSilence`, trimming partial frames when needed.
+- `CaptureMetrics` gained a `capture_ms` field (total recorded duration), matching the newly documented `voice_metrics|capture_ms=…|speech_ms=…|silence_tail_ms=…|frames_processed=…|frames_dropped=…|early_stop=…` log schema used by perf_smoke.
+- Added six unit tests covering silence trimming, partial-frame truncation, max-capacity eviction, and `StopReason::label()` stability; these run even in `--no-default-features` builds because the accumulator is no longer behind `#[cfg(not(test))]`.
+- `perf_smoke.yml` + `verify_perf_metrics.py` now grep `voice_metrics|` lines, parse the structured fields, and fail CI when capture_ms exceeds the SLA, frames drop, or the early_stop reason reports `error`.
 
 ## Risks / Open Questions
 - Earshot CPU overhead needs profiling once integrated; mitigation is to adjust frame size or swap to webrtc-vad if needed.

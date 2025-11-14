@@ -9,7 +9,6 @@ use crossbeam_channel::{bounded, RecvTimeoutError};
 use crossbeam_channel::{Sender, TrySendError};
 #[cfg(feature = "high-quality-audio")]
 use rubato::{InterpolationParameters, InterpolationType, Resampler, SincFixedIn, WindowFunction};
-#[cfg(not(test))]
 use std::collections::VecDeque;
 use std::f32::consts::PI;
 #[cfg(feature = "high-quality-audio")]
@@ -71,6 +70,7 @@ impl Default for VadConfig {
 /// Summarizes how capture ended and what resources were consumed.
 #[derive(Debug, Clone)]
 pub struct CaptureMetrics {
+    pub capture_ms: u64,
     pub speech_ms: u64,
     pub silence_tail_ms: u64,
     pub frames_processed: usize,
@@ -81,6 +81,7 @@ pub struct CaptureMetrics {
 impl Default for CaptureMetrics {
     fn default() -> Self {
         Self {
+            capture_ms: 0,
             speech_ms: 0,
             silence_tail_ms: 0,
             frames_processed: 0,
@@ -98,6 +99,18 @@ pub enum StopReason {
     ManualStop,
     Timeout,
     Error(String),
+}
+
+impl StopReason {
+    pub fn label(&self) -> &'static str {
+        match self {
+            StopReason::VadSilence { .. } => "vad_silence",
+            StopReason::MaxDuration => "max_duration",
+            StopReason::ManualStop => "manual_stop",
+            StopReason::Timeout => "timeout",
+            StopReason::Error(_) => "error",
+        }
+    }
 }
 
 /// Caller-facing result: mono PCM plus metrics for observability/CI.
@@ -144,6 +157,195 @@ pub enum VadDecision {
     Speech,
     Silence,
     Uncertain,
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+enum FrameLabel {
+    Speech,
+    Silence,
+    Uncertain,
+}
+
+impl From<VadDecision> for FrameLabel {
+    fn from(decision: VadDecision) -> Self {
+        match decision {
+            VadDecision::Speech => FrameLabel::Speech,
+            VadDecision::Silence => FrameLabel::Silence,
+            VadDecision::Uncertain => FrameLabel::Uncertain,
+        }
+    }
+}
+
+struct FrameRecord {
+    samples: Vec<f32>,
+    label: FrameLabel,
+}
+
+pub(crate) struct FrameAccumulator {
+    frames: VecDeque<FrameRecord>,
+    total_samples: usize,
+    max_samples: usize,
+    lookback_samples: usize,
+}
+
+#[cfg_attr(test, allow(dead_code))]
+impl FrameAccumulator {
+    fn from_config(cfg: &VadConfig) -> Self {
+        let max_samples = ((cfg.buffer_ms * u64::from(cfg.sample_rate)) / 1000).max(1) as usize;
+        let lookback_samples = ((cfg.lookback_ms * u64::from(cfg.sample_rate)) / 1000) as usize;
+        Self {
+            frames: VecDeque::new(),
+            total_samples: 0,
+            max_samples,
+            lookback_samples,
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn for_testing(max_samples: usize, lookback_samples: usize) -> Self {
+        Self {
+            frames: VecDeque::new(),
+            total_samples: 0,
+            max_samples,
+            lookback_samples,
+        }
+    }
+
+    fn push_frame(&mut self, samples: Vec<f32>, label: FrameLabel) {
+        self.total_samples = self.total_samples.saturating_add(samples.len());
+        self.frames.push_back(FrameRecord { samples, label });
+        while self.total_samples > self.max_samples {
+            if let Some(record) = self.frames.pop_front() {
+                self.total_samples = self.total_samples.saturating_sub(record.samples.len());
+            } else {
+                break;
+            }
+        }
+    }
+
+    fn is_empty(&self) -> bool {
+        self.total_samples == 0
+    }
+
+    fn into_audio(mut self, stop_reason: &StopReason) -> Vec<f32> {
+        if matches!(stop_reason, StopReason::VadSilence { .. }) {
+            self.trim_trailing_silence();
+        }
+        let mut audio = Vec::with_capacity(self.total_samples);
+        for record in self.frames {
+            audio.extend(record.samples);
+        }
+        audio
+    }
+
+    fn trim_trailing_silence(&mut self) {
+        let mut trailing_silence_samples = 0usize;
+        for record in self.frames.iter().rev() {
+            if record.label == FrameLabel::Silence {
+                trailing_silence_samples += record.samples.len();
+            } else {
+                break;
+            }
+        }
+        let mut excess = trailing_silence_samples.saturating_sub(self.lookback_samples);
+        while excess > 0 {
+            match self.frames.back_mut() {
+                Some(record) if record.label == FrameLabel::Silence => {
+                    if excess >= record.samples.len() {
+                        excess -= record.samples.len();
+                        self.total_samples =
+                            self.total_samples.saturating_sub(record.samples.len());
+                        self.frames.pop_back();
+                    } else {
+                        let keep = record.samples.len() - excess;
+                        record.samples.truncate(keep);
+                        self.total_samples = self.total_samples.saturating_sub(excess);
+                        excess = 0;
+                    }
+                }
+                _ => break,
+            }
+        }
+    }
+}
+
+pub(crate) struct CaptureState<'a> {
+    cfg: &'a VadConfig,
+    frame_ms: u64,
+    speech_ms: u64,
+    silence_streak_ms: u64,
+    total_ms: u64,
+}
+
+#[cfg_attr(test, allow(dead_code))]
+impl<'a> CaptureState<'a> {
+    fn new(cfg: &'a VadConfig, frame_ms: u64) -> Self {
+        Self {
+            cfg,
+            frame_ms,
+            speech_ms: 0,
+            silence_streak_ms: 0,
+            total_ms: 0,
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn for_testing(cfg: &'a VadConfig, frame_ms: u64) -> Self {
+        Self::new(cfg, frame_ms)
+    }
+
+    fn on_frame(&mut self, label: FrameLabel) -> Option<StopReason> {
+        match label {
+            FrameLabel::Speech => {
+                self.speech_ms = self.speech_ms.saturating_add(self.frame_ms);
+                self.silence_streak_ms = 0;
+            }
+            FrameLabel::Silence => {
+                self.silence_streak_ms = self.silence_streak_ms.saturating_add(self.frame_ms);
+            }
+            FrameLabel::Uncertain => {
+                self.silence_streak_ms = 0;
+            }
+        }
+        self.total_ms = self.total_ms.saturating_add(self.frame_ms);
+        if self.total_ms >= self.cfg.max_recording_duration_ms {
+            return Some(StopReason::MaxDuration);
+        }
+        if self.total_ms >= self.cfg.min_recording_duration_ms
+            && self.silence_streak_ms >= self.cfg.silence_duration_ms
+        {
+            return Some(StopReason::VadSilence {
+                tail_ms: self.silence_streak_ms,
+            });
+        }
+        None
+    }
+
+    fn on_timeout(&mut self) -> Option<StopReason> {
+        self.total_ms = self.total_ms.saturating_add(self.frame_ms);
+        if self.total_ms >= self.cfg.max_recording_duration_ms {
+            Some(StopReason::Timeout)
+        } else {
+            None
+        }
+    }
+
+    #[allow(dead_code)]
+    fn manual_stop(&self) -> StopReason {
+        StopReason::ManualStop
+    }
+
+    fn total_ms(&self) -> u64 {
+        self.total_ms
+    }
+
+    fn speech_ms(&self) -> u64 {
+        self.speech_ms
+    }
+
+    fn silence_tail_ms(&self) -> u64 {
+        self.silence_streak_ms
+    }
 }
 
 /// Lightweight fallback VAD that operates on RMS energy. Used when Earshot is
@@ -393,17 +595,13 @@ fn record_with_vad_impl(
 
     stream.play()?;
 
-    let mut frames = VecDeque::new();
-    let mut total_samples = 0usize;
-    let max_samples = ((cfg.buffer_ms * u64::from(cfg.sample_rate)) / 1000).max(1) as usize;
+    let mut accumulator = FrameAccumulator::from_config(cfg);
+    let mut state = CaptureState::new(cfg, frame_ms);
     let mut metrics = CaptureMetrics::default();
-    let mut speech_ms = 0u64;
-    let mut silence_streak_ms = 0u64;
-    let mut total_ms = 0u64;
     let mut stop_reason = StopReason::MaxDuration;
     let wait_time = Duration::from_millis(frame_ms);
 
-    while total_ms < cfg.max_recording_duration_ms {
+    while state.total_ms() < cfg.max_recording_duration_ms {
         match receiver.recv_timeout(wait_time) {
             Ok(frame) => {
                 let target_frame = convert_frame_to_target(
@@ -419,47 +617,16 @@ fn record_with_vad_impl(
                 let decision = vad.process_frame(&target_frame);
                 metrics.frames_processed += 1;
 
-                match decision {
-                    VadDecision::Speech => {
-                        speech_ms += frame_ms;
-                        silence_streak_ms = 0;
-                    }
-                    VadDecision::Silence => {
-                        silence_streak_ms += frame_ms;
-                    }
-                    VadDecision::Uncertain => {
-                        silence_streak_ms = 0;
-                    }
-                }
-
-                frames.push_back(target_frame);
-                total_samples += frames.back().map(|f| f.len()).unwrap_or(0);
-                while total_samples > max_samples {
-                    if let Some(front) = frames.pop_front() {
-                        total_samples -= front.len();
-                    } else {
-                        break;
-                    }
-                }
-
-                total_ms += frame_ms;
-                if total_ms >= cfg.max_recording_duration_ms {
-                    stop_reason = StopReason::MaxDuration;
-                    break;
-                }
-                if total_ms >= cfg.min_recording_duration_ms
-                    && silence_streak_ms >= cfg.silence_duration_ms
-                {
-                    stop_reason = StopReason::VadSilence {
-                        tail_ms: silence_streak_ms,
-                    };
+                let label = FrameLabel::from(decision);
+                accumulator.push_frame(target_frame, label);
+                if let Some(reason) = state.on_frame(label) {
+                    stop_reason = reason;
                     break;
                 }
             }
             Err(RecvTimeoutError::Timeout) => {
-                total_ms += frame_ms;
-                if total_ms >= cfg.max_recording_duration_ms {
-                    stop_reason = StopReason::Timeout;
+                if let Some(reason) = state.on_timeout() {
+                    stop_reason = reason;
                     break;
                 }
             }
@@ -475,21 +642,19 @@ fn record_with_vad_impl(
     }
     drop(stream);
 
-    if frames.is_empty() {
+    if accumulator.is_empty() {
         return Err(anyhow!(
             "no samples captured; check microphone permissions and availability"
         ));
     }
 
-    let mut audio = Vec::with_capacity(total_samples);
-    for frame in frames {
-        audio.extend(frame);
-    }
+    let audio = accumulator.into_audio(&stop_reason);
 
-    metrics.speech_ms = speech_ms;
-    metrics.silence_tail_ms = silence_streak_ms;
+    metrics.speech_ms = state.speech_ms();
+    metrics.silence_tail_ms = state.silence_tail_ms();
     metrics.frames_dropped = dropped.load(Ordering::Relaxed);
     metrics.early_stop_reason = stop_reason;
+    metrics.capture_ms = state.total_ms();
 
     Ok(CaptureResult { audio, metrics })
 }
@@ -919,6 +1084,64 @@ mod tests {
         (power / len).max(0.0)
     }
 
+    #[test]
+    fn frame_accumulator_trims_excess_silence() {
+        let mut acc = FrameAccumulator::for_testing(usize::MAX, 4);
+        acc.push_frame(vec![1.0; 4], FrameLabel::Speech);
+        acc.push_frame(vec![0.0; 4], FrameLabel::Silence);
+        acc.push_frame(vec![0.0; 4], FrameLabel::Silence);
+
+        let audio = acc.into_audio(&StopReason::VadSilence { tail_ms: 40 });
+        assert_eq!(audio.len(), 8);
+        assert_eq!(audio[..4], [1.0; 4]);
+    }
+
+    #[test]
+    fn frame_accumulator_keeps_silence_within_lookback() {
+        let mut acc = FrameAccumulator::for_testing(usize::MAX, 8);
+        acc.push_frame(vec![0.5; 4], FrameLabel::Speech);
+        acc.push_frame(vec![0.0; 4], FrameLabel::Silence);
+
+        let audio = acc.into_audio(&StopReason::VadSilence { tail_ms: 40 });
+        assert_eq!(audio.len(), 8);
+    }
+
+    #[test]
+    fn frame_accumulator_handles_partial_trim() {
+        let mut acc = FrameAccumulator::for_testing(usize::MAX, 3);
+        acc.push_frame(vec![1.0; 4], FrameLabel::Speech);
+        acc.push_frame(vec![0.0; 5], FrameLabel::Silence);
+
+        let audio = acc.into_audio(&StopReason::VadSilence { tail_ms: 40 });
+        assert_eq!(audio.len(), 7);
+        assert_eq!(&audio[4..], &[0.0; 3]);
+    }
+
+    #[test]
+    fn frame_accumulator_drops_oldest_on_capacity() {
+        let mut acc = FrameAccumulator::for_testing(8, 4);
+        acc.push_frame(vec![1.0; 4], FrameLabel::Speech);
+        acc.push_frame(vec![2.0; 4], FrameLabel::Speech);
+        acc.push_frame(vec![3.0; 4], FrameLabel::Speech); // forces first frame out
+
+        let audio = acc.into_audio(&StopReason::MaxDuration);
+        assert_eq!(audio.len(), 8);
+        assert_eq!(&audio[..4], &[2.0; 4]);
+        assert_eq!(&audio[4..], &[3.0; 4]);
+    }
+
+    #[test]
+    fn stop_reason_labels_are_stable() {
+        assert_eq!(
+            StopReason::VadSilence { tail_ms: 100 }.label(),
+            "vad_silence"
+        );
+        assert_eq!(StopReason::MaxDuration.label(), "max_duration");
+        assert_eq!(StopReason::ManualStop.label(), "manual_stop");
+        assert_eq!(StopReason::Timeout.label(), "timeout");
+        assert_eq!(StopReason::Error("x".into()).label(), "error");
+    }
+
     struct MockVad;
 
     impl VadEngine for MockVad {
@@ -943,5 +1166,47 @@ mod tests {
             .expect("stub should produce a CaptureResult");
         assert!(result.audio.is_empty());
         assert_eq!(result.metrics.frames_processed, 0);
+    }
+
+    #[test]
+    fn capture_state_hits_max_duration() {
+        let mut cfg = VadConfig::default();
+        cfg.max_recording_duration_ms = 60;
+        cfg.min_recording_duration_ms = 0;
+        let mut state = CaptureState::for_testing(&cfg, 20);
+        assert!(state.on_frame(FrameLabel::Speech).is_none());
+        assert!(state.on_frame(FrameLabel::Speech).is_none());
+        let reason = state.on_frame(FrameLabel::Speech);
+        assert!(matches!(reason, Some(StopReason::MaxDuration)));
+    }
+
+    #[test]
+    fn capture_state_times_out_after_idle() {
+        let mut cfg = VadConfig::default();
+        cfg.max_recording_duration_ms = 60;
+        let mut state = CaptureState::for_testing(&cfg, 30);
+        assert!(state.on_timeout().is_none());
+        let reason = state.on_timeout();
+        assert!(matches!(reason, Some(StopReason::Timeout)));
+    }
+
+    #[test]
+    fn capture_state_requires_min_speech_before_silence_stop() {
+        let mut cfg = VadConfig::default();
+        cfg.min_recording_duration_ms = 200;
+        cfg.silence_duration_ms = 100;
+        let mut state = CaptureState::for_testing(&cfg, 50);
+        assert!(state.on_frame(FrameLabel::Speech).is_none());
+        assert!(state.on_frame(FrameLabel::Speech).is_none());
+        assert!(state.on_frame(FrameLabel::Silence).is_none());
+        let reason = state.on_frame(FrameLabel::Silence);
+        assert!(matches!(reason, Some(StopReason::VadSilence { .. })));
+    }
+
+    #[test]
+    fn capture_state_manual_stop_sets_reason() {
+        let cfg = VadConfig::default();
+        let state = CaptureState::for_testing(&cfg, 20);
+        assert!(matches!(state.manual_stop(), StopReason::ManualStop));
     }
 }

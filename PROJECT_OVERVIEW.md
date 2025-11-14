@@ -10,6 +10,7 @@
 - Captured Phase 2A exit criteria (config surface, metrics, tests, CI hooks) to gate Phase 2B readiness.
 - Reaffirmed documentation/governance updates (`master_index.md`, `PROJECT_OVERVIEW.md`) pointing to the latest notes.
 - Landed the first Phase 2A code drop: `VadEngine` trait + Earshot feature gate + voice-pipeline wiring that now emits per-utterance metrics for future perf_smoke gating.
+- Completed the FrameAccumulator + `voice_metrics|` work: recorder now enforces lookback-aware trimming, `CaptureMetrics` surfaced `capture_ms`, perf_smoke parses the real voice logs, and six new unit tests cover silence stop/drop-oldest flows.
 - Shipped the async Codex worker (new `codex.rs`, `App::poll_codex_job`, spinner/cancel UX, telemetry, and unit tests), so the TUI stays responsive while Codex runs and Phase 2A work can resume.
 - Completed Phase 1A stabilization: resolved all clippy warnings, added perf/memory guard tests, and stood up the new CI workflows (`perf_smoke.yml`, `memory_guard.yml`) that enforce telemetry output + worker cleanup.
 - Completed the Phase 1 backend refactor (Option 2.5): `CodexBackend` trait + `CliBackend` implementation, bounded event queues/drop-oldest policy, App integration, and backend-focused unit/integration tests (`cargo test --no-default-features`).

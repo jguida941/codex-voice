@@ -219,14 +219,17 @@ fn capture_voice_native(
     }
 }
 
-fn log_voice_metrics(metrics: &audio::CaptureMetrics) {
+/// Emit structured metrics for perf_smoke consumption.
+/// Format: `voice_metrics|capture_ms=...|speech_ms=...|silence_tail_ms=...|frames_processed=...|frames_dropped=...|early_stop=...`
+pub(crate) fn log_voice_metrics(metrics: &audio::CaptureMetrics) {
     log_debug(&format!(
-        "voice_metrics|speech_ms={} silence_ms={} frames_processed={} frames_dropped={} reason={:?}",
+        "voice_metrics|capture_ms={}|speech_ms={}|silence_tail_ms={}|frames_processed={}|frames_dropped={}|early_stop={}",
+        metrics.capture_ms,
         metrics.speech_ms,
         metrics.silence_tail_ms,
         metrics.frames_processed,
         metrics.frames_dropped,
-        metrics.early_stop_reason
+        metrics.early_stop_reason.label()
     ));
 }
 

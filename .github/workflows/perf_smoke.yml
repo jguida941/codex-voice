@@ -27,14 +27,14 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libasound2-dev
 
       - name: Run perf smoke test
-        run: cargo test --no-default-features app::tests::perf_smoke_emits_timing_log -- --nocapture
+        run: cargo test --no-default-features app::tests::perf_smoke_emits_voice_metrics -- --nocapture
 
-      - name: Verify timing metrics
+      - name: Verify voice metrics
         run: |
           LOG_PATH=$(python3 -c "import os, tempfile; print(os.path.join(tempfile.gettempdir(), 'codex_voice_tui.log'))")
           echo "Inspecting $LOG_PATH"
-          if ! grep -q "timing|phase=codex_job" "$LOG_PATH"; then
-            echo "timing|phase=codex_job missing from log" >&2
+          if ! grep -q "voice_metrics|" "$LOG_PATH"; then
+            echo "voice_metrics log missing from log" >&2
             exit 1
           fi
           python3 ../.github/scripts/verify_perf_metrics.py "$LOG_PATH"

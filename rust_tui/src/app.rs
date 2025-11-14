@@ -799,17 +799,22 @@ mod tests {
     }
 
     #[test]
-    fn perf_smoke_emits_timing_log() {
+    fn perf_smoke_emits_voice_metrics() {
         let log_path = crate::log_file_path();
         let _ = std::fs::remove_file(&log_path);
-        log_debug(
-            "timing|phase=codex_job|job_id=perf_smoke|pty_attempted=false|total_ms=42|lines=1",
-        );
+        let mut metrics = audio::CaptureMetrics::default();
+        metrics.capture_ms = 800;
+        metrics.speech_ms = 600;
+        metrics.silence_tail_ms = 200;
+        metrics.frames_processed = 5;
+        metrics.frames_dropped = 0;
+        metrics.early_stop_reason = audio::StopReason::VadSilence { tail_ms: 200 };
+        voice::log_voice_metrics(&metrics);
         let contents =
             std::fs::read_to_string(&log_path).expect("perf smoke log file should exist");
         assert!(
-            contents.contains("timing|phase=codex_job"),
-            "timing log not found"
+            contents.contains("voice_metrics|"),
+            "voice metrics log not found"
         );
     }
 
