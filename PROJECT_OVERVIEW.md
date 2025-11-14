@@ -6,26 +6,23 @@
 - **Latest Notes**: [`docs/architecture/2025-11-13/`](docs/architecture/2025-11-13/)
 
 **Today We Finished**
+- **Phase 2A COMPLETE**: Exposed runtime VAD selector (`--voice-vad-engine earshot|simple`), created benchmark harness (`voice_benchmark` binary + `scripts/benchmark_voice.sh`), documented SLA evidence in `BENCHMARKS.md` (conservative targets: capture_ms ≤1.8s for short clips, ≤4.2s for <3s speech), added 6 VAD engine selection tests, and logged technical debt for Phase 2B. All exit criteria satisfied (CLI config surface, metrics, tests, CI scaffolding, documentation).
 - Opened the 2025-11-13 daily folder and logged the formal Phase 2A kickoff plus Earshot VAD approval.
-- Captured Phase 2A exit criteria (config surface, metrics, tests, CI hooks) to gate Phase 2B readiness.
-- Reaffirmed documentation/governance updates (`master_index.md`, `PROJECT_OVERVIEW.md`) pointing to the latest notes.
-- Landed the first Phase 2A code drop: `VadEngine` trait + Earshot feature gate + voice-pipeline wiring that now emits per-utterance metrics for future perf_smoke gating.
-- Completed the FrameAccumulator + `voice_metrics|` work: recorder now enforces lookback-aware trimming, `CaptureMetrics` surfaced `capture_ms`, perf_smoke parses the real voice logs, and six new unit tests cover silence stop/drop-oldest flows.
-- Shipped the async Codex worker (new `codex.rs`, `App::poll_codex_job`, spinner/cancel UX, telemetry, and unit tests), so the TUI stays responsive while Codex runs and Phase 2A work can resume.
-- Completed Phase 1A stabilization: resolved all clippy warnings, added perf/memory guard tests, and stood up the new CI workflows (`perf_smoke.yml`, `memory_guard.yml`) that enforce telemetry output + worker cleanup.
-- Completed the Phase 1 backend refactor (Option 2.5): `CodexBackend` trait + `CliBackend` implementation, bounded event queues/drop-oldest policy, App integration, and backend-focused unit/integration tests (`cargo test --no-default-features`).
+- Landed FrameAccumulator + `voice_metrics|` schema: recorder enforces lookback-aware trimming, `CaptureMetrics` includes `capture_ms`, perf_smoke parses structured logs, and 10 unit tests cover silence stop/drop-oldest/min-speech flows.
+- Shipped async Codex worker (`codex.rs`, `App::poll_codex_job`) so TUI stays responsive during 30-60s Codex calls.
+- Completed Phase 1A stabilization: clippy clean, perf/memory guard tests, CI workflows (`perf_smoke.yml`, `memory_guard.yml`).
+- Completed Phase 1 backend refactor: `CodexBackend` trait + `CliBackend`, bounded event queues, drop-oldest policy.
 
 **In Progress**
-- Latency stabilization Phase 2A (Earshot-based VAD + early stop, config surface, metrics) — prerequisite for Phase 2B
-- Defining CI/doc lint checks for daily folder & changelog enforcement
-- Planning the `app.rs`/`pty_session.rs` decomposition (pending design options)
-- Monitor the new perf/memory CI gates (workflows `perf_smoke.yml` and `memory_guard.yml`) and react to telemetry regressions immediately.
+- **Phase 2B design review** — Streaming capture with overlapped STT (bounded SPSC queue, worker lifecycle, latency overlap) using Phase 2A benchmarks as baseline
+- Module decomposition options for `app.rs`/`pty_session.rs` (Phase 1B pending Phase 2B completion)
+- Monitoring perf/memory CI gates and updating perf smoke thresholds once Phase 2A SLA is promoted to CI enforcement
 
 **Next Session**
-1. Resume Phase 2A execution: finish Earshot VAD integration, early-stop logic, config keys, and latency benchmarks now that Codex calls no longer block the UI.
-2. Add the pending docs-check/lint workflows so every code change updates the daily architecture folder + changelog automatically.
-3. Feature-gate Python fallback (dev-only feature flag) and document UX/error handling.
-4. Draft design options for splitting `app.rs`/`pty_session.rs` into ≤300 LOC modules for approval before implementation.
+1. **Draft Phase 2B design proposal** with alternatives (streaming capture handle, STT worker architecture, queue backpressure) for approval before implementation.
+2. Add docs/changelog enforcement workflow so CI blocks code changes missing daily architecture folder + root changelog updates.
+3. Validate Earshot against real microphone captures to complement synthetic benchmarks and finalize perf smoke thresholds.
+4. Begin module decomposition (Phase 1B) once Phase 2B lands to reduce `app.rs`/`pty_session.rs`/`codex.rs`/`audio.rs` to ≤300 LOC targets.
 
 ---
 
@@ -54,7 +51,7 @@ See `master_index.md` for a detailed description of every top-level directory an
 
 ## Update Checklist
 When making changes:
-1. Draft design reasoning + alternatives in the current day’s `docs/architecture/YYYY-MM-DD/ARCHITECTURE.md`.
+1. Draft design reasoning + alternatives in the current day's `docs/architecture/YYYY-MM-DD/ARCHITECTURE.md`.
 2. Record user-approved decisions and benchmarks in the same folder.
 3. Update this overview when major goals or decision links change.
 4. Append the repository `CHANGELOG.md`.

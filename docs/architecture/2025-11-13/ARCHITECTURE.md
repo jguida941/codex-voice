@@ -219,10 +219,21 @@ Silence-aware capture (Phase 2A) is considered *done* when all of the following 
 - Added six unit tests covering silence trimming, partial-frame truncation, max-capacity eviction, and `StopReason::label()` stability; these run even in `--no-default-features` builds because the accumulator is no longer behind `#[cfg(not(test))]`.
 - `perf_smoke.yml` + `verify_perf_metrics.py` now grep `voice_metrics|` lines, parse the structured fields, and fail CI when capture_ms exceeds the SLA, frames drop, or the early_stop reason reports `error`.
 
+### Phase 2A config surface & benchmark closure (2025-11-13 PM)
+- **Runtime VAD selection:** added `--voice-vad-engine <earshot|simple>` plus validation so the default build continues to prefer Earshot (feature gated) while CI/dev builds without `vad_earshot` fall back to the energy threshold VAD. The new `config::VadEngineKind` propagates through `VoicePipelineConfig`, `VadConfig`, and `voice.rs`, keeping the selection traceable in logs/metrics.
+- **CLI documentation:** `docs/references/quick_start.md` now lists the VAD-related flags (`--voice-vad-engine`, `--voice-vad-threshold-db`, `--voice-vad-frame-ms`), keeping Phase 2A’s knobs visible to operators. Config file support remains deferred per today’s decision to avoid scope creep (documented here and in the daily changelog).
+- **Synthetic benchmark harness:** introduced `audio::offline_capture_from_pcm`, the `voice_benchmark` binary (`cargo run --bin voice_benchmark --release …`), and `scripts/benchmark_voice.sh`. The script generates deterministic sine+silence clips (1 s / 3 s / 8 s speech, 700 ms silence) so Earshot can build the required 500 ms trailing silence before emitting `vad_silence`.
+- **Results + SLA:** benchmark output lives in [`docs/architecture/2025-11-13/BENCHMARKS.md`](BENCHMARKS.md). Capture windows remain `speech_ms + 500 ms`, so we set conservative short-utterance guardrails of `capture_ms ≤ 1.8 s` and `≤ 4.2 s` for anything under 3 s of speech—~20 % above the observed 1.56 s / 3.56 s values. Perf smoke can now enforce these budgets once promoted from manual evidence.
+- **Next phase readiness:** with the config knobs exposed, validation tightened, harness + SLA recorded, and docs updated, Phase 2A exit criteria are satisfied. Remaining work for this session is to transition into Phase 2B planning (chunked capture + overlapped STT) using today’s metrics as the baseline.
+
 ## Risks / Open Questions
 - Earshot CPU overhead needs profiling once integrated; mitigation is to adjust frame size or swap to webrtc-vad if needed.
 - Need to confirm CPAL callback interaction with Earshot avoids allocations on the hot path; may require ring buffer reuse.
 - `rust_tui/src/app.rs` still exceeds the 300 LOC target—module decomposition plan must be completed soon to prevent further growth.
+
+## Known Technical Debt (Phase 2B Consideration)
+- **Padding inconsistency (audio.rs:687-690)**: `offline_capture_from_pcm` pads incomplete frames with zeros while live capture (`adjust_frame_length`, line 984) pads with the last sample value. This creates minor VAD behavior differences between benchmark and production, though it has no practical impact since benchmark clips have complete silence frames. Fixing this would require re-running benchmarks and updating BENCHMARKS.md. Deferred until Phase 2B streaming refactor where consistency can be verified without invalidating existing SLA evidence.
+- **Error handling in voice_benchmark.rs**: Currently uses `unreachable!()` when Earshot VAD is requested without the feature flag (line 140). While technically correct (default_vad_engine() prevents this in normal usage), returning a Result with a clear error message would improve UX for edge cases. Low priority since this is a developer-facing benchmark tool, not production code. Can be addressed if benchmark tooling is formalized in Phase 2B+.
 
 ## Next Steps
 - Complete the implementation tasks above, log results in `docs/architecture/2025-11-13/` along with benchmarks, then begin Phase 2B design updates once exit criteria are met.

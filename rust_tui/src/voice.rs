@@ -3,6 +3,7 @@
 //! native recorder/transcriber path hits driver issues.
 
 use crate::audio;
+use crate::config::VadEngineKind;
 use crate::log_debug;
 use crate::stt;
 use anyhow::{anyhow, Result};
@@ -234,21 +235,25 @@ pub(crate) fn log_voice_metrics(metrics: &audio::CaptureMetrics) {
 }
 
 fn create_vad_engine(cfg: &crate::config::VoicePipelineConfig) -> Box<dyn audio::VadEngine> {
-    #[cfg(feature = "vad_earshot")]
-    {
-        Box::new(crate::vad_earshot::EarshotVad::from_config(cfg))
-    }
-
-    #[cfg(not(feature = "vad_earshot"))]
-    {
-        Box::new(audio::SimpleThresholdVad::new(cfg.vad_threshold_db))
+    match cfg.vad_engine {
+        VadEngineKind::Simple => Box::new(audio::SimpleThresholdVad::new(cfg.vad_threshold_db)),
+        VadEngineKind::Earshot => {
+            #[cfg(feature = "vad_earshot")]
+            {
+                Box::new(crate::vad_earshot::EarshotVad::from_config(cfg))
+            }
+            #[cfg(not(feature = "vad_earshot"))]
+            {
+                unreachable!("earshot VAD requested without 'vad_earshot' feature")
+            }
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::AppConfig;
+    use crate::config::{AppConfig, VadEngineKind};
     use crate::{PipelineJsonResult, PipelineMetrics};
     use clap::Parser;
 
@@ -258,6 +263,25 @@ mod tests {
         let mut cfg = AppConfig::parse_from(["test-app"]);
         cfg.validate().expect("defaults should be valid");
         cfg
+    }
+
+    #[test]
+    fn create_vad_engine_uses_simple_when_requested() {
+        let cfg = test_config();
+        let mut pipeline = cfg.voice_pipeline_config();
+        pipeline.vad_engine = VadEngineKind::Simple;
+        let engine = create_vad_engine(&pipeline);
+        assert_eq!(engine.name(), "simple_threshold_vad");
+    }
+
+    #[cfg(feature = "vad_earshot")]
+    #[test]
+    fn create_vad_engine_uses_earshot_when_requested() {
+        let cfg = test_config();
+        let mut pipeline = cfg.voice_pipeline_config();
+        pipeline.vad_engine = VadEngineKind::Earshot;
+        let engine = create_vad_engine(&pipeline);
+        assert_eq!(engine.name(), "earshot_vad");
     }
 
     fn pipeline_result(transcript: &str) -> PipelineJsonResult {

@@ -1,7 +1,7 @@
 //! Command-line parsing and validation helpers.
 
 use anyhow::{anyhow, bail, Context, Result};
-use clap::{ArgAction, Parser};
+use clap::{ArgAction, Parser, ValueEnum};
 use std::{
     env, fs,
     path::{Path, PathBuf},
@@ -9,16 +9,16 @@ use std::{
 
 const MAX_CODEX_ARGS: usize = 64;
 const MAX_CODEX_ARG_BYTES: usize = 8 * 1024;
-const DEFAULT_VOICE_SAMPLE_RATE: u32 = 16_000;
-const DEFAULT_VOICE_MAX_CAPTURE_MS: u64 = 10_000;
-const DEFAULT_VOICE_SILENCE_TAIL_MS: u64 = 500;
-const DEFAULT_VOICE_MIN_SPEECH_MS: u64 = 300;
-const DEFAULT_VOICE_LOOKBACK_MS: u64 = 500;
-const DEFAULT_VOICE_BUFFER_MS: u64 = 10_000;
-const DEFAULT_VOICE_CHANNEL_CAPACITY: usize = 100;
-const DEFAULT_VOICE_STT_TIMEOUT_MS: u64 = 10_000;
-const DEFAULT_VOICE_VAD_THRESHOLD_DB: f32 = -40.0;
-const DEFAULT_VOICE_VAD_FRAME_MS: u64 = 20;
+pub const DEFAULT_VOICE_SAMPLE_RATE: u32 = 16_000;
+pub const DEFAULT_VOICE_MAX_CAPTURE_MS: u64 = 10_000;
+pub const DEFAULT_VOICE_SILENCE_TAIL_MS: u64 = 500;
+pub const DEFAULT_VOICE_MIN_SPEECH_MS: u64 = 300;
+pub const DEFAULT_VOICE_LOOKBACK_MS: u64 = 500;
+pub const DEFAULT_VOICE_BUFFER_MS: u64 = 10_000;
+pub const DEFAULT_VOICE_CHANNEL_CAPACITY: usize = 100;
+pub const DEFAULT_VOICE_STT_TIMEOUT_MS: u64 = 10_000;
+pub const DEFAULT_VOICE_VAD_THRESHOLD_DB: f32 = -40.0;
+pub const DEFAULT_VOICE_VAD_FRAME_MS: u64 = 20;
 const MAX_CAPTURE_HARD_LIMIT_MS: u64 = 30_000;
 const ISO_639_1_CODES: &[&str] = &[
     "af", "am", "ar", "az", "be", "bg", "bn", "bs", "ca", "cs", "cy", "da", "de", "el", "en", "es",
@@ -149,6 +149,14 @@ pub struct AppConfig {
     #[arg(long = "voice-vad-frame-ms", default_value_t = DEFAULT_VOICE_VAD_FRAME_MS)]
     pub voice_vad_frame_ms: u64,
 
+    /// Voice activity detector implementation to use
+    #[arg(
+        long = "voice-vad-engine",
+        value_enum,
+        default_value_t = default_vad_engine()
+    )]
+    pub voice_vad_engine: VadEngineKind,
+
     /// Language passed to Whisper
     #[arg(long, default_value = "en")]
     pub lang: String,
@@ -172,6 +180,34 @@ pub struct VoicePipelineConfig {
     pub vad_threshold_db: f32,
     pub vad_frame_ms: u64,
     pub python_fallback_allowed: bool,
+    pub vad_engine: VadEngineKind,
+}
+
+/// Available runtime-selectable VAD implementations.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+pub enum VadEngineKind {
+    Earshot,
+    Simple,
+}
+
+impl VadEngineKind {
+    pub fn label(self) -> &'static str {
+        match self {
+            VadEngineKind::Earshot => "earshot",
+            VadEngineKind::Simple => "simple",
+        }
+    }
+}
+
+pub const fn default_vad_engine() -> VadEngineKind {
+    #[cfg(feature = "vad_earshot")]
+    {
+        VadEngineKind::Earshot
+    }
+    #[cfg(not(feature = "vad_earshot"))]
+    {
+        VadEngineKind::Simple
+    }
 }
 
 impl AppConfig {
@@ -261,6 +297,11 @@ impl AppConfig {
                 "--voice-vad-frame-ms must be between 5 and 120, got {}",
                 self.voice_vad_frame_ms
             );
+        }
+
+        #[cfg(not(feature = "vad_earshot"))]
+        if matches!(self.voice_vad_engine, VadEngineKind::Earshot) {
+            bail!("--voice-vad-engine earshot requires building with the 'vad_earshot' feature");
         }
 
         self.codex_cmd = sanitize_binary(&self.codex_cmd, "--codex-cmd", &["codex"])?;
@@ -374,6 +415,7 @@ impl AppConfig {
             vad_threshold_db: self.voice_vad_threshold_db,
             vad_frame_ms: self.voice_vad_frame_ms,
             python_fallback_allowed: !self.no_python_fallback,
+            vad_engine: self.voice_vad_engine,
         }
     }
 }
@@ -502,6 +544,45 @@ mod tests {
     fn accepts_valid_defaults() {
         let mut cfg = AppConfig::parse_from(["test-app"]);
         assert!(cfg.validate().is_ok());
+    }
+
+    #[test]
+    fn voice_vad_engine_flag_round_trips_into_pipeline_config() {
+        let mut cfg = AppConfig::parse_from(["test-app", "--voice-vad-engine", "simple"]);
+        cfg.validate().expect("simple VAD should be valid");
+        assert!(matches!(
+            cfg.voice_pipeline_config().vad_engine,
+            VadEngineKind::Simple
+        ));
+    }
+
+    #[test]
+    fn voice_vad_engine_default_matches_feature() {
+        let mut cfg = AppConfig::parse_from(["test-app"]);
+        cfg.validate().expect("defaults should be valid");
+        assert_eq!(cfg.voice_vad_engine, default_vad_engine());
+    }
+
+    #[cfg(feature = "vad_earshot")]
+    #[test]
+    fn default_vad_engine_prefers_earshot_when_feature_enabled() {
+        let mut cfg = AppConfig::parse_from(["test-app"]);
+        cfg.validate().expect("defaults should be valid");
+        assert!(matches!(
+            cfg.voice_pipeline_config().vad_engine,
+            VadEngineKind::Earshot
+        ));
+    }
+
+    #[cfg(not(feature = "vad_earshot"))]
+    #[test]
+    fn default_vad_engine_prefers_simple_when_feature_disabled() {
+        let mut cfg = AppConfig::parse_from(["test-app"]);
+        cfg.validate().expect("defaults should be valid");
+        assert!(matches!(
+            cfg.voice_pipeline_config().vad_engine,
+            VadEngineKind::Simple
+        ));
     }
 
     #[test]

@@ -22,6 +22,8 @@ cargo run --release -- \
 - `--codex-arg="--danger-full-access"` – pass extra Codex CLI flags safely
 - `--log-timings` – emit phase timing info to `${TMPDIR}/codex_voice_tui.log`
 - `--no-python-fallback` – fail if the native pipeline isn’t available
+- `--voice-vad-engine <earshot|simple>` – pick the Earshot VAD (default when built with `vad_earshot`) or the lightweight threshold fallback
+- `--voice-vad-threshold-db <dB>` / `--voice-vad-frame-ms <ms>` – tune VAD sensitivity and frame size to match your environment
 
 ### Controls Inside the TUI
 - `Ctrl+R` – start a voice capture
@@ -50,6 +52,9 @@ cargo run --release -- --list-input-devices
 
 # Standalone audio capture sanity check
 cargo run --bin test_audio
+
+# Phase 2A latency benchmark (synthetic clips)
+../scripts/benchmark_voice.sh
 
 # Tail the log
 LOG_FILE="${TMPDIR:-/tmp}/codex_voice_tui.log"

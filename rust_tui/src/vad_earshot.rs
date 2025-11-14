@@ -55,4 +55,8 @@ impl VadEngine for EarshotVad {
     fn reset(&mut self) {
         self.detector.reset();
     }
+
+    fn name(&self) -> &'static str {
+        "earshot_vad"
+    }
 }

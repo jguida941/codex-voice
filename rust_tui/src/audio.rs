@@ -150,6 +150,9 @@ impl From<&VoicePipelineConfig> for VadConfig {
 pub trait VadEngine {
     fn process_frame(&mut self, samples: &[f32]) -> VadDecision;
     fn reset(&mut self);
+    fn name(&self) -> &'static str {
+        "unknown_vad"
+    }
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -377,6 +380,10 @@ impl VadEngine for SimpleThresholdVad {
     }
 
     fn reset(&mut self) {}
+
+    fn name(&self) -> &'static str {
+        "simple_threshold_vad"
+    }
 }
 
 impl Recorder {
@@ -657,6 +664,62 @@ fn record_with_vad_impl(
     metrics.capture_ms = state.total_ms();
 
     Ok(CaptureResult { audio, metrics })
+}
+
+/// Run the silence-aware capture state machine against synthetic PCM samples.
+/// Used by the benchmarking harness so we can measure Phase 2A latency without
+/// requiring physical microphones or CPAL devices.
+pub fn offline_capture_from_pcm(
+    samples: &[f32],
+    cfg: &VadConfig,
+    vad: &mut dyn VadEngine,
+) -> CaptureResult {
+    let frame_samples = ((cfg.sample_rate as u64 * cfg.frame_ms) / 1000).max(1) as usize;
+    let mut accumulator = FrameAccumulator::from_config(cfg);
+    let mut state = CaptureState::new(cfg, cfg.frame_ms);
+    let mut metrics = CaptureMetrics::default();
+    let mut stop_reason = StopReason::MaxDuration;
+
+    for chunk in samples.chunks(frame_samples) {
+        if state.total_ms() >= cfg.max_recording_duration_ms {
+            break;
+        }
+        let mut frame = chunk.to_vec();
+        if frame.len() < frame_samples {
+            frame.resize(frame_samples, 0.0);
+        }
+        let decision = vad.process_frame(&frame);
+        metrics.frames_processed += 1;
+        let label = FrameLabel::from(decision);
+        accumulator.push_frame(frame, label);
+        if let Some(reason) = state.on_frame(label) {
+            stop_reason = reason;
+            break;
+        }
+    }
+
+    if accumulator.is_empty() {
+        return CaptureResult {
+            audio: Vec::new(),
+            metrics,
+        };
+    }
+
+    if matches!(stop_reason, StopReason::MaxDuration)
+        && state.silence_tail_ms() >= cfg.silence_duration_ms
+    {
+        stop_reason = StopReason::VadSilence {
+            tail_ms: state.silence_tail_ms(),
+        };
+    }
+
+    let audio = accumulator.into_audio(&stop_reason);
+    metrics.speech_ms = state.speech_ms();
+    metrics.silence_tail_ms = state.silence_tail_ms();
+    metrics.capture_ms = state.total_ms();
+    metrics.early_stop_reason = stop_reason;
+
+    CaptureResult { audio, metrics }
 }
 /// Downmix multi-channel input to mono while applying the provided converter so
 /// Whisper receives a single channel regardless of the microphone layout.

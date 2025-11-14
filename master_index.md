@@ -13,6 +13,7 @@ Central navigation guide for the Codex Voice project. Update this file at the en
 
 - `docs/` — Reference material, developer guides, audit notes. Daily architecture folders live under `docs/architecture/YYYY-MM-DD/` (create one per working day with `ARCHITECTURE.md`, daily `CHANGELOG.md`, diagrams, etc.).
   - Latest daily notes: [`docs/architecture/2025-11-13/`](docs/architecture/2025-11-13/)
+    - Benchmarks + metrics evidence: [`docs/architecture/2025-11-13/BENCHMARKS.md`](docs/architecture/2025-11-13/BENCHMARKS.md)
   - Previous day baseline: [`docs/architecture/2025-11-12/`](docs/architecture/2025-11-12/)
   - References live in [`docs/references/`](docs/references/) (developer workflows, how-to documents such as `quick_start.md`, `testing.md`, `python_legacy.md`, `milestones.md`, `troubleshooting.md`).
   - Archived legacy references: [`docs/archive/OBSOLETE_REFERENCES_2025-11-12/`](docs/archive/OBSOLETE_REFERENCES_2025-11-12/).

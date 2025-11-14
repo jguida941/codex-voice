@@ -31,3 +31,7 @@ earshot = { version = "0.1", optional = true }
 [[bin]]
 name = "test_audio"
 path = "tst/test_audio.rs"
+
+[[bin]]
+name = "voice_benchmark"
+path = "src/bin/voice_benchmark.rs"
