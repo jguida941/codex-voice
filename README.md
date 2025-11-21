@@ -1,5 +1,7 @@
 # Codex Voice Quick Start
 
+**Work in Progress**
+
 Minimal steps to get the Rust TUI running with voice capture.
 
 ## 1. Install Requirements
