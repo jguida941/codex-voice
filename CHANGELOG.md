@@ -4,6 +4,20 @@ All notable changes to this project will be documented here, following the SDLC 
 
 ## [Unreleased]
 
+### Project Cleanup + macOS Launcher (2026-01-11) - COMPLETE
+- **Added macOS app launcher**: `Codex Voice.app` now in repo alongside `start.sh` and `start.bat` for cross-platform consistency.
+- **Major project structure cleanup**:
+  - Removed duplicate files from `rust_tui/` (CHANGELOG, docs/, screenshots, etc.)
+  - Moved rust_tui test scripts to `rust_tui/scripts/`
+  - Consolidated scripts: deleted redundant launchers (`run_tui.sh`, `launch_tui.py`, `run_in_pty.py`, `ts_cli/run.sh`)
+  - Moved benchmark scripts to `scripts/tests/`
+  - Deleted legacy folders (`stubs/`, `tst/`)
+  - Kept `codex_voice.py` as legacy Python fallback
+- **Updated all README diagrams** to match actual project structure.
+- **Updated .gitignore** to exclude internal dev docs (`PROJECT_OVERVIEW.md`, `agents.md`, etc.)
+- **Fixed Cargo.toml** reference to deleted test file.
+- **82 Rust tests passing**, TypeScript builds successfully.
+
 ### PTY Readiness + Auth Flow (2026-01-11) - COMPLETE
 - **PTY readiness handshake**: wait for initial output and fail fast when only control output appears, preventing 20-30s stalls on persistent sessions.
 - **/auth login flow**: new IPC command + wrapper command runs provider login via /dev/tty, with auth_start/auth_end events and raw mode suspension in TS.
