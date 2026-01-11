@@ -41,17 +41,32 @@ cargo run --release -- --seconds 5 --whisper-model-path ../models/ggml-base.en.b
 
 ## CLI Options
 
+### Core Options
 | Flag | Purpose |
 |------|---------|
 | `--json-ipc` | Run in IPC mode (for TypeScript frontend) |
-| `--whisper-model-path <PATH>` | Path to Whisper GGML model |
 | `--codex-cmd <CMD>` | Path to Codex CLI [default: codex] |
 | `--persistent-codex` | Enable PTY session for Codex |
+| `--log-timings` | Enable verbose timing logs |
+
+### Audio Options
+| Flag | Purpose |
+|------|---------|
 | `--input-device <NAME>` | Preferred audio input device |
 | `--list-input-devices` | Print available devices and exit |
-| `--log-timings` | Emit timing summaries to log file |
+| `--voice-vad-engine <ENGINE>` | VAD implementation: `earshot` or `simple` |
+| `--voice-vad-threshold-db <DB>` | VAD threshold in decibels [default: -40] |
+| `--seconds <N>` | Recording duration in seconds [default: 5] |
 
-Run `cargo run -- --help` for full list.
+### Whisper Options
+| Flag | Purpose |
+|------|---------|
+| `--whisper-model-path <PATH>` | Path to Whisper GGML model (required) |
+| `--whisper-model <NAME>` | Whisper model name [default: small] |
+| `--lang <LANG>` | Language for Whisper [default: en] |
+| `--no-python-fallback` | Fail instead of using Python STT fallback |
+
+Run `cargo run -- --help` for the full list of 30+ options.
 
 ## IPC Protocol
 
@@ -63,17 +78,23 @@ Run `cargo run -- --help` for full list.
 {"cmd": "set_provider", "provider": "codex"}
 {"cmd": "cancel"}
 {"cmd": "auth", "provider": "codex"}
+{"cmd": "get_capabilities"}
 ```
 
 ### Events (Rust → TypeScript)
 
 ```json
 {"event": "capabilities", "mic_available": true, "whisper_model_loaded": true, ...}
+{"event": "provider_changed", "provider": "claude"}
+{"event": "provider_error", "message": "..."}
+{"event": "auth_start", "provider": "codex"}
+{"event": "auth_end", "provider": "codex", "success": true}
+{"event": "voice_start"}
+{"event": "transcript", "text": "user said this", "duration_ms": 1200}
 {"event": "token", "text": "Hello there!"}
 {"event": "job_start", "provider": "claude"}
 {"event": "job_end", "provider": "claude", "success": true}
-{"event": "voice_start"}
-{"event": "transcript", "text": "user said this", "duration_ms": 1200}
+{"event": "status", "message": "..."}
 {"event": "error", "message": "...", "recoverable": true}
 ```
 
