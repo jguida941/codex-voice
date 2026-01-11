@@ -10,13 +10,13 @@ use std::{
 const MAX_CODEX_ARGS: usize = 64;
 const MAX_CODEX_ARG_BYTES: usize = 8 * 1024;
 pub const DEFAULT_VOICE_SAMPLE_RATE: u32 = 16_000;
-pub const DEFAULT_VOICE_MAX_CAPTURE_MS: u64 = 10_000;
-pub const DEFAULT_VOICE_SILENCE_TAIL_MS: u64 = 500;
+pub const DEFAULT_VOICE_MAX_CAPTURE_MS: u64 = 30_000;
+pub const DEFAULT_VOICE_SILENCE_TAIL_MS: u64 = 3000;
 pub const DEFAULT_VOICE_MIN_SPEECH_MS: u64 = 300;
 pub const DEFAULT_VOICE_LOOKBACK_MS: u64 = 500;
-pub const DEFAULT_VOICE_BUFFER_MS: u64 = 10_000;
+pub const DEFAULT_VOICE_BUFFER_MS: u64 = 30_000;
 pub const DEFAULT_VOICE_CHANNEL_CAPACITY: usize = 100;
-pub const DEFAULT_VOICE_STT_TIMEOUT_MS: u64 = 10_000;
+pub const DEFAULT_VOICE_STT_TIMEOUT_MS: u64 = 60_000;
 pub const DEFAULT_VOICE_VAD_THRESHOLD_DB: f32 = -40.0;
 pub const DEFAULT_VOICE_VAD_FRAME_MS: u64 = 20;
 const MAX_CAPTURE_HARD_LIMIT_MS: u64 = 30_000;
@@ -57,7 +57,6 @@ pub struct AppConfig {
     pub term_value: String,
 
     // PTY helper removed - using native Rust PtyCodexSession instead
-
     /// Preferred audio input device name
     #[arg(long)]
     pub input_device: Option<String>,
@@ -66,8 +65,8 @@ pub struct AppConfig {
     #[arg(long = "list-input-devices", default_value_t = false)]
     pub list_input_devices: bool,
 
-    /// Disable persistent Codex session
-    #[arg(long = "no-persistent-codex", action = ArgAction::SetFalse, default_value_t = true)]
+    /// Enable persistent Codex PTY session (captures full TUI, use --persistent-codex to enable)
+    #[arg(long = "persistent-codex", default_value_t = false)]
     pub persistent_codex: bool,
 
     /// Enable verbose timing logs
@@ -162,6 +161,10 @@ pub struct AppConfig {
     /// Fail instead of using the python STT fallback
     #[arg(long = "no-python-fallback")]
     pub no_python_fallback: bool,
+
+    /// Run in JSON IPC mode for external UI integration
+    #[arg(long = "json-ipc")]
+    pub json_ipc: bool,
 }
 
 /// Tunable parameters for the voice capture + STT pipeline.

@@ -314,7 +314,10 @@ impl<'a> CaptureState<'a> {
         if self.total_ms >= self.cfg.max_recording_duration_ms {
             return Some(StopReason::MaxDuration);
         }
-        if self.total_ms >= self.cfg.min_recording_duration_ms
+        // Only stop on silence if we've actually detected some speech first.
+        // This prevents immediate stops when the mic starts in a quiet environment.
+        if self.speech_ms > 0
+            && self.total_ms >= self.cfg.min_recording_duration_ms
             && self.silence_streak_ms >= self.cfg.silence_duration_ms
         {
             return Some(StopReason::VadSilence {
@@ -416,6 +419,13 @@ impl Recorder {
                 .context("no default input device available")?,
         };
         Ok(Self { device })
+    }
+
+    /// Get the name of the active recording device.
+    pub fn device_name(&self) -> String {
+        self.device
+            .name()
+            .unwrap_or_else(|_| "Unknown Device".to_string())
     }
 
     /// Record audio for `seconds`, normalize the incoming format, and return
