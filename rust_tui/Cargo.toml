@@ -23,6 +23,7 @@ strip-ansi-escapes = "0.2"
 cpal = { version = "0.16" }
 whisper-rs = { version = "0.15.1", default-features = false, features = [] }
 whisper-rs-sys = "0.14"
+regex = "1"
 num_cpus = "1.17"
 gag = "1.0"
 rubato = { version = "0.12", optional = true }

@@ -179,6 +179,133 @@ impl Drop for PtyCodexSession {
     }
 }
 
+/// PTY session that forwards raw output (ANSI intact) while answering terminal queries.
+pub struct PtyOverlaySession {
+    master_fd: RawFd,
+    child_pid: i32,
+    pub output_rx: Receiver<Vec<u8>>,
+    _output_thread: thread::JoinHandle<()>,
+}
+
+impl PtyOverlaySession {
+    /// Start Codex under a pseudo-terminal but keep output raw for overlay rendering.
+    pub fn new(
+        codex_cmd: &str,
+        working_dir: &str,
+        args: &[String],
+        term_value: &str,
+    ) -> Result<Self> {
+        let cwd = CString::new(working_dir)
+            .with_context(|| format!("working directory contains NUL byte: {working_dir}"))?;
+        let term_value_cstr = CString::new(term_value).unwrap_or_else(|_| {
+            CString::new("xterm-256color").expect("static TERM fallback should be valid")
+        });
+        let mut argv: Vec<CString> = Vec::with_capacity(args.len() + 1);
+        argv.push(
+            CString::new(codex_cmd)
+                .with_context(|| format!("codex_cmd contains NUL byte: {codex_cmd}"))?,
+        );
+        for arg in args {
+            argv.push(
+                CString::new(arg.as_str())
+                    .with_context(|| format!("codex arg contains NUL byte: {arg}"))?,
+            );
+        }
+
+        unsafe {
+            let (master_fd, child_pid) = spawn_codex_child(&argv, &cwd, &term_value_cstr)?;
+            set_nonblocking(master_fd)?;
+
+            let (tx, rx) = bounded(100);
+            let output_thread = spawn_passthrough_reader_thread(master_fd, tx);
+
+            Ok(Self {
+                master_fd,
+                child_pid,
+                output_rx: rx,
+                _output_thread: output_thread,
+            })
+        }
+    }
+
+    /// Write raw bytes to the PTY master.
+    pub fn send_bytes(&mut self, bytes: &[u8]) -> Result<()> {
+        write_all(self.master_fd, bytes)
+    }
+
+    /// Write text to the PTY master.
+    pub fn send_text(&mut self, text: &str) -> Result<()> {
+        write_all(self.master_fd, text.as_bytes())
+    }
+
+    /// Write text to the PTY master and ensure it ends with a newline.
+    pub fn send_text_with_newline(&mut self, text: &str) -> Result<()> {
+        write_all(self.master_fd, text.as_bytes())?;
+        if !text.ends_with('\n') {
+            write_all(self.master_fd, b"\n")?;
+        }
+        Ok(())
+    }
+
+    /// Update the PTY window size and notify the child.
+    pub fn set_winsize(&self, rows: u16, cols: u16) -> Result<()> {
+        let mut ws: libc::winsize = unsafe { mem::zeroed() };
+        ws.ws_row = rows.max(1);
+        ws.ws_col = cols.max(1);
+        ws.ws_xpixel = 0;
+        ws.ws_ypixel = 0;
+        let result = unsafe { libc::ioctl(self.master_fd, libc::TIOCSWINSZ, &ws) };
+        if result != 0 {
+            return Err(errno_error("ioctl(TIOCSWINSZ) failed"));
+        }
+        let _ = unsafe { libc::kill(self.child_pid, libc::SIGWINCH) };
+        Ok(())
+    }
+
+    /// Peek whether the child is still running (without reaping it).
+    pub fn is_alive(&self) -> bool {
+        unsafe {
+            let mut status = 0;
+            let ret = libc::waitpid(self.child_pid, &mut status, libc::WNOHANG);
+            ret == 0 // 0 means still running
+        }
+    }
+}
+
+impl Drop for PtyOverlaySession {
+    fn drop(&mut self) {
+        unsafe {
+            if let Err(err) = self.send_text_with_newline("exit") {
+                log_debug(&format!("failed to send PTY exit command: {err:#}"));
+            }
+            if !wait_for_exit(self.child_pid, Duration::from_millis(500)) {
+                if libc::kill(self.child_pid, libc::SIGTERM) != 0 {
+                    log_debug(&format!(
+                        "SIGTERM to Codex session failed: {}",
+                        io::Error::last_os_error()
+                    ));
+                }
+                if !wait_for_exit(self.child_pid, Duration::from_millis(500)) {
+                    if libc::kill(self.child_pid, libc::SIGKILL) != 0 {
+                        log_debug(&format!(
+                            "SIGKILL to Codex session failed: {}",
+                            io::Error::last_os_error()
+                        ));
+                    }
+                    let mut status = 0;
+                    if libc::waitpid(self.child_pid, &mut status, 0) < 0 {
+                        log_debug(&format!(
+                            "waitpid after SIGKILL failed: {}",
+                            io::Error::last_os_error()
+                        ));
+                    }
+                }
+            }
+            close_fd(self.master_fd);
+        }
+    }
+}
+
 /// Fork and exec the Codex binary under a newly allocated PTY pair.
 unsafe fn spawn_codex_child(
     argv: &[CString],
@@ -291,6 +418,43 @@ fn spawn_reader_thread(master_fd: RawFd, tx: Sender<Vec<u8>>) -> thread::JoinHan
                 let mut data = buffer.get(..n as usize).unwrap_or(&[]).to_vec();
                 // Answer simple terminal capability queries so Codex doesn't hang waiting.
                 respond_to_terminal_queries(&mut data, master_fd);
+                if data.is_empty() {
+                    continue;
+                }
+                if tx.send(data).is_err() {
+                    break;
+                }
+                continue;
+            }
+            if n == 0 {
+                break;
+            }
+            let err = io::Error::last_os_error();
+            if err.kind() == ErrorKind::Interrupted || err.kind() == ErrorKind::WouldBlock {
+                thread::sleep(Duration::from_millis(10));
+                continue;
+            }
+            log_debug(&format!("PTY read error: {err}"));
+            break;
+        }
+    })
+}
+
+/// Continuously read from the PTY and forward raw chunks to the main thread.
+fn spawn_passthrough_reader_thread(master_fd: RawFd, tx: Sender<Vec<u8>>) -> thread::JoinHandle<()> {
+    thread::spawn(move || {
+        let mut buffer = [0u8; 4096];
+        loop {
+            let n = unsafe {
+                libc::read(
+                    master_fd,
+                    buffer.as_mut_ptr() as *mut libc::c_void,
+                    buffer.len(),
+                )
+            };
+            if n > 0 {
+                let mut data = buffer.get(..n as usize).unwrap_or(&[]).to_vec();
+                respond_to_terminal_queries_passthrough(&mut data, master_fd);
                 if data.is_empty() {
                     continue;
                 }
@@ -426,6 +590,46 @@ fn respond_to_terminal_queries(buffer: &mut Vec<u8>, master_fd: RawFd) {
     }
 
     apply_control_edits(buffer);
+}
+
+/// Answer terminal queries but keep all other ANSI sequences intact.
+fn respond_to_terminal_queries_passthrough(buffer: &mut Vec<u8>, master_fd: RawFd) {
+    let (rows, cols) = current_terminal_size(master_fd);
+    let mut idx = 0;
+    while idx < buffer.len() {
+        if buffer[idx] != 0x1B {
+            idx += 1;
+            continue;
+        }
+        if idx + 1 >= buffer.len() {
+            break;
+        }
+        if buffer[idx + 1] == b'[' {
+            match find_csi_sequence(buffer, idx + 2) {
+                Some((params_end, final_byte)) => {
+                    let seq_end = params_end + 1;
+                    let params_start = idx + 2;
+                    let params: Vec<u8> =
+                        buffer.get(params_start..params_end).unwrap_or(&[]).to_vec();
+                    if let Some(reply) = csi_reply(&params, final_byte, rows, cols) {
+                        buffer.drain(idx..seq_end);
+                        if let Err(err) = write_all(master_fd, &reply) {
+                            log_debug(&format!(
+                                "Failed to answer terminal query (CSI {}{}): {err:#}",
+                                String::from_utf8_lossy(&params),
+                                final_byte as char
+                            ));
+                        }
+                        continue;
+                    }
+                    idx = seq_end;
+                    continue;
+                }
+                None => break,
+            }
+        }
+        idx += 1;
+    }
 }
 
 fn should_strip_without_reply(params: &[u8], final_byte: u8) -> bool {
@@ -666,6 +870,19 @@ mod tests {
         assert!(buffer.is_empty());
         let reply = read_reply(read_fd);
         assert_eq!(reply, b"\x1b[?1;2c");
+        close_fd_pair(read_fd, write_fd);
+    }
+
+    #[test]
+    fn respond_to_terminal_queries_passthrough_keeps_ansi() {
+        let (read_fd, write_fd) = pipe_pair();
+        let mut buffer = b"\x1b[31mred\x1b[0m\x1b[6n".to_vec();
+
+        respond_to_terminal_queries_passthrough(&mut buffer, write_fd);
+
+        assert_eq!(buffer, b"\x1b[31mred\x1b[0m".to_vec());
+        let reply = read_reply(read_fd);
+        assert!(reply_contains(&reply, b"\x1b[24;80R"));
         close_fd_pair(read_fd, write_fd);
     }
 

@@ -19,6 +19,13 @@ cargo build --release
 
 The binary is at `target/release/rust_tui`.
 
+Overlay binary:
+
+```bash
+cd rust_tui
+cargo build --release --bin codex_overlay
+```
+
 ## Usage
 
 ### As IPC Backend (Primary Mode)
@@ -37,6 +44,14 @@ Can also run as a standalone terminal UI:
 
 ```bash
 cargo run --release -- --seconds 5 --whisper-model-path ../models/ggml-base.en.bin
+```
+
+### Overlay Mode
+
+Runs Codex in a PTY and overlays voice status in your terminal:
+
+```bash
+./target/release/codex_overlay
 ```
 
 ## CLI Options
