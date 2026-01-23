@@ -11,8 +11,15 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 DEFAULT_MODELS_DIR="$PROJECT_ROOT/models"
 FALLBACK_MODELS_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/codex-voice/models"
 
+IS_HOMEBREW=0
+case "$PROJECT_ROOT" in
+    /opt/homebrew/Cellar/*|/usr/local/Cellar/*) IS_HOMEBREW=1 ;;
+esac
+
 if [ -n "${CODEX_VOICE_MODEL_DIR:-}" ]; then
     MODELS_DIR="$CODEX_VOICE_MODEL_DIR"
+elif [ "$IS_HOMEBREW" -eq 1 ]; then
+    MODELS_DIR="$FALLBACK_MODELS_DIR"
 else
     if mkdir -p "$DEFAULT_MODELS_DIR" 2>/dev/null && [ -w "$DEFAULT_MODELS_DIR" ]; then
         MODELS_DIR="$DEFAULT_MODELS_DIR"

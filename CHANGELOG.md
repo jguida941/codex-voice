@@ -12,6 +12,7 @@ All notable changes to this project will be documented here, following the SDLC 
 ### Homebrew Runtime Fixes (2026-01-23) - COMPLETE
 - **Prebuilt overlay reuse**: `start.sh` now uses `codex-overlay` from PATH when available, skipping builds in Homebrew installs.
 - **User-writable model storage**: model downloads fall back to `~/.local/share/codex-voice/models` when the repo/libexec is not writable.
+- **Homebrew detection**: Homebrew installs always use the user model directory instead of libexec, even if libexec is writable.
 - **Install wrapper safety**: skip existing global `codex-voice` commands and prefer safe locations unless overridden.
 
 ### Rust Overlay Mode + Packaging (2026-01-22) - COMPLETE
