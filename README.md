@@ -87,6 +87,9 @@ cd ~/my-project
 codex-voice
 ```
 
+Model storage defaults to `~/.local/share/codex-voice/models` for Homebrew installs (or when the
+repo directory is not writable). Override with `CODEX_VOICE_MODEL_DIR` if you want a custom path.
+
 ### Manual (no Homebrew)
 
 Run from any project folder:
