@@ -197,7 +197,7 @@ injects voice transcripts as keystrokes. The terminal itself is the UI, with a m
 | PTY Session | `rust_tui/src/pty_session.rs` | Raw PTY passthrough and prompt-safe output |
 | Python fallback | `scripts/codex_voice.py` | Optional fallback STT pipeline |
 
-See `ARCHITECTURE.md` for full diagrams and data flow.
+See `docs/ARCHITECTURE.md` for full diagrams and data flow.
 
 ## Configuration
 
@@ -237,7 +237,10 @@ Options:
 codex-voice/
 ├── Codex Voice.app/     # macOS double-click launcher
 ├── QUICK_START.md       # Fast setup and commands
-├── ARCHITECTURE.md      # Architecture diagrams and data flow
+├── docs/
+│   ├── ARCHITECTURE.md  # Architecture diagrams and data flow
+│   └── CHANGELOG.md     # Release history
+├── img/                 # Screenshots
 ├── rust_tui/            # Rust overlay + voice pipeline
 │   └── src/
 │       ├── main.rs      # Entry point
@@ -249,7 +252,7 @@ codex-voice/
 ├── scripts/             # Setup and test scripts
 ├── models/              # Whisper GGML models
 ├── start.sh             # Linux/macOS launcher
-└── start.bat            # Windows launcher
+└── install.sh           # One-time installer
 ```
 
 ### Building
