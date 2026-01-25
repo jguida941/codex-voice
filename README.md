@@ -38,8 +38,8 @@ codex-voice
 
 If `codex-voice` is not found, the installer used the first writable directory in this order:
 `/opt/homebrew/bin`, `/usr/local/bin`, `~/.local/bin`, or `/path/to/codex-voice/bin`. Add that
-directory to PATH or set `CODEX_VOICE_INSTALL_DIR` before running `./install.sh`. If a
-`codex-voice` command already exists, the installer skips that location; remove the conflicting
+directory to PATH or set `CODEX_VOICE_INSTALL_DIR` before running `./install.sh`.    
+If a `codex-voice` command already exists, the installer skips that location; remove the conflicting
 binary or set `CODEX_VOICE_INSTALL_DIR` to override.
 
 Manual build (Rust only):
