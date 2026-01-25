@@ -24,6 +24,7 @@ Speak to Codex using local Whisper speech-to-text. Voice transcription runs enti
 ## Features
 
 - Voice input via microphone (Whisper STT)
+- **Fast local transcription** - ~250ms processing after speech ends, no cloud API calls
 - Rust overlay mode that preserves the full Codex TUI (PTY passthrough)
 - Auto-voice mode for continuous conversation
 - Optional Python fallback when native capture is unavailable
