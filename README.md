@@ -1,8 +1,8 @@
 # Codex Voice
 
-Rust overlay wrapping Codex CLI. 
-Speak to Codex with Whisper STT.
-This is a local model that interacts with a Rust Overlay. Allowing the speed of rust, no lag of dealing with an LLM, and works on top of the offical codex cli.
+**Rust voice overlay for the official Codex CLI.**
+
+Speak to Codex using local Whisper speech-to-text. Voice transcription runs entirely on your machine via `whisper.cpp` - no cloud API calls, no network latency. The Rust overlay wraps Codex in a PTY, preserving its native UI while injecting voice transcripts as keystrokes.
 
 ![Codex Voice Startup](img/startup.png)
 
