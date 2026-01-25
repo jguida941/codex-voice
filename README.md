@@ -1,9 +1,10 @@
 # Codex Voice
 
-**Rust voice overlay for the official Codex CLI.**
+**Rust voice overlay for the official Codex CLI. Speak to Codex using local Whisper speech-to-text.** 
 
-Speak to Codex using local Whisper speech-to-text. Voice transcription runs entirely on your machine via `whisper.cpp`!   
-This means no cloud API calls, and no network latency. The Rust overlay simply wraps Codex in a PTY, preserving its complete native UI while injecting voice transcripts.
+Voice transcription runs entirely on your machine via `whisper.cpp`!    
+This means no cloud API calls, and no network latency.   
+The Rust overlay simply wraps Codex in a PTY, preserving its complete native UI while injecting voice transcripts.   
 
 ![Codex Voice Startup](img/startup.png)
 
