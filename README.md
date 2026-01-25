@@ -157,15 +157,15 @@ slash commands; you interact directly with Codex's native UI.
 
 ![Overlay Running](img/overlay-running.png)
 
-#### Shortcuts
+#### Keyboard Shortcuts
 
 | Key | Action |
 |-----|--------|
 | `Ctrl+R` | Start voice capture |
 | `Ctrl+V` | Toggle auto-voice mode |
 | `Ctrl+T` | Toggle send mode (auto vs insert) |
-| `Ctrl++` | Increase mic threshold by 5 dB (less sensitive, often Ctrl+=) |
-| `Ctrl+-` | Decrease mic threshold by 5 dB (more sensitive, may be Ctrl+Shift+-) |
+| `Ctrl++` | Increase mic threshold +5 dB (often `Ctrl+=`) |
+| `Ctrl+-` | Decrease mic threshold -5 dB (may need `Ctrl+Shift+-`) |
 | `Ctrl+Q` | Exit overlay |
 | `Ctrl+C` | Forward to Codex |
 
@@ -177,19 +177,38 @@ slash commands; you interact directly with Codex's native UI.
 
 ![Auto-voice](img/auto-voice.png)
 
-#### Common flags
+#### CLI Flags
+
+**Voice & Recording:**
 
 | Flag | Purpose |
 |------|---------|
-| `--auto-voice` | Start auto-voice immediately |
-| `--auto-voice-idle-ms <MS>` | Idle timeout before auto-voice triggers |
-| `--prompt-regex <REGEX>` | Prompt detection override |
-| `--voice-send-mode <auto|insert>` | Auto-send transcript or insert for editing |
-| `--voice-vad-threshold-db <DB>` | Mic sensitivity (lower = more sensitive) |
+| `--auto-voice` | Start in auto-voice mode |
+| `--auto-voice-idle-ms <MS>` | Idle timeout before auto-voice triggers (default: 1200) |
+| `--voice-send-mode <auto\|insert>` | `auto` sends newline, `insert` leaves for editing |
+| `--voice-vad-threshold-db <DB>` | Mic sensitivity in dB (default: -40, lower = more sensitive) |
+| `--voice-vad-engine <earshot\|simple>` | VAD implementation (default: earshot) |
 | `--input-device <NAME>` | Preferred audio input device |
 | `--list-input-devices` | Print available audio devices and exit |
-| `--whisper-model-path <PATH>` | Path to Whisper GGML model |
-| `--no-python-fallback` | Fail instead of using Python fallback |
+
+**Whisper & STT:**
+
+| Flag | Purpose |
+|------|---------|
+| `--whisper-model-path <PATH>` | Path to Whisper GGML model (required) |
+| `--whisper-model <NAME>` | Whisper model name (default: small) |
+| `--lang <LANG>` | Language for Whisper (default: en) |
+| `--no-python-fallback` | Fail instead of using Python STT fallback |
+
+**Advanced:**
+
+| Flag | Purpose |
+|------|---------|
+| `--prompt-regex <REGEX>` | Override prompt detection regex |
+| `--codex-cmd <PATH>` | Path to Codex CLI binary (default: codex) |
+| `--codex-arg <ARG>` | Extra args to pass to Codex (repeatable) |
+| `--log-timings` | Enable verbose timing logs |
+| `--json-ipc` | Run in JSON IPC mode for external integration |
 
 ## How It Works
 
