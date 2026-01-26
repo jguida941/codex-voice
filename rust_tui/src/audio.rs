@@ -669,19 +669,25 @@ fn record_with_vad_impl(
     }
     drop(stream);
 
-    if accumulator.is_empty() {
-        return Err(anyhow!(
-            "no samples captured; check microphone permissions and availability"
-        ));
-    }
-
-    let audio = accumulator.into_audio(&stop_reason);
-
     metrics.speech_ms = state.speech_ms();
     metrics.silence_tail_ms = state.silence_tail_ms();
     metrics.frames_dropped = dropped.load(Ordering::Relaxed);
     metrics.early_stop_reason = stop_reason;
     metrics.capture_ms = state.total_ms();
+
+    if accumulator.is_empty() {
+        if matches!(metrics.early_stop_reason, StopReason::ManualStop) {
+            return Ok(CaptureResult {
+                audio: Vec::new(),
+                metrics,
+            });
+        }
+        return Err(anyhow!(
+            "no samples captured; check microphone permissions and availability"
+        ));
+    }
+
+    let audio = accumulator.into_audio(&metrics.early_stop_reason);
 
     Ok(CaptureResult { audio, metrics })
 }
@@ -1245,7 +1251,7 @@ mod tests {
         let mut vad = MockVad;
         let cfg = VadConfig::default();
         let result = recorder
-            .record_with_vad(&cfg, &mut vad)
+            .record_with_vad(&cfg, &mut vad, None)
             .expect("stub should produce a CaptureResult");
         assert!(result.audio.is_empty());
         assert_eq!(result.metrics.frames_processed, 0);

@@ -3,10 +3,14 @@
 
 use std::{
     env, fs,
-    io::Write,
+    io::{Read, Write},
     path::PathBuf,
     process::{Command, Stdio},
-    sync::{mpsc::TryRecvError, Arc, Mutex},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        mpsc::TryRecvError,
+        Arc, Mutex,
+    },
     thread,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
@@ -95,7 +99,10 @@ pub(crate) struct PipelineMetrics {
 }
 
 /// Execute the original python pipeline and parse its JSON result for STT fallback.
-pub(crate) fn run_python_transcription(config: &AppConfig) -> Result<PipelineJsonResult> {
+pub(crate) fn run_python_transcription(
+    config: &AppConfig,
+    stop_flag: Option<Arc<AtomicBool>>,
+) -> Result<PipelineJsonResult> {
     let mut cmd = Command::new(&config.python_cmd);
     cmd.arg(&config.pipeline_script);
     cmd.args(["--seconds", &config.seconds.to_string()]);
@@ -120,15 +127,53 @@ pub(crate) fn run_python_transcription(config: &AppConfig) -> Result<PipelineJso
 
     log_debug("Invoking python fallback for transcription");
     let call_started = Instant::now();
-    let output = cmd
-        .output()
-        .context("failed to run python fallback pipeline")?;
-    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-    if !output.status.success() {
+    let (status, stdout_bytes, stderr_bytes) = if let Some(flag) = stop_flag {
+        let mut child = cmd
+            .spawn()
+            .context("failed to run python fallback pipeline")?;
+        let mut stdout = child
+            .stdout
+            .take()
+            .context("failed to capture python fallback stdout")?;
+        let mut stderr = child
+            .stderr
+            .take()
+            .context("failed to capture python fallback stderr")?;
+        loop {
+            if flag.load(Ordering::Relaxed) {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(anyhow!("python fallback cancelled"));
+            }
+            match child.try_wait() {
+                Ok(Some(status)) => {
+                    let mut out = Vec::new();
+                    let mut err = Vec::new();
+                    stdout
+                        .read_to_end(&mut out)
+                        .context("failed to read python fallback stdout")?;
+                    stderr
+                        .read_to_end(&mut err)
+                        .context("failed to read python fallback stderr")?;
+                    break (status, out, err);
+                }
+                Ok(None) => thread::sleep(Duration::from_millis(50)),
+                Err(err) => return Err(anyhow!("python fallback wait failed: {err}")),
+            }
+        }
+    } else {
+        let output = cmd
+            .output()
+            .context("failed to run python fallback pipeline")?;
+        (output.status, output.stdout, output.stderr)
+    };
+
+    let stdout = String::from_utf8_lossy(&stdout_bytes).to_string();
+    let stderr = String::from_utf8_lossy(&stderr_bytes).to_string();
+    if !status.success() {
         return Err(anyhow!(
             "python fallback failed with status {}.\nstdout:\n{}\nstderr:\n{}",
-            output.status,
+            status,
             stdout.trim(),
             stderr.trim()
         ));

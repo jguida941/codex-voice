@@ -40,12 +40,13 @@ First run will download a Whisper model if missing, then start the Rust overlay 
 ## 4) Voice controls
 
 - `Ctrl+R` - start voice capture
-- `Ctrl+V` - toggle auto-voice
+- `Ctrl+V` - toggle auto-voice (disabling cancels any running capture)
 - `Ctrl+T` - toggle send mode (auto vs insert)
 - `Ctrl++` - increase mic threshold by 5 dB (less sensitive, often Ctrl+=)
 - `Ctrl+-` - decrease mic threshold by 5 dB (more sensitive, may be Ctrl+Shift+-)
 - `Ctrl+Q` - exit overlay
 - `Ctrl+C` - forwarded to Codex
+- `Enter` - in insert mode, stop capture early and transcribe what was captured
 
 ## Common flags
 

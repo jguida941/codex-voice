@@ -174,6 +174,10 @@ Overlay mode runs the Codex CLI in a PTY and forwards raw ANSI output. You inter
 | `Ctrl+Q` | Exit overlay |
 | `Ctrl+C` | Forward to Codex |
 
+Insert send mode note: press Enter while recording to stop early and transcribe what was captured.
+When the transcript appears, press Enter again to send it to Codex. If the python fallback is
+active, Enter cancels the capture instead.
+
 | | |
 |---|---|
 | ![Recording](img/recording.png) | ![Auto-voice](img/auto-voice.png) |
@@ -191,7 +195,7 @@ Run `codex-voice --help` for all options. Key flags:
 |------|---------|---------|
 | `--auto-voice` | Start in auto-voice mode | off |
 | `--auto-voice-idle-ms <MS>` | Idle timeout before auto-voice triggers | 1200 |
-| `--voice-send-mode <auto\|insert>` | `auto` sends newline, `insert` for editing | auto |
+| `--voice-send-mode <auto\|insert>` | `auto` sends newline, `insert` for editing + Enter stop | auto |
 | `--voice-vad-threshold-db <DB>` | Mic sensitivity (lower = more sensitive) | -40 |
 | `--voice-vad-engine <earshot\|simple>` | VAD implementation | earshot |
 | `--input-device <NAME>` | Preferred audio input device | system default |

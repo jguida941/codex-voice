@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented here, following the SDLC policy defined in `agents.md`.
 
+## [1.0.5] - 2026-01-25
+
+### Voice Capture UX Fixes
+- **Insert-mode Enter stops early**: pressing Enter while recording now stops capture and transcribes the partial audio.
+- **Processing status stays visible** until transcription completes or an error/empty result arrives.
+- **Auto-voice cancel is real**: disabling auto-voice (Ctrl+V) now stops the active capture instead of dropping the handle.
+- **Python fallback cancel**: Enter in insert mode cancels the python fallback capture (no partial stop available).
+- **LF/CRLF Enter support**: terminals sending LF or CRLF now trigger the Enter interception reliably.
+
+### Error Handling
+- **Manual stop with no samples** returns an empty transcript instead of a fallback error.
+
 ## [1.0.4] - 2026-01-25
 
 ### Fast Local Transcription Feature

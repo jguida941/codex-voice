@@ -6,7 +6,7 @@ use regex::Regex;
 use rust_tui::pty_session::PtyOverlaySession;
 use rust_tui::{
     audio, config::AppConfig, init_debug_log_file, log_debug, log_file_path, stt, voice,
-    VoiceCaptureTrigger, VoiceJobMessage,
+    VoiceCaptureSource, VoiceCaptureTrigger, VoiceJobMessage,
 };
 use std::env;
 use std::io::{self, Read, Write};
@@ -222,13 +222,23 @@ fn main() -> Result<()> {
                     Ok(InputEvent::EnterKey) => {
                         // In insert mode, Enter stops capture early and sends what was recorded
                         if config.voice_send_mode == VoiceSendMode::Insert && !voice_manager.is_idle() {
-                            voice_manager.request_early_stop();
-                            set_status(
-                                &writer_tx,
-                                &mut status_clear_deadline,
-                                "Processing...",
-                                Some(Duration::from_secs(5)),
-                            );
+                            if voice_manager.active_source() == Some(VoiceCaptureSource::Python) {
+                                let _ = voice_manager.cancel_capture();
+                                set_status(
+                                    &writer_tx,
+                                    &mut status_clear_deadline,
+                                    "Capture cancelled (python fallback cannot stop early)",
+                                    Some(Duration::from_secs(3)),
+                                );
+                            } else {
+                                voice_manager.request_early_stop();
+                                set_status(
+                                    &writer_tx,
+                                    &mut status_clear_deadline,
+                                    "Processing...",
+                                    None,
+                                );
+                            }
                         } else {
                             // Forward Enter to PTY
                             if let Err(err) = session.send_bytes(&[0x0d]) {
@@ -367,6 +377,7 @@ fn spawn_input_thread(tx: Sender<InputEvent>) -> thread::JoinHandle<()> {
     thread::spawn(move || {
         let mut stdin = io::stdin();
         let mut buf = [0u8; 1024];
+        let mut skip_lf = false;
         loop {
             let n = match stdin.read(&mut buf) {
                 Ok(0) => break,
@@ -378,6 +389,13 @@ fn spawn_input_thread(tx: Sender<InputEvent>) -> thread::JoinHandle<()> {
             };
             let mut pending = Vec::new();
             for &byte in &buf[..n] {
+                if skip_lf {
+                    if byte == 0x0a {
+                        skip_lf = false;
+                        continue;
+                    }
+                    skip_lf = false;
+                }
                 match byte {
                     0x11 => {
                         if !pending.is_empty() {
@@ -445,7 +463,7 @@ fn spawn_input_thread(tx: Sender<InputEvent>) -> thread::JoinHandle<()> {
                             return;
                         }
                     }
-                    0x0d => {
+                    0x0d | 0x0a => {
                         // Enter key - send as separate event so main loop can intercept it
                         if !pending.is_empty() {
                             if tx.send(InputEvent::Bytes(pending)).is_err() {
@@ -455,6 +473,9 @@ fn spawn_input_thread(tx: Sender<InputEvent>) -> thread::JoinHandle<()> {
                         }
                         if tx.send(InputEvent::EnterKey).is_err() {
                             return;
+                        }
+                        if byte == 0x0d {
+                            skip_lf = true;
                         }
                     }
                     _ => pending.push(byte),
@@ -682,6 +703,8 @@ struct VoiceManager {
     recorder: Option<Arc<Mutex<audio::Recorder>>>,
     transcriber: Option<Arc<Mutex<stt::Transcriber>>>,
     job: Option<voice::VoiceJob>,
+    cancel_pending: bool,
+    active_source: Option<VoiceCaptureSource>,
 }
 
 impl VoiceManager {
@@ -691,6 +714,8 @@ impl VoiceManager {
             recorder: None,
             transcriber: None,
             job: None,
+            cancel_pending: false,
+            active_source: None,
         }
     }
 
@@ -711,11 +736,16 @@ impl VoiceManager {
         self.job.is_none()
     }
 
+    fn active_source(&self) -> Option<VoiceCaptureSource> {
+        self.active_source
+    }
+
     /// Cancel any running voice capture. Returns true if a capture was cancelled.
     fn cancel_capture(&mut self) -> bool {
-        if self.job.is_some() {
-            self.job = None;
-            log_debug("voice capture cancelled");
+        if let Some(ref job) = self.job {
+            job.request_stop();
+            self.cancel_pending = true;
+            log_debug("voice capture cancel requested");
             true
         } else {
             false
@@ -774,6 +804,12 @@ impl VoiceManager {
         let using_native = transcriber.is_some() && recorder.is_some();
         let job = voice::start_voice_job(recorder, transcriber.clone(), self.config.clone());
         self.job = Some(job);
+        self.cancel_pending = false;
+        self.active_source = Some(if using_native {
+            VoiceCaptureSource::Native
+        } else {
+            VoiceCaptureSource::Python
+        });
 
         let pipeline_label = if using_native {
             "Rust pipeline"
@@ -799,13 +835,36 @@ impl VoiceManager {
         };
         match job.receiver.try_recv() {
             Ok(message) => {
+                if let Some(handle) = job.handle.take() {
+                    let _ = handle.join();
+                }
                 self.job = None;
-                Some(message)
+                self.active_source = None;
+                if self.cancel_pending {
+                    self.cancel_pending = false;
+                    log_debug("voice capture cancelled; dropping message");
+                    None
+                } else {
+                    Some(message)
+                }
             }
             Err(std::sync::mpsc::TryRecvError::Empty) => None,
-            Err(_) => {
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                if let Some(handle) = job.handle.take() {
+                    let _ = handle.join();
+                }
                 self.job = None;
-                None
+                self.active_source = None;
+                let was_cancelled = self.cancel_pending;
+                self.cancel_pending = false;
+                if was_cancelled {
+                    log_debug("voice capture cancelled; worker disconnected");
+                    None
+                } else {
+                    Some(VoiceJobMessage::Error(
+                        "voice capture worker disconnected unexpectedly".to_string(),
+                    ))
+                }
             }
         }
     }
@@ -986,6 +1045,10 @@ impl PromptTracker {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::mpsc;
+    use std::thread;
+    use std::time::Duration;
 
     #[test]
     fn prompt_tracker_learns_prompt_on_idle() {
@@ -1004,5 +1067,42 @@ mod tests {
         let mut tracker = PromptTracker::new(Some(regex), logger);
         tracker.feed_output(b"codex> \n");
         assert!(tracker.last_prompt_seen_at().is_some());
+    }
+
+    #[test]
+    fn cancel_capture_suppresses_voice_message() {
+        let config = AppConfig::parse_from(["test"]);
+        let mut manager = VoiceManager::new(config);
+        let (tx, rx) = mpsc::channel();
+        let stop_flag = Arc::new(AtomicBool::new(false));
+        let stop_flag_worker = stop_flag.clone();
+        let handle = thread::spawn(move || {
+            while !stop_flag_worker.load(Ordering::Relaxed) {
+                thread::sleep(Duration::from_millis(5));
+            }
+            let _ = tx.send(VoiceJobMessage::Empty {
+                source: VoiceCaptureSource::Native,
+            });
+        });
+        manager.job = Some(voice::VoiceJob {
+            receiver: rx,
+            handle: Some(handle),
+            stop_flag: stop_flag.clone(),
+        });
+        manager.active_source = Some(VoiceCaptureSource::Native);
+
+        assert!(manager.cancel_capture());
+        assert!(stop_flag.load(Ordering::Relaxed));
+
+        for _ in 0..50 {
+            manager.poll_message();
+            if manager.job.is_none() {
+                break;
+            }
+            thread::sleep(Duration::from_millis(5));
+        }
+
+        assert!(manager.job.is_none());
+        assert!(!manager.cancel_pending);
     }
 }

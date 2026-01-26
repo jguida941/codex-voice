@@ -1473,7 +1473,7 @@ mod tests {
     fn test_serialize_capabilities_event() {
         let event = IpcEvent::Capabilities {
             session_id: "test123".to_string(),
-            version: "0.1.0".to_string(),
+            version: env!("CARGO_PKG_VERSION").to_string(),
             mic_available: true,
             input_device: Some("Default".to_string()),
             whisper_model_loaded: true,
