@@ -11,7 +11,6 @@ use crossbeam_channel::{Sender, TrySendError};
 use rubato::{InterpolationParameters, InterpolationType, Resampler, SincFixedIn, WindowFunction};
 use std::collections::VecDeque;
 use std::f32::consts::PI;
-#[cfg(feature = "high-quality-audio")]
 use std::sync::atomic::AtomicBool;
 #[cfg(not(test))]
 use std::sync::atomic::AtomicUsize;

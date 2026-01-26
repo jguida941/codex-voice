@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented here, following the SDLC policy defined in `agents.md`.
 
+## [1.0.7] - 2026-01-25
+
+### Build Fixes
+- **AtomicBool import for VAD stop flag**: fixes CI builds when high-quality-audio is disabled.
+
 ## [1.0.6] - 2026-01-25
 
 ### Auto-Voice Behavior
