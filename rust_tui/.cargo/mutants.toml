@@ -1,0 +1,8 @@
+exclude_globs = [
+  "src/bin/test_crash.rs",
+  "src/bin/test_utf8_bug.rs",
+  "src/bin/voice_benchmark.rs",
+  "src/bin/latency_measurement.rs",
+  "src/audio/recorder.rs",
+]
+features = ["mutants"]

@@ -33,6 +33,10 @@ use std::sync::mpsc::{self, Receiver, Sender, TryRecvError};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
+#[cfg(any(test, feature = "mutants"))]
+use std::sync::atomic::{AtomicU64, Ordering};
+#[cfg(any(test, feature = "mutants"))]
+use std::sync::OnceLock;
 
 // ============================================================================
 // IPC Events (Rust → TypeScript)
@@ -336,11 +340,67 @@ impl IpcState {
 // ============================================================================
 
 fn send_event(event: &IpcEvent) {
+    #[cfg(any(test, feature = "mutants"))]
+    if capture_test_event(event) {
+        return;
+    }
     if let Ok(json) = serde_json::to_string(event) {
         let mut stdout = io::stdout().lock();
         let _ = writeln!(stdout, "{json}");
         let _ = stdout.flush();
     }
+}
+
+#[cfg(any(test, feature = "mutants"))]
+static EVENT_SINK: OnceLock<Mutex<Vec<IpcEvent>>> = OnceLock::new();
+#[cfg(any(test, feature = "mutants"))]
+static IPC_LOOP_COUNT: AtomicU64 = AtomicU64::new(0);
+
+#[cfg(any(test, feature = "mutants"))]
+fn capture_test_event(event: &IpcEvent) -> bool {
+    if let Some(sink) = EVENT_SINK.get() {
+        if let Ok(mut events) = sink.lock() {
+            events.push(event.clone());
+            return true;
+        }
+    }
+    false
+}
+
+#[cfg(any(test, feature = "mutants"))]
+fn init_event_sink() {
+    let _ = EVENT_SINK.get_or_init(|| Mutex::new(Vec::new()));
+}
+
+#[cfg(any(test, feature = "mutants"))]
+fn ipc_loop_count_reset() {
+    IPC_LOOP_COUNT.store(0, Ordering::SeqCst);
+}
+
+#[cfg(any(test, feature = "mutants"))]
+fn ipc_loop_count() -> u64 {
+    IPC_LOOP_COUNT.load(Ordering::SeqCst)
+}
+
+#[cfg(any(test, feature = "mutants"))]
+fn event_snapshot() -> usize {
+    init_event_sink();
+    EVENT_SINK
+        .get()
+        .and_then(|sink| sink.lock().ok().map(|events| events.len()))
+        .unwrap_or(0)
+}
+
+#[cfg(any(test, feature = "mutants"))]
+fn events_since(start: usize) -> Vec<IpcEvent> {
+    EVENT_SINK
+        .get()
+        .and_then(|sink| {
+            sink.lock()
+                .ok()
+                .map(|events| events.iter().skip(start).cloned().collect())
+        })
+        .unwrap_or_default()
 }
 
 // ============================================================================
@@ -446,7 +506,27 @@ fn start_claude_job(claude_cmd: &str, prompt: &str) -> Result<ClaudeJob, String>
 // Auth Backend
 // ============================================================================
 
+#[cfg(any(test, feature = "mutants"))]
+type AuthFlowHook = Box<dyn Fn(Provider, &str, &str) -> AuthResult + Send + Sync + 'static>;
+
+#[cfg(any(test, feature = "mutants"))]
+static AUTH_FLOW_HOOK: OnceLock<Mutex<Option<AuthFlowHook>>> = OnceLock::new();
+
+#[cfg(any(test, feature = "mutants"))]
+fn set_auth_flow_hook(hook: Option<AuthFlowHook>) {
+    let storage = AUTH_FLOW_HOOK.get_or_init(|| Mutex::new(None));
+    *storage.lock().unwrap_or_else(|e| e.into_inner()) = hook;
+}
+
 fn run_auth_flow(provider: Provider, codex_cmd: &str, claude_cmd: &str) -> AuthResult {
+    #[cfg(any(test, feature = "mutants"))]
+    if let Some(storage) = AUTH_FLOW_HOOK.get() {
+        if let Ok(guard) = storage.lock() {
+            if let Some(hook) = guard.as_ref() {
+                return hook(provider, codex_cmd, claude_cmd);
+            }
+        }
+    }
     let command = match provider {
         Provider::Codex => codex_cmd,
         Provider::Claude => claude_cmd,
@@ -573,18 +653,52 @@ pub fn run_ipc_mode(config: AppConfig) -> Result<()> {
 
     // Start stdin reader thread
     let (cmd_tx, cmd_rx) = mpsc::channel();
+    #[cfg(any(test, feature = "mutants"))]
+    {
+        drop(cmd_tx);
+        return run_ipc_loop(&mut state, &cmd_rx, Some(10));
+    }
+    #[cfg(not(any(test, feature = "mutants")))]
     let _stdin_handle = spawn_stdin_reader(cmd_tx);
 
-    // Main event loop
+    #[cfg(not(any(test, feature = "mutants")))]
+    return run_ipc_loop(&mut state, &cmd_rx, None);
+}
+
+#[cfg(any(test, feature = "mutants"))]
+fn ipc_guard_tripped(elapsed: Duration) -> bool {
+    elapsed > Duration::from_secs(2)
+}
+
+fn run_ipc_loop(
+    state: &mut IpcState,
+    cmd_rx: &Receiver<IpcCommand>,
+    max_loops: Option<u64>,
+) -> Result<()> {
+    #[cfg(any(test, feature = "mutants"))]
+    let guard_start = Instant::now();
     let mut loop_count: u64 = 0;
     loop {
+        #[cfg(any(test, feature = "mutants"))]
+        if ipc_guard_tripped(guard_start.elapsed()) {
+            panic!("IPC loop guard exceeded");
+        }
         loop_count += 1;
+        #[cfg(any(test, feature = "mutants"))]
+        IPC_LOOP_COUNT.store(loop_count, Ordering::SeqCst);
         if loop_count.is_multiple_of(1000) {
             log_debug(&format!(
                 "IPC loop iteration {}, job active: {}",
                 loop_count,
                 state.current_job.is_some()
             ));
+        }
+
+        if let Some(limit) = max_loops {
+            if loop_count >= limit {
+                log_debug("IPC loop reached test limit, exiting");
+                break;
+            }
         }
 
         // Check for new commands (non-blocking)
@@ -595,30 +709,27 @@ pub fn run_ipc_mode(config: AppConfig) -> Result<()> {
 
                 match cmd {
                     IpcCommand::SendPrompt { prompt, provider } => {
-                        handle_send_prompt(&mut state, &prompt, provider);
+                        handle_send_prompt(state, &prompt, provider);
                     }
                     IpcCommand::StartVoice => {
-                        handle_start_voice(&mut state);
+                        handle_start_voice(state);
                     }
                     IpcCommand::Cancel => {
-                        handle_cancel(&mut state);
+                        handle_cancel(state);
                     }
                     IpcCommand::SetProvider { provider } => {
-                        handle_set_provider(&mut state, &provider);
+                        handle_set_provider(state, &provider);
                     }
                     IpcCommand::Auth { provider } => {
-                        handle_auth_command(&mut state, provider);
+                        handle_auth_command(state, provider);
                     }
                     IpcCommand::GetCapabilities => {
                         state.emit_capabilities();
                     }
                 }
             }
-            Err(TryRecvError::Empty) => {
-                // No command, continue processing jobs
-            }
+            Err(TryRecvError::Empty) => {}
             Err(TryRecvError::Disconnected) => {
-                // Stdin closed, exit
                 log_debug("Command channel disconnected, exiting");
                 break;
             }
@@ -647,7 +758,7 @@ pub fn run_ipc_mode(config: AppConfig) -> Result<()> {
             }
         }
 
-        if process_auth_events(&mut state) {
+        if process_auth_events(state) {
             state.current_auth_job = None;
         }
 
@@ -1219,6 +1330,84 @@ fn process_auth_events(state: &mut IpcState) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use clap::Parser;
+    use crate::codex::{
+        build_test_backend_job, reset_session_count, reset_session_count_reset, BackendEvent,
+        BackendEventKind, BackendStats, RequestMode, TestSignal,
+    };
+    use crate::{PipelineJsonResult, PipelineMetrics};
+    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+    use std::sync::mpsc;
+    use std::sync::Arc;
+    use std::time::Duration;
+
+    fn new_test_state(mut config: AppConfig) -> IpcState {
+        config.persistent_codex = false;
+        IpcState {
+            config: config.clone(),
+            active_provider: Provider::Codex,
+            codex_backend: Arc::new(CliBackend::new(config)),
+            claude_cmd: "claude".to_string(),
+            recorder: None,
+            transcriber: None,
+            current_job: None,
+            current_voice_job: None,
+            current_auth_job: None,
+            session_id: "test-session".to_string(),
+            cancelled: false,
+        }
+    }
+
+    type PythonHook = Box<
+        dyn Fn(&AppConfig, Option<Arc<AtomicBool>>) -> anyhow::Result<crate::PipelineJsonResult>
+            + Send
+            + 'static,
+    >;
+
+    struct AuthHookGuard;
+
+    impl Drop for AuthHookGuard {
+        fn drop(&mut self) {
+            set_auth_flow_hook(None);
+        }
+    }
+
+    fn set_auth_hook(hook: AuthFlowHook) -> AuthHookGuard {
+        set_auth_flow_hook(Some(hook));
+        AuthHookGuard
+    }
+
+    struct PythonHookGuard;
+
+    impl Drop for PythonHookGuard {
+        fn drop(&mut self) {
+            voice::set_python_transcription_hook(None);
+        }
+    }
+
+    fn set_python_hook(hook: PythonHook) -> PythonHookGuard {
+        voice::set_python_transcription_hook(Some(hook));
+        PythonHookGuard
+    }
+
+    #[cfg(unix)]
+    fn write_stub_script(contents: &str) -> std::path::PathBuf {
+        use std::fs;
+        use std::os::unix::fs::PermissionsExt;
+        use std::time::{SystemTime, UNIX_EPOCH};
+
+        let mut path = std::env::temp_dir();
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        path.push(format!("ipc_stub_{nanos}.sh"));
+        fs::write(&path, contents).expect("write stub");
+        let mut perms = fs::metadata(&path).expect("stat stub").permissions();
+        perms.set_mode(0o755);
+        fs::set_permissions(&path, perms).expect("chmod stub");
+        path
+    }
 
     // -------------------------------------------------------------------------
     // Provider Enum Tests
@@ -1390,6 +1579,765 @@ mod tests {
             ParsedInput::WrapperCommand(WrapperCmd::Codex(_)) => {}
             _ => panic!("Expected Codex command (uppercase)"),
         }
+    }
+
+    #[test]
+    fn test_parse_capabilities_command() {
+        match parse_input("/capabilities") {
+            ParsedInput::WrapperCommand(WrapperCmd::Capabilities) => {}
+            _ => panic!("Expected Capabilities command"),
+        }
+    }
+
+    #[test]
+    fn emit_capabilities_reports_state() {
+        let snapshot = event_snapshot();
+        let mut config = AppConfig::parse_from(["test-app", "--no-python-fallback"]);
+        config.whisper_model_path = None;
+        let state = new_test_state(config);
+
+        state.emit_capabilities();
+
+        let events = events_since(snapshot);
+        let caps = events.iter().find_map(|event| match event {
+            IpcEvent::Capabilities {
+                mic_available,
+                whisper_model_loaded,
+                python_fallback_allowed,
+                active_provider,
+                ..
+            } => Some((
+                *mic_available,
+                *whisper_model_loaded,
+                *python_fallback_allowed,
+                active_provider.clone(),
+            )),
+            _ => None,
+        });
+        assert!(caps.is_some());
+        let (mic_available, whisper_loaded, python_fallback_allowed, active_provider) = caps.unwrap();
+        assert!(!mic_available);
+        assert!(!whisper_loaded);
+        assert!(!python_fallback_allowed);
+        assert_eq!(active_provider, "codex");
+    }
+
+    #[test]
+    fn handle_set_provider_emits_events() {
+        let snapshot = event_snapshot();
+        let mut state = new_test_state(AppConfig::parse_from(["test-app"]));
+
+        handle_set_provider(&mut state, "claude");
+        assert_eq!(state.active_provider, Provider::Claude);
+        let events = events_since(snapshot);
+        assert!(events.iter().any(|event| {
+            matches!(event, IpcEvent::ProviderChanged { provider } if provider == "claude")
+        }));
+
+        let snapshot = event_snapshot();
+        handle_set_provider(&mut state, "unknown");
+        let events = events_since(snapshot);
+        assert!(events.iter().any(|event| {
+            matches!(event, IpcEvent::Error { message, .. } if message.contains("Unknown provider"))
+        }));
+    }
+
+    #[test]
+    fn handle_send_prompt_blocks_during_auth() {
+        let snapshot = event_snapshot();
+        let mut state = new_test_state(AppConfig::parse_from(["test-app"]));
+        let (_tx, rx) = mpsc::channel();
+        state.current_auth_job = Some(AuthJob {
+            provider: Provider::Codex,
+            receiver: rx,
+            started_at: Instant::now(),
+        });
+
+        handle_send_prompt(&mut state, "hello", None);
+        let events = events_since(snapshot);
+        assert!(events.iter().any(|event| {
+            matches!(event, IpcEvent::Error { message, .. } if message.contains("Authentication in progress"))
+        }));
+    }
+
+    #[test]
+    fn handle_send_prompt_rejects_provider_commands_on_claude() {
+        let snapshot = event_snapshot();
+        let mut state = new_test_state(AppConfig::parse_from(["test-app"]));
+        state.active_provider = Provider::Claude;
+
+        handle_send_prompt(&mut state, "/model gpt-4", None);
+
+        let events = events_since(snapshot);
+        assert!(events.iter().any(|event| {
+            matches!(event, IpcEvent::ProviderError { message } if message.contains("Codex command"))
+        }));
+    }
+
+    #[test]
+    fn handle_wrapper_help_emits_status() {
+        let snapshot = event_snapshot();
+        let mut state = new_test_state(AppConfig::parse_from(["test-app"]));
+        handle_wrapper_command(&mut state, WrapperCmd::Help);
+        let events = events_since(snapshot);
+        assert!(events.iter().any(|event| {
+            matches!(event, IpcEvent::Status { message } if message.contains("Commands:"))
+        }));
+    }
+
+    #[test]
+    fn handle_wrapper_status_emits_capabilities() {
+        let snapshot = event_snapshot();
+        let mut state = new_test_state(AppConfig::parse_from(["test-app"]));
+        handle_wrapper_command(&mut state, WrapperCmd::Status);
+        let events = events_since(snapshot);
+        assert!(events.iter().any(|event| matches!(event, IpcEvent::Capabilities { .. })));
+    }
+
+    #[test]
+    fn handle_wrapper_capabilities_emits_capabilities() {
+        let snapshot = event_snapshot();
+        let mut state = new_test_state(AppConfig::parse_from(["test-app"]));
+        handle_wrapper_command(&mut state, WrapperCmd::Capabilities);
+        let events = events_since(snapshot);
+        assert!(events.iter().any(|event| matches!(event, IpcEvent::Capabilities { .. })));
+    }
+
+    #[test]
+    fn handle_wrapper_requires_prompt_for_codex_and_claude() {
+        let snapshot = event_snapshot();
+        let mut state = new_test_state(AppConfig::parse_from(["test-app"]));
+        handle_wrapper_command(&mut state, WrapperCmd::Codex(String::new()));
+        handle_wrapper_command(&mut state, WrapperCmd::Claude(String::new()));
+        let events = events_since(snapshot);
+        assert!(events.iter().any(|event| {
+            matches!(event, IpcEvent::Error { message, .. } if message.contains("Usage: /codex"))
+        }));
+        assert!(events.iter().any(|event| {
+            matches!(event, IpcEvent::Error { message, .. } if message.contains("Usage: /claude"))
+        }));
+    }
+
+    #[test]
+    fn run_ipc_mode_emits_capabilities_on_start() {
+        let snapshot = event_snapshot();
+        let config = AppConfig::parse_from(["test-app"]);
+        run_ipc_mode(config).unwrap();
+        let events = events_since(snapshot);
+        assert!(events.iter().any(|event| matches!(event, IpcEvent::Capabilities { .. })));
+    }
+
+    #[test]
+    fn run_ipc_loop_processes_commands() {
+        let snapshot = event_snapshot();
+        let mut state = new_test_state(AppConfig::parse_from(["test-app"]));
+        let (tx, rx) = mpsc::channel();
+        tx.send(IpcCommand::GetCapabilities).unwrap();
+        tx.send(IpcCommand::SetProvider {
+            provider: "claude".to_string(),
+        })
+        .unwrap();
+        drop(tx);
+        run_ipc_loop(&mut state, &rx, Some(10)).unwrap();
+        let events = events_since(snapshot);
+        assert!(events.iter().any(|event| matches!(event, IpcEvent::Capabilities { .. })));
+        assert!(events.iter().any(|event| {
+            matches!(event, IpcEvent::ProviderChanged { provider } if provider == "claude")
+        }));
+    }
+
+    #[test]
+    fn run_ipc_loop_respects_max_loops_with_live_channel() {
+        ipc_loop_count_reset();
+        let mut state = new_test_state(AppConfig::parse_from(["test-app"]));
+        let (_tx, rx) = mpsc::channel();
+        let start = Instant::now();
+        run_ipc_loop(&mut state, &rx, Some(3)).unwrap();
+        assert_eq!(ipc_loop_count(), 3);
+        assert!(start.elapsed() < Duration::from_secs(1));
+    }
+
+    #[test]
+    fn ipc_guard_trips_only_after_threshold() {
+        assert!(!ipc_guard_tripped(Duration::from_secs(1)));
+        assert!(!ipc_guard_tripped(Duration::from_secs(2)));
+        assert!(ipc_guard_tripped(Duration::from_secs(2) + Duration::from_millis(1)));
+    }
+
+    #[test]
+    fn run_ipc_loop_breaks_when_limit_zero() {
+        ipc_loop_count_reset();
+        let mut state = new_test_state(AppConfig::parse_from(["test-app"]));
+        let (_tx, rx) = mpsc::channel();
+        run_ipc_loop(&mut state, &rx, Some(0)).unwrap();
+        assert_eq!(ipc_loop_count(), 1);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn start_provider_job_codex_emits_completion() {
+        let snapshot = event_snapshot();
+        let mut config = AppConfig::parse_from(["test-app"]);
+        config.codex_cmd = "/path/does/not/exist".to_string();
+        let mut state = new_test_state(config);
+
+        start_provider_job(&mut state, Provider::Codex, "hello");
+
+        let start = Instant::now();
+        while start.elapsed() < Duration::from_secs(2) {
+            if let Some(ActiveJob::Codex(job)) = &mut state.current_job {
+                if process_codex_events(job, false) {
+                    state.current_job = None;
+                    break;
+                }
+            }
+            thread::sleep(Duration::from_millis(10));
+        }
+
+        assert!(state.current_job.is_none(), "codex job did not complete");
+        let events = events_since(snapshot);
+        assert!(events.iter().any(|event| {
+            matches!(event, IpcEvent::JobStart { provider } if provider == "codex")
+        }));
+        assert!(events.iter().any(|event| {
+            matches!(event, IpcEvent::JobEnd { provider, success, .. } if provider == "codex" && !*success)
+        }));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn process_claude_events_emits_tokens_and_end() {
+        let snapshot = event_snapshot();
+        let (tx, rx) = mpsc::channel();
+        tx.send("hello from claude".to_string()).unwrap();
+        let child = std::process::Command::new("true")
+            .spawn()
+            .expect("spawned child");
+        let mut job = ClaudeJob {
+            child,
+            stdout_rx: rx,
+            started_at: Instant::now(),
+        };
+
+        assert!(!process_claude_events(&mut job, false));
+        let start = Instant::now();
+        let mut finished = false;
+        while start.elapsed() < Duration::from_secs(1) {
+            if process_claude_events(&mut job, false) {
+                finished = true;
+                break;
+            }
+            thread::sleep(Duration::from_millis(10));
+        }
+        assert!(finished);
+        let events = events_since(snapshot);
+        assert!(events.iter().any(|event| matches!(event, IpcEvent::Token { .. })));
+        assert!(events.iter().any(|event| {
+            matches!(event, IpcEvent::JobEnd { provider, .. } if provider == "claude")
+        }));
+    }
+
+    #[test]
+    fn process_voice_events_handles_transcript() {
+        let snapshot = event_snapshot();
+        let (tx, rx) = mpsc::channel();
+        let job = VoiceJob {
+            receiver: rx,
+            handle: None,
+            stop_flag: Arc::new(AtomicBool::new(false)),
+        };
+        tx.send(VoiceJobMessage::Transcript {
+            text: "hello".to_string(),
+            source: voice::VoiceCaptureSource::Native,
+        })
+        .unwrap();
+
+        assert!(process_voice_events(&job, false));
+
+        let events = events_since(snapshot);
+        assert!(events.iter().any(|event| {
+            matches!(event, IpcEvent::VoiceEnd { error } if error.is_none())
+        }));
+        assert!(events.iter().any(|event| {
+            matches!(event, IpcEvent::Transcript { text, .. } if text == "hello")
+        }));
+    }
+
+    #[test]
+    fn process_voice_events_handles_empty() {
+        let snapshot = event_snapshot();
+        let (tx, rx) = mpsc::channel();
+        let job = VoiceJob {
+            receiver: rx,
+            handle: None,
+            stop_flag: Arc::new(AtomicBool::new(false)),
+        };
+        tx.send(VoiceJobMessage::Empty {
+            source: voice::VoiceCaptureSource::Native,
+        })
+        .unwrap();
+
+        assert!(process_voice_events(&job, false));
+        let events = events_since(snapshot);
+        assert!(events.iter().any(|event| {
+            matches!(event, IpcEvent::VoiceEnd { error } if error.as_deref() == Some("No speech detected"))
+        }));
+    }
+
+    #[test]
+    fn process_voice_events_handles_error() {
+        let snapshot = event_snapshot();
+        let (tx, rx) = mpsc::channel();
+        let job = VoiceJob {
+            receiver: rx,
+            handle: None,
+            stop_flag: Arc::new(AtomicBool::new(false)),
+        };
+        tx.send(VoiceJobMessage::Error("boom".to_string()))
+            .unwrap();
+
+        assert!(process_voice_events(&job, false));
+        let events = events_since(snapshot);
+        assert!(events.iter().any(|event| {
+            matches!(event, IpcEvent::VoiceEnd { error } if error.as_deref() == Some("boom"))
+        }));
+    }
+
+    #[test]
+    fn process_voice_events_handles_disconnect() {
+        let snapshot = event_snapshot();
+        let (tx, rx) = mpsc::channel();
+        drop(tx);
+        let job = VoiceJob {
+            receiver: rx,
+            handle: None,
+            stop_flag: Arc::new(AtomicBool::new(false)),
+        };
+
+        assert!(process_voice_events(&job, false));
+        let events = events_since(snapshot);
+        assert!(events.iter().any(|event| {
+            matches!(event, IpcEvent::VoiceEnd { error } if error.as_deref() == Some("Voice worker disconnected"))
+        }));
+    }
+
+    #[test]
+    fn process_auth_events_emits_success_and_capabilities() {
+        let snapshot = event_snapshot();
+        let mut state = new_test_state(AppConfig::parse_from(["test-app"]));
+        let (tx, rx) = mpsc::channel();
+        state.current_auth_job = Some(AuthJob {
+            provider: Provider::Codex,
+            receiver: rx,
+            started_at: Instant::now(),
+        });
+        tx.send(Ok(())).unwrap();
+
+        assert!(process_auth_events(&mut state));
+        let events = events_since(snapshot);
+        assert!(events.iter().any(|event| matches!(event, IpcEvent::AuthEnd { success: true, .. })));
+        assert!(events.iter().any(|event| matches!(event, IpcEvent::Capabilities { .. })));
+    }
+
+    #[test]
+    fn ipc_loop_count_reset_clears_count() {
+        IPC_LOOP_COUNT.store(5, Ordering::SeqCst);
+        assert_eq!(ipc_loop_count(), 5);
+        ipc_loop_count_reset();
+        assert_eq!(ipc_loop_count(), 0);
+    }
+
+    #[test]
+    fn set_auth_flow_hook_overrides_auth_flow() {
+        struct HookReset;
+        impl Drop for HookReset {
+            fn drop(&mut self) {
+                set_auth_flow_hook(None);
+            }
+        }
+
+        let calls = Arc::new(AtomicUsize::new(0));
+        let calls_clone = Arc::clone(&calls);
+        set_auth_flow_hook(Some(Box::new(move |provider, codex_cmd, claude_cmd| {
+            calls_clone.fetch_add(1, Ordering::SeqCst);
+            assert_eq!(provider, Provider::Codex);
+            assert_eq!(codex_cmd, "codex-bin");
+            assert_eq!(claude_cmd, "claude-bin");
+            Ok(())
+        })));
+        let _reset = HookReset;
+
+        let result = run_auth_flow(Provider::Codex, "codex-bin", "claude-bin");
+        assert!(result.is_ok());
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+    }
+
+    #[test]
+    fn process_auth_events_resets_session_for_successful_codex() {
+        reset_session_count_reset();
+        let mut state = new_test_state(AppConfig::parse_from(["test-app"]));
+        let (tx, rx) = mpsc::channel();
+        state.current_auth_job = Some(AuthJob {
+            provider: Provider::Codex,
+            receiver: rx,
+            started_at: Instant::now(),
+        });
+        tx.send(Ok(())).unwrap();
+
+        assert!(process_auth_events(&mut state));
+        assert_eq!(reset_session_count(), 1);
+    }
+
+    #[test]
+    fn process_auth_events_does_not_reset_on_failed_codex() {
+        reset_session_count_reset();
+        let mut state = new_test_state(AppConfig::parse_from(["test-app"]));
+        let (tx, rx) = mpsc::channel();
+        state.current_auth_job = Some(AuthJob {
+            provider: Provider::Codex,
+            receiver: rx,
+            started_at: Instant::now(),
+        });
+        tx.send(Err("nope".to_string())).unwrap();
+
+        assert!(process_auth_events(&mut state));
+        assert_eq!(reset_session_count(), 0);
+    }
+
+    #[test]
+    fn process_auth_events_does_not_reset_on_successful_claude() {
+        reset_session_count_reset();
+        let mut state = new_test_state(AppConfig::parse_from(["test-app"]));
+        let (tx, rx) = mpsc::channel();
+        state.current_auth_job = Some(AuthJob {
+            provider: Provider::Claude,
+            receiver: rx,
+            started_at: Instant::now(),
+        });
+        tx.send(Ok(())).unwrap();
+
+        assert!(process_auth_events(&mut state));
+        assert_eq!(reset_session_count(), 0);
+    }
+
+    #[test]
+    fn process_auth_events_emits_error() {
+        let snapshot = event_snapshot();
+        let mut state = new_test_state(AppConfig::parse_from(["test-app"]));
+        let (tx, rx) = mpsc::channel();
+        state.current_auth_job = Some(AuthJob {
+            provider: Provider::Claude,
+            receiver: rx,
+            started_at: Instant::now(),
+        });
+        tx.send(Err("nope".to_string())).unwrap();
+
+        assert!(process_auth_events(&mut state));
+        let events = events_since(snapshot);
+        assert!(events.iter().any(|event| {
+            matches!(event, IpcEvent::AuthEnd { success: false, error, .. } if error.as_deref() == Some("nope"))
+        }));
+    }
+
+    #[test]
+    fn process_auth_events_handles_disconnect() {
+        let snapshot = event_snapshot();
+        let mut state = new_test_state(AppConfig::parse_from(["test-app"]));
+        let (tx, rx) = mpsc::channel();
+        drop(tx);
+        state.current_auth_job = Some(AuthJob {
+            provider: Provider::Codex,
+            receiver: rx,
+            started_at: Instant::now(),
+        });
+
+        assert!(process_auth_events(&mut state));
+        let events = events_since(snapshot);
+        assert!(events.iter().any(|event| {
+            matches!(event, IpcEvent::AuthEnd { success: false, error, .. } if error.as_deref() == Some("Auth worker disconnected"))
+        }));
+    }
+
+    #[test]
+    fn handle_cancel_clears_voice_job() {
+        let snapshot = event_snapshot();
+        let mut state = new_test_state(AppConfig::parse_from(["test-app"]));
+        let (_tx, rx) = mpsc::channel();
+        state.current_voice_job = Some(VoiceJob {
+            receiver: rx,
+            handle: None,
+            stop_flag: Arc::new(AtomicBool::new(false)),
+        });
+
+        handle_cancel(&mut state);
+
+        assert!(state.current_voice_job.is_none());
+        let events = events_since(snapshot);
+        assert!(events.iter().any(|event| {
+            matches!(event, IpcEvent::VoiceEnd { error } if error.as_deref() == Some("Cancelled"))
+        }));
+    }
+
+    #[test]
+    fn handle_start_voice_errors_when_auth_in_progress() {
+        let snapshot = event_snapshot();
+        let mut state = new_test_state(AppConfig::parse_from(["test-app"]));
+        let (_tx, rx) = mpsc::channel();
+        state.current_auth_job = Some(AuthJob {
+            provider: Provider::Codex,
+            receiver: rx,
+            started_at: Instant::now(),
+        });
+
+        handle_start_voice(&mut state);
+        let events = events_since(snapshot);
+        assert!(events.iter().any(|event| {
+            matches!(event, IpcEvent::Error { message, .. } if message.contains("Authentication in progress"))
+        }));
+    }
+
+    #[test]
+    fn handle_start_voice_errors_when_already_running() {
+        let snapshot = event_snapshot();
+        let mut state = new_test_state(AppConfig::parse_from(["test-app"]));
+        let (_tx, rx) = mpsc::channel();
+        state.current_voice_job = Some(VoiceJob {
+            receiver: rx,
+            handle: None,
+            stop_flag: Arc::new(AtomicBool::new(false)),
+        });
+
+        handle_start_voice(&mut state);
+        let events = events_since(snapshot);
+        assert!(events.iter().any(|event| {
+            matches!(event, IpcEvent::Error { message, .. } if message.contains("Voice capture already in progress"))
+        }));
+    }
+
+    #[test]
+    fn handle_start_voice_errors_when_no_mic_and_no_python() {
+        let snapshot = event_snapshot();
+        let config = AppConfig::parse_from(["test-app", "--no-python-fallback"]);
+        let mut state = new_test_state(config);
+        state.recorder = None;
+
+        handle_start_voice(&mut state);
+        let events = events_since(snapshot);
+        assert!(events.iter().any(|event| {
+            matches!(event, IpcEvent::Error { message, .. } if message.contains("No microphone available"))
+        }));
+    }
+
+    #[test]
+    fn handle_start_voice_starts_python_fallback_job() {
+        let snapshot = event_snapshot();
+        let mut state = new_test_state(AppConfig::parse_from(["test-app"]));
+        let _hook = set_python_hook(Box::new(|_cfg, _stop| {
+            Ok(PipelineJsonResult {
+                transcript: "hello voice".to_string(),
+                prompt: String::new(),
+                codex_output: None,
+                metrics: PipelineMetrics::default(),
+            })
+        }));
+
+        handle_start_voice(&mut state);
+
+        let start = Instant::now();
+        while start.elapsed() < Duration::from_secs(1) {
+            if let Some(job) = &state.current_voice_job {
+                if process_voice_events(job, false) {
+                    state.current_voice_job = None;
+                    break;
+                }
+            }
+            thread::sleep(Duration::from_millis(10));
+        }
+
+        let events = events_since(snapshot);
+        assert!(events.iter().any(|event| matches!(event, IpcEvent::VoiceStart)));
+        assert!(events.iter().any(|event| {
+            matches!(event, IpcEvent::Transcript { text, .. } if text == "hello voice")
+        }));
+        assert!(events.iter().any(|event| {
+            matches!(event, IpcEvent::VoiceEnd { error } if error.is_none())
+        }));
+    }
+
+    #[test]
+    fn handle_auth_command_rejects_unknown_provider() {
+        let snapshot = event_snapshot();
+        let mut state = new_test_state(AppConfig::parse_from(["test-app"]));
+        handle_auth_command(&mut state, Some("unknown".to_string()));
+        let events = events_since(snapshot);
+        assert!(events.iter().any(|event| {
+            matches!(event, IpcEvent::Error { message, .. } if message.contains("Unknown provider"))
+        }));
+    }
+
+    #[test]
+    fn handle_auth_command_rejects_when_active() {
+        let snapshot = event_snapshot();
+        let mut state = new_test_state(AppConfig::parse_from(["test-app"]));
+        let (_tx, rx) = mpsc::channel();
+        state.current_voice_job = Some(VoiceJob {
+            receiver: rx,
+            handle: None,
+            stop_flag: Arc::new(AtomicBool::new(false)),
+        });
+
+        handle_auth_command(&mut state, None);
+        let events = events_since(snapshot);
+        assert!(events.iter().any(|event| {
+            matches!(event, IpcEvent::Error { message, .. } if message.contains("Finish active work"))
+        }));
+    }
+
+    #[test]
+    fn handle_auth_command_starts_job_and_completes() {
+        let snapshot = event_snapshot();
+        let mut state = new_test_state(AppConfig::parse_from(["test-app"]));
+        let _guard = set_auth_hook(Box::new(|_provider, _codex, _claude| Ok(())));
+
+        handle_auth_command(&mut state, None);
+        assert!(state.current_auth_job.is_some());
+
+        let start = Instant::now();
+        while start.elapsed() < Duration::from_secs(1) {
+            if process_auth_events(&mut state) {
+                break;
+            }
+            thread::sleep(Duration::from_millis(10));
+        }
+
+        let events = events_since(snapshot);
+        assert!(events.iter().any(|event| matches!(event, IpcEvent::AuthStart { .. })));
+        assert!(events.iter().any(|event| matches!(event, IpcEvent::AuthEnd { success: true, .. })));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn start_claude_job_emits_stdout_and_stderr() {
+        use std::fs;
+
+        let snapshot = event_snapshot();
+        let script = write_stub_script("#!/bin/sh\necho out-line\necho '' 1>&2\necho err-line 1>&2\n");
+        let mut job = start_claude_job(script.to_str().unwrap(), "prompt").unwrap();
+
+        let start = Instant::now();
+        while start.elapsed() < Duration::from_secs(2) {
+            let _ = process_claude_events(&mut job, false);
+            thread::sleep(Duration::from_millis(10));
+        }
+
+        let events = events_since(snapshot);
+        assert!(events.iter().any(|event| {
+            matches!(event, IpcEvent::Token { text } if text.contains("out-line"))
+        }));
+        assert!(events.iter().any(|event| {
+            matches!(event, IpcEvent::Token { text } if text.contains("[info] err-line"))
+        }));
+
+        let _ = fs::remove_file(script);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn process_claude_events_handles_cancel() {
+        let snapshot = event_snapshot();
+        let child = std::process::Command::new("sleep")
+            .arg("1")
+            .spawn()
+            .expect("spawned child");
+        let (_tx, rx) = mpsc::channel();
+        let mut job = ClaudeJob {
+            child,
+            stdout_rx: rx,
+            started_at: Instant::now(),
+        };
+
+        assert!(process_claude_events(&mut job, true));
+        let _ = events_since(snapshot);
+    }
+
+    #[test]
+    fn process_codex_events_emits_tokens_and_status() {
+        let snapshot = event_snapshot();
+        let job_id = 42;
+        let events = vec![
+            BackendEvent {
+                job_id,
+                kind: BackendEventKind::Started {
+                    mode: RequestMode::Chat,
+                },
+            },
+            BackendEvent {
+                job_id,
+                kind: BackendEventKind::Status {
+                    message: "hello".to_string(),
+                },
+            },
+            BackendEvent {
+                job_id,
+                kind: BackendEventKind::Token {
+                    text: "token".to_string(),
+                },
+            },
+        ];
+        let mut job = build_test_backend_job(events, TestSignal::Ready);
+
+        assert!(!process_codex_events(&mut job, false));
+        let events = events_since(snapshot);
+        assert!(events.iter().any(|event| matches!(event, IpcEvent::Status { message } if message == "Processing...")));
+        assert!(events.iter().any(|event| matches!(event, IpcEvent::Status { message } if message == "hello")));
+        assert!(events.iter().any(|event| matches!(event, IpcEvent::Token { text } if text == "token")));
+    }
+
+    #[test]
+    fn process_codex_events_finishes_job() {
+        let snapshot = event_snapshot();
+        let now = Instant::now();
+        let stats = BackendStats {
+            backend_type: "cli",
+            started_at: now,
+            first_token_at: None,
+            finished_at: now,
+            tokens_received: 0,
+            bytes_transferred: 0,
+            pty_attempts: 0,
+            cli_fallback_used: false,
+            disable_pty: false,
+        };
+        let events = vec![BackendEvent {
+            job_id: 1,
+            kind: BackendEventKind::Finished {
+                lines: vec!["done".to_string()],
+                status: "ok".to_string(),
+                stats,
+            },
+        }];
+        let mut job = build_test_backend_job(events, TestSignal::Ready);
+
+        assert!(process_codex_events(&mut job, false));
+        let events = events_since(snapshot);
+        assert!(events.iter().any(|event| {
+            matches!(event, IpcEvent::Token { text } if text.contains("done"))
+        }));
+        assert!(events.iter().any(|event| {
+            matches!(event, IpcEvent::JobEnd { provider, success, .. } if provider == "codex" && *success)
+        }));
+    }
+
+    #[test]
+    fn process_codex_events_disconnected_sends_end() {
+        let snapshot = event_snapshot();
+        let mut job = build_test_backend_job(Vec::new(), TestSignal::Disconnected);
+
+        assert!(process_codex_events(&mut job, false));
+        let events = events_since(snapshot);
+        assert!(events.iter().any(|event| {
+            matches!(event, IpcEvent::JobEnd { provider, success, .. } if provider == "codex" && *success)
+        }));
     }
 
     // -------------------------------------------------------------------------

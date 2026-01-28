@@ -190,7 +190,7 @@ static PYTHON_TRANSCRIPTION_HOOK: OnceLock<Mutex<Option<PythonTranscriptionHook>
     OnceLock::new();
 
 #[cfg(test)]
-fn set_python_transcription_hook(hook: Option<PythonTranscriptionHook>) {
+pub(crate) fn set_python_transcription_hook(hook: Option<PythonTranscriptionHook>) {
     let storage = PYTHON_TRANSCRIPTION_HOOK.get_or_init(|| Mutex::new(None));
     *storage.lock().unwrap_or_else(|e| e.into_inner()) = hook;
 }

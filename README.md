@@ -329,6 +329,10 @@ cd rust_tui && cargo test
 
 # Overlay tests
 cd rust_tui && cargo test --bin codex_overlay
+
+# Mutation tests (CI enforces 80% minimum score)
+cd rust_tui && cargo mutants --timeout 300 -o mutants.out
+python3 ../scripts/check_mutation_score.py --path mutants.out/outcomes.json --threshold 0.80
 ```
 
 ## Troubleshooting

@@ -498,12 +498,24 @@ impl App {
         let mut pending_events = Vec::new();
         let mut worker_disconnected = false;
         let mut job_handle: Option<thread::JoinHandle<()>> = None;
+        let mut empty_signal_spins = 0usize;
 
         {
             if let Some(job) = self.codex_job.as_mut() {
                 loop {
                     match job.try_recv_signal() {
-                        Ok(()) => pending_events.extend(job.drain_events()),
+                        Ok(()) => {
+                            let drained = job.drain_events();
+                            if drained.is_empty() {
+                                empty_signal_spins += 1;
+                                if empty_signal_spins > 3 {
+                                    break;
+                                }
+                            } else {
+                                empty_signal_spins = 0;
+                                pending_events.extend(drained);
+                            }
+                        }
                         Err(TryRecvError::Empty) => break,
                         Err(TryRecvError::Disconnected) => {
                             worker_disconnected = true;
@@ -813,7 +825,15 @@ mod tests {
         app.input = "test prompt".into();
         let (_result, hook_guard) = codex::with_job_hook(
             Box::new(|_, cancel| {
+                let start = Instant::now();
                 while !cancel.is_cancelled() {
+                    if start.elapsed() > Duration::from_millis(200) {
+                        return vec![BackendEventKind::FatalError {
+                            phase: "cancel",
+                            message: "cancel did not propagate".into(),
+                            disable_pty: false,
+                        }];
+                    }
                     thread::sleep(Duration::from_millis(10));
                 }
                 vec![BackendEventKind::Canceled { disable_pty: false }]

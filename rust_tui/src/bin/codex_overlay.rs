@@ -15,7 +15,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
-use strip_ansi_escapes::strip;
+use vte::{Parser as VteParser, Perform};
 
 static SIGWINCH_RECEIVED: AtomicBool = AtomicBool::new(false);
 
@@ -56,7 +56,7 @@ struct OverlayConfig {
     voice_send_mode: VoiceSendMode,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 enum InputEvent {
     Bytes(Vec<u8>),
     VoiceTrigger,
@@ -77,6 +77,21 @@ enum WriterMessage {
     Shutdown,
 }
 
+trait TranscriptSession {
+    fn send_text(&mut self, text: &str) -> Result<()>;
+    fn send_text_with_newline(&mut self, text: &str) -> Result<()>;
+}
+
+impl TranscriptSession for PtyOverlaySession {
+    fn send_text(&mut self, text: &str) -> Result<()> {
+        self.send_text(text)
+    }
+
+    fn send_text_with_newline(&mut self, text: &str) -> Result<()> {
+        self.send_text_with_newline(text)
+    }
+}
+
 fn main() -> Result<()> {
     init_debug_log_file();
     let log_path = log_file_path();
@@ -91,7 +106,7 @@ fn main() -> Result<()> {
         return Ok(());
     }
 
-    install_sigwinch_handler();
+    install_sigwinch_handler()?;
 
     let working_dir = env::var("CODEX_VOICE_CWD")
         .ok()
@@ -338,25 +353,33 @@ fn main() -> Result<()> {
 }
 
 fn list_input_devices() -> Result<()> {
-    let devices = audio::Recorder::list_devices()?;
-    if devices.is_empty() {
-        println!("No audio input devices detected.");
-    } else {
-        println!("Available audio input devices:");
-        for name in devices {
-            println!("  - {name}");
+    match audio::Recorder::list_devices() {
+        Ok(devices) => {
+            if devices.is_empty() {
+                println!("No audio input devices detected.");
+            } else {
+                println!("Available audio input devices:");
+                for name in devices {
+                    println!("  - {name}");
+                }
+            }
+        }
+        Err(err) => {
+            eprintln!("Failed to list audio input devices: {err}");
         }
     }
     Ok(())
 }
 
-fn install_sigwinch_handler() {
+fn install_sigwinch_handler() -> Result<()> {
     unsafe {
         let handler = handle_sigwinch as *const () as libc::sighandler_t;
         if libc::signal(libc::SIGWINCH, handler) == libc::SIG_ERR {
             log_debug("failed to install SIGWINCH handler");
+            return Err(anyhow!("failed to install SIGWINCH handler"));
         }
     }
+    Ok(())
 }
 
 fn resolve_prompt_log(config: &OverlayConfig) -> PathBuf {
@@ -381,11 +404,78 @@ fn resolve_prompt_regex(config: &OverlayConfig) -> Result<Option<Regex>> {
     Ok(Some(regex))
 }
 
+struct InputParser {
+    pending: Vec<u8>,
+    skip_lf: bool,
+}
+
+impl InputParser {
+    fn new() -> Self {
+        Self {
+            pending: Vec::new(),
+            skip_lf: false,
+        }
+    }
+
+    fn consume_bytes(&mut self, bytes: &[u8], out: &mut Vec<InputEvent>) {
+        for &byte in bytes {
+            if self.skip_lf {
+                if byte == 0x0a {
+                    self.skip_lf = false;
+                    continue;
+                }
+                self.skip_lf = false;
+            }
+
+            match byte {
+                0x11 => {
+                    self.flush_pending(out);
+                    out.push(InputEvent::Exit);
+                }
+                0x12 => {
+                    self.flush_pending(out);
+                    out.push(InputEvent::VoiceTrigger);
+                }
+                0x16 => {
+                    self.flush_pending(out);
+                    out.push(InputEvent::ToggleAutoVoice);
+                }
+                0x14 => {
+                    self.flush_pending(out);
+                    out.push(InputEvent::ToggleSendMode);
+                }
+                0x1d => {
+                    self.flush_pending(out);
+                    out.push(InputEvent::IncreaseSensitivity);
+                }
+                0x1f => {
+                    self.flush_pending(out);
+                    out.push(InputEvent::DecreaseSensitivity);
+                }
+                0x0d | 0x0a => {
+                    self.flush_pending(out);
+                    out.push(InputEvent::EnterKey);
+                    if byte == 0x0d {
+                        self.skip_lf = true;
+                    }
+                }
+                _ => self.pending.push(byte),
+            }
+        }
+    }
+
+    fn flush_pending(&mut self, out: &mut Vec<InputEvent>) {
+        if !self.pending.is_empty() {
+            out.push(InputEvent::Bytes(std::mem::take(&mut self.pending)));
+        }
+    }
+}
+
 fn spawn_input_thread(tx: Sender<InputEvent>) -> thread::JoinHandle<()> {
     thread::spawn(move || {
         let mut stdin = io::stdin();
         let mut buf = [0u8; 1024];
-        let mut skip_lf = false;
+        let mut parser = InputParser::new();
         loop {
             let n = match stdin.read(&mut buf) {
                 Ok(0) => break,
@@ -395,102 +485,13 @@ fn spawn_input_thread(tx: Sender<InputEvent>) -> thread::JoinHandle<()> {
                     break;
                 }
             };
-            let mut pending = Vec::new();
-            for &byte in &buf[..n] {
-                if skip_lf {
-                    if byte == 0x0a {
-                        skip_lf = false;
-                        continue;
-                    }
-                    skip_lf = false;
+            let mut events = Vec::new();
+            parser.consume_bytes(&buf[..n], &mut events);
+            parser.flush_pending(&mut events);
+            for event in events {
+                if tx.send(event).is_err() {
+                    return;
                 }
-                match byte {
-                    0x11 => {
-                        if !pending.is_empty() {
-                            if tx.send(InputEvent::Bytes(pending)).is_err() {
-                                return;
-                            }
-                            pending = Vec::new();
-                        }
-                        if tx.send(InputEvent::Exit).is_err() {
-                            return;
-                        }
-                    }
-                    0x12 => {
-                        if !pending.is_empty() {
-                            if tx.send(InputEvent::Bytes(pending)).is_err() {
-                                return;
-                            }
-                            pending = Vec::new();
-                        }
-                        if tx.send(InputEvent::VoiceTrigger).is_err() {
-                            return;
-                        }
-                    }
-                    0x16 => {
-                        if !pending.is_empty() {
-                            if tx.send(InputEvent::Bytes(pending)).is_err() {
-                                return;
-                            }
-                            pending = Vec::new();
-                        }
-                        if tx.send(InputEvent::ToggleAutoVoice).is_err() {
-                            return;
-                        }
-                    }
-                    0x14 => {
-                        if !pending.is_empty() {
-                            if tx.send(InputEvent::Bytes(pending)).is_err() {
-                                return;
-                            }
-                            pending = Vec::new();
-                        }
-                        if tx.send(InputEvent::ToggleSendMode).is_err() {
-                            return;
-                        }
-                    }
-                    0x1d => {
-                        if !pending.is_empty() {
-                            if tx.send(InputEvent::Bytes(pending)).is_err() {
-                                return;
-                            }
-                            pending = Vec::new();
-                        }
-                        if tx.send(InputEvent::IncreaseSensitivity).is_err() {
-                            return;
-                        }
-                    }
-                    0x1f => {
-                        if !pending.is_empty() {
-                            if tx.send(InputEvent::Bytes(pending)).is_err() {
-                                return;
-                            }
-                            pending = Vec::new();
-                        }
-                        if tx.send(InputEvent::DecreaseSensitivity).is_err() {
-                            return;
-                        }
-                    }
-                    0x0d | 0x0a => {
-                        // Enter key - send as separate event so main loop can intercept it
-                        if !pending.is_empty() {
-                            if tx.send(InputEvent::Bytes(pending)).is_err() {
-                                return;
-                            }
-                            pending = Vec::new();
-                        }
-                        if tx.send(InputEvent::EnterKey).is_err() {
-                            return;
-                        }
-                        if byte == 0x0d {
-                            skip_lf = true;
-                        }
-                    }
-                    _ => pending.push(byte),
-                }
-            }
-            if !pending.is_empty() && tx.send(InputEvent::Bytes(pending)).is_err() {
-                return;
             }
         }
     })
@@ -541,7 +542,7 @@ fn spawn_writer_thread(rx: Receiver<WriterMessage>) -> thread::JoinHandle<()> {
     })
 }
 
-fn write_status_line(stdout: &mut io::Stdout, text: &str, rows: u16, cols: u16) -> io::Result<()> {
+fn write_status_line(stdout: &mut dyn Write, text: &str, rows: u16, cols: u16) -> io::Result<()> {
     if rows == 0 || cols == 0 {
         return Ok(());
     }
@@ -556,7 +557,7 @@ fn write_status_line(stdout: &mut io::Stdout, text: &str, rows: u16, cols: u16) 
     stdout.write_all(&sequence)
 }
 
-fn clear_status_line(stdout: &mut io::Stdout, rows: u16, cols: u16) -> io::Result<()> {
+fn clear_status_line(stdout: &mut dyn Write, rows: u16, cols: u16) -> io::Result<()> {
     if rows == 0 || cols == 0 {
         return Ok(());
     }
@@ -632,7 +633,7 @@ fn start_voice_capture(
 fn handle_voice_message(
     message: VoiceJobMessage,
     config: &OverlayConfig,
-    session: &mut PtyOverlaySession,
+    session: &mut impl TranscriptSession,
     writer_tx: &Sender<WriterMessage>,
     status_clear_deadline: &mut Option<Instant>,
     auto_voice_enabled: bool,
@@ -684,7 +685,11 @@ fn handle_voice_message(
     }
 }
 
-fn send_transcript(session: &mut PtyOverlaySession, text: &str, mode: VoiceSendMode) -> Result<()> {
+fn send_transcript(
+    session: &mut impl TranscriptSession,
+    text: &str,
+    mode: VoiceSendMode,
+) -> Result<()> {
     let trimmed = text.trim();
     if trimmed.is_empty() {
         return Ok(());
@@ -716,6 +721,10 @@ fn should_auto_trigger(
         return true;
     }
     false
+}
+
+fn using_native_pipeline(has_transcriber: bool, has_recorder: bool) -> bool {
+    has_transcriber && has_recorder
 }
 
 struct VoiceStartInfo {
@@ -824,7 +833,7 @@ impl VoiceManager {
             None
         };
 
-        let using_native = transcriber.is_some() && recorder.is_some();
+        let using_native = using_native_pipeline(transcriber.is_some(), recorder.is_some());
         let job = voice::start_voice_job(recorder, transcriber.clone(), self.config.clone());
         self.job = Some(job);
         self.cancel_pending = false;
@@ -951,6 +960,34 @@ struct PromptTracker {
     prompt_logger: PromptLogger,
 }
 
+fn strip_ansi_preserve_controls(bytes: &[u8]) -> Vec<u8> {
+    struct ControlStripper {
+        output: Vec<u8>,
+    }
+
+    impl Perform for ControlStripper {
+        fn print(&mut self, c: char) {
+            let mut buf = [0u8; 4];
+            let encoded = c.encode_utf8(&mut buf);
+            self.output.extend_from_slice(encoded.as_bytes());
+        }
+
+        fn execute(&mut self, byte: u8) {
+            match byte {
+                b'\n' | b'\r' | b'\t' => self.output.push(byte),
+                _ => {}
+            }
+        }
+    }
+
+    let mut parser = VteParser::new();
+    let mut stripper = ControlStripper {
+        output: Vec::with_capacity(bytes.len()),
+    };
+    parser.advance(&mut stripper, bytes);
+    stripper.output
+}
+
 impl PromptTracker {
     fn new(regex: Option<Regex>, prompt_logger: PromptLogger) -> Self {
         Self {
@@ -969,7 +1006,7 @@ impl PromptTracker {
         self.last_output_at = Instant::now();
         self.has_seen_output = true;
 
-        let cleaned = strip(bytes);
+        let cleaned = strip_ansi_preserve_controls(bytes);
         for byte in cleaned {
             match byte {
                 b'\n' => {
@@ -1078,6 +1115,326 @@ mod tests {
     use std::thread;
     use std::time::Duration;
 
+    fn temp_log_path(label: &str) -> PathBuf {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis();
+        env::temp_dir().join(format!("{label}_{unique}.log"))
+    }
+
+    fn parse_events(chunks: &[&[u8]]) -> Vec<InputEvent> {
+        let mut parser = InputParser::new();
+        let mut events = Vec::new();
+        for chunk in chunks {
+            parser.consume_bytes(chunk, &mut events);
+            parser.flush_pending(&mut events);
+        }
+        events
+    }
+
+    #[derive(Default)]
+    struct StubSession {
+        sent: Vec<String>,
+        sent_with_newline: Vec<String>,
+    }
+
+    impl TranscriptSession for StubSession {
+        fn send_text(&mut self, text: &str) -> Result<()> {
+            self.sent.push(text.to_string());
+            Ok(())
+        }
+
+        fn send_text_with_newline(&mut self, text: &str) -> Result<()> {
+            self.sent_with_newline.push(text.to_string());
+            Ok(())
+        }
+    }
+
+    fn recv_output_contains(
+        rx: &crossbeam_channel::Receiver<Vec<u8>>,
+        needle: &str,
+    ) -> bool {
+        let deadline = Instant::now() + Duration::from_millis(500);
+        let mut buffer = String::new();
+        while Instant::now() < deadline {
+            if let Ok(chunk) = rx.recv_timeout(Duration::from_millis(50)) {
+                buffer.push_str(&String::from_utf8_lossy(&chunk));
+                if buffer.contains(needle) {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    #[test]
+    fn sigwinch_handler_sets_flag() {
+        SIGWINCH_RECEIVED.store(false, Ordering::SeqCst);
+        handle_sigwinch(0);
+        assert!(SIGWINCH_RECEIVED.swap(false, Ordering::SeqCst));
+    }
+
+    #[test]
+    fn install_sigwinch_handler_installs_handler() {
+        SIGWINCH_RECEIVED.store(false, Ordering::SeqCst);
+        install_sigwinch_handler().expect("install sigwinch handler");
+        unsafe {
+            libc::raise(libc::SIGWINCH);
+        }
+        for _ in 0..20 {
+            if SIGWINCH_RECEIVED.swap(false, Ordering::SeqCst) {
+                return;
+            }
+            thread::sleep(Duration::from_millis(5));
+        }
+        panic!("SIGWINCH was not received");
+    }
+
+    #[test]
+    fn resolve_prompt_log_prefers_config() {
+        let config = OverlayConfig {
+            app: AppConfig::parse_from(["test"]),
+            prompt_regex: None,
+            prompt_log: Some(PathBuf::from("/tmp/codex_prompt_override.log")),
+            auto_voice: false,
+            auto_voice_idle_ms: 1200,
+            voice_send_mode: VoiceSendMode::Auto,
+        };
+        let resolved = resolve_prompt_log(&config);
+        assert_eq!(resolved, PathBuf::from("/tmp/codex_prompt_override.log"));
+    }
+
+    #[test]
+    fn resolve_prompt_log_uses_env() {
+        let env_path = PathBuf::from("/tmp/codex_prompt_env.log");
+        env::set_var("CODEX_OVERLAY_PROMPT_LOG", &env_path);
+        let config = OverlayConfig {
+            app: AppConfig::parse_from(["test"]),
+            prompt_regex: None,
+            prompt_log: None,
+            auto_voice: false,
+            auto_voice_idle_ms: 1200,
+            voice_send_mode: VoiceSendMode::Auto,
+        };
+        let resolved = resolve_prompt_log(&config);
+        env::remove_var("CODEX_OVERLAY_PROMPT_LOG");
+        assert_eq!(resolved, env_path);
+    }
+
+    #[test]
+    fn resolve_prompt_regex_honors_config() {
+        let config = OverlayConfig {
+            app: AppConfig::parse_from(["test"]),
+            prompt_regex: Some("^codex> $".to_string()),
+            prompt_log: None,
+            auto_voice: false,
+            auto_voice_idle_ms: 1200,
+            voice_send_mode: VoiceSendMode::Auto,
+        };
+        let regex = resolve_prompt_regex(&config).expect("regex should compile");
+        assert!(regex.is_some());
+    }
+
+    #[test]
+    fn resolve_prompt_regex_rejects_invalid() {
+        let config = OverlayConfig {
+            app: AppConfig::parse_from(["test"]),
+            prompt_regex: Some("[".to_string()),
+            prompt_log: None,
+            auto_voice: false,
+            auto_voice_idle_ms: 1200,
+            voice_send_mode: VoiceSendMode::Auto,
+        };
+        assert!(resolve_prompt_regex(&config).is_err());
+    }
+
+    #[test]
+    fn input_parser_emits_bytes_and_controls() {
+        let events = parse_events(&[b"hi\x12there"]);
+        assert_eq!(
+            events,
+            vec![
+                InputEvent::Bytes(b"hi".to_vec()),
+                InputEvent::VoiceTrigger,
+                InputEvent::Bytes(b"there".to_vec())
+            ]
+        );
+    }
+
+    #[test]
+    fn input_parser_maps_control_keys() {
+        let mappings = vec![
+            (0x11, InputEvent::Exit),
+            (0x12, InputEvent::VoiceTrigger),
+            (0x16, InputEvent::ToggleAutoVoice),
+            (0x14, InputEvent::ToggleSendMode),
+            (0x1d, InputEvent::IncreaseSensitivity),
+            (0x1f, InputEvent::DecreaseSensitivity),
+            (0x0a, InputEvent::EnterKey),
+        ];
+
+        for (byte, expected) in mappings {
+            let events = parse_events(&[&[byte]]);
+            assert_eq!(events, vec![expected]);
+        }
+    }
+
+    #[test]
+    fn input_parser_skips_lf_after_cr() {
+        let events = parse_events(&[&[0x0d], &[0x0a]]);
+        assert_eq!(events, vec![InputEvent::EnterKey]);
+    }
+
+    #[test]
+    fn input_parser_keeps_non_lf_after_cr() {
+        let events = parse_events(&[&[0x0d, b'x']]);
+        assert_eq!(
+            events,
+            vec![InputEvent::EnterKey, InputEvent::Bytes(b"x".to_vec())]
+        );
+    }
+
+    #[test]
+    fn status_helpers_sanitize_and_truncate() {
+        let sanitized = sanitize_status("ok\tbad\n");
+        assert_eq!(sanitized, "ok bad ");
+        assert_eq!(truncate_status("hello", 0), "");
+        assert_eq!(truncate_status("hello", 2), "he");
+    }
+
+    #[test]
+    fn write_and_clear_status_line_respect_dimensions() {
+        let mut buf = Vec::new();
+        write_status_line(&mut buf, "hi", 0, 10).unwrap();
+        assert!(buf.is_empty());
+
+        write_status_line(&mut buf, "hi", 2, 0).unwrap();
+        assert!(buf.is_empty());
+
+        write_status_line(&mut buf, "hi", 2, 10).unwrap();
+        let output = String::from_utf8_lossy(&buf);
+        assert!(output.contains("\u{1b}[2;1H"));
+        assert!(output.contains("hi"));
+
+        buf.clear();
+        clear_status_line(&mut buf, 2, 10).unwrap();
+        let output = String::from_utf8_lossy(&buf);
+        assert!(output.contains("\u{1b}[2;1H"));
+
+        buf.clear();
+        clear_status_line(&mut buf, 2, 0).unwrap();
+        assert!(buf.is_empty());
+    }
+
+    #[test]
+    fn set_status_updates_deadline() {
+        let (tx, rx) = crossbeam_channel::unbounded();
+        let mut deadline = None;
+        let now = Instant::now();
+        set_status(
+            &tx,
+            &mut deadline,
+            "status",
+            Some(Duration::from_millis(50)),
+        );
+        let msg = rx
+            .recv_timeout(Duration::from_millis(200))
+            .expect("status message");
+        match msg {
+            WriterMessage::Status { text } => assert_eq!(text, "status"),
+            _ => panic!("unexpected writer message"),
+        }
+        assert!(deadline.expect("deadline set") > now);
+
+        set_status(&tx, &mut deadline, "steady", None);
+        assert!(deadline.is_none());
+    }
+
+    #[test]
+    fn should_auto_trigger_checks_prompt_and_idle() {
+        let logger = PromptLogger::new(temp_log_path("prompt_tracker_auto"));
+        let mut tracker = PromptTracker::new(None, logger);
+        let now = Instant::now();
+        tracker.has_seen_output = true;
+        tracker.last_output_at = now - Duration::from_millis(2000);
+        tracker.last_prompt_seen_at = Some(now - Duration::from_millis(1500));
+
+        assert!(should_auto_trigger(
+            &tracker,
+            now,
+            Duration::from_millis(1000),
+            Some(now - Duration::from_millis(2000))
+        ));
+        assert!(!should_auto_trigger(
+            &tracker,
+            now,
+            Duration::from_millis(1000),
+            Some(now - Duration::from_millis(1000))
+        ));
+
+        tracker.last_prompt_seen_at = None;
+        tracker.last_output_at = now - Duration::from_millis(1200);
+        assert!(should_auto_trigger(
+            &tracker,
+            now,
+            Duration::from_millis(1000),
+            Some(now - Duration::from_millis(2000))
+        ));
+        tracker.last_output_at = now - Duration::from_millis(500);
+        assert!(!should_auto_trigger(
+            &tracker,
+            now,
+            Duration::from_millis(1000),
+            Some(now - Duration::from_millis(2000))
+        ));
+    }
+
+    #[test]
+    fn prompt_tracker_feed_output_handles_control_bytes() {
+        let logger = PromptLogger::new(temp_log_path("prompt_tracker_control"));
+        let mut tracker = PromptTracker::new(None, logger);
+        tracker.feed_output(b"ab\rde\tf\n");
+        assert_eq!(tracker.last_line.as_deref(), Some("de f"));
+        assert!(tracker.has_seen_output());
+    }
+
+    #[test]
+    fn prompt_tracker_idle_ready_on_threshold() {
+        let logger = PromptLogger::new(temp_log_path("prompt_tracker_idle"));
+        let mut tracker = PromptTracker::new(None, logger);
+        let now = Instant::now();
+        tracker.note_activity(now - Duration::from_millis(1000));
+        assert!(tracker.idle_ready(now, Duration::from_millis(1000)));
+    }
+
+    #[test]
+    fn prompt_logger_writes_lines() {
+        let path = temp_log_path("prompt_logger");
+        let logger = PromptLogger::new(path.clone());
+        logger.log("hello");
+        let contents = std::fs::read_to_string(&path).expect("log file");
+        let _ = std::fs::remove_file(&path);
+        assert!(contents.contains("hello"));
+    }
+
+    #[test]
+    fn voice_manager_clamps_sensitivity() {
+        let config = AppConfig::parse_from(["test"]);
+        let mut manager = VoiceManager::new(config);
+        assert_eq!(manager.adjust_sensitivity(1000.0), -10.0);
+        assert_eq!(manager.adjust_sensitivity(-1000.0), -80.0);
+    }
+
+    #[test]
+    fn voice_manager_reports_idle_and_source() {
+        let config = AppConfig::parse_from(["test"]);
+        let mut manager = VoiceManager::new(config);
+        assert!(manager.is_idle());
+        manager.active_source = Some(VoiceCaptureSource::Python);
+        assert_eq!(manager.active_source(), Some(VoiceCaptureSource::Python));
+    }
+
     #[test]
     fn prompt_tracker_learns_prompt_on_idle() {
         let logger = PromptLogger::new(env::temp_dir().join("codex_overlay_prompt_test.log"));
@@ -1132,5 +1489,237 @@ mod tests {
 
         assert!(manager.job.is_none());
         assert!(!manager.cancel_pending);
+    }
+
+    #[test]
+    fn prompt_tracker_ignores_non_graphic_bytes() {
+        let logger = PromptLogger::new(temp_log_path("prompt_tracker_non_graphic"));
+        let mut tracker = PromptTracker::new(None, logger);
+        tracker.feed_output(b"hi\xC2\xA0there\n");
+        assert_eq!(tracker.last_line.as_deref(), Some("hithere"));
+    }
+
+    #[test]
+    fn prompt_tracker_on_idle_triggers_on_threshold() {
+        let logger = PromptLogger::new(temp_log_path("prompt_tracker_idle_threshold"));
+        let mut tracker = PromptTracker::new(None, logger);
+        tracker.feed_output(b"codex> ");
+        let now = tracker.last_output_at() + Duration::from_millis(1000);
+        tracker.on_idle(now, Duration::from_millis(1000));
+        assert!(tracker.last_prompt_seen_at().is_some());
+    }
+
+    #[test]
+    fn prompt_tracker_on_idle_skips_when_regex_present() {
+        let logger = PromptLogger::new(temp_log_path("prompt_tracker_idle_regex"));
+        let regex = Regex::new(r"^codex> $").unwrap();
+        let mut tracker = PromptTracker::new(Some(regex), logger);
+        tracker.feed_output(b"not a prompt");
+        let now = tracker.last_output_at() + Duration::from_millis(1000);
+        tracker.on_idle(now, Duration::from_millis(1000));
+        assert!(tracker.last_prompt_seen_at().is_none());
+    }
+
+    #[test]
+    fn prompt_tracker_matches_learned_prompt() {
+        let logger = PromptLogger::new(temp_log_path("prompt_tracker_match"));
+        let mut tracker = PromptTracker::new(None, logger);
+        tracker.learned_prompt = Some("codex> ".to_string());
+        assert!(tracker.matches_prompt("codex> "));
+    }
+
+    #[test]
+    fn prompt_tracker_rejects_mismatched_prompt() {
+        let logger = PromptLogger::new(temp_log_path("prompt_tracker_mismatch"));
+        let mut tracker = PromptTracker::new(None, logger);
+        tracker.learned_prompt = Some("codex> ".to_string());
+        assert!(!tracker.matches_prompt("nope> "));
+    }
+
+    #[test]
+    fn prompt_tracker_has_seen_output_starts_false() {
+        let logger = PromptLogger::new(temp_log_path("prompt_tracker_seen"));
+        let tracker = PromptTracker::new(None, logger);
+        assert!(!tracker.has_seen_output());
+    }
+
+    #[test]
+    fn should_auto_trigger_respects_last_trigger_equal_times() {
+        let logger = PromptLogger::new(temp_log_path("prompt_tracker_last_trigger"));
+        let mut tracker = PromptTracker::new(None, logger);
+        tracker.has_seen_output = true;
+        let now = Instant::now();
+        tracker.last_prompt_seen_at = Some(now);
+        tracker.last_output_at = now;
+        assert!(!should_auto_trigger(
+            &tracker,
+            now,
+            Duration::from_millis(0),
+            Some(now)
+        ));
+    }
+
+    #[test]
+    fn using_native_pipeline_requires_both_components() {
+        assert!(!using_native_pipeline(false, false));
+        assert!(!using_native_pipeline(true, false));
+        assert!(!using_native_pipeline(false, true));
+        assert!(using_native_pipeline(true, true));
+    }
+
+    #[test]
+    fn voice_manager_is_idle_false_when_job_present() {
+        let config = AppConfig::parse_from(["test"]);
+        let mut manager = VoiceManager::new(config);
+        let (_tx, rx) = mpsc::channel();
+        manager.job = Some(voice::VoiceJob {
+            receiver: rx,
+            handle: None,
+            stop_flag: Arc::new(AtomicBool::new(false)),
+        });
+        assert!(!manager.is_idle());
+    }
+
+    #[test]
+    fn voice_manager_request_early_stop_sets_flag() {
+        let config = AppConfig::parse_from(["test"]);
+        let mut manager = VoiceManager::new(config);
+        assert!(!manager.request_early_stop());
+
+        let (_tx, rx) = mpsc::channel();
+        let stop_flag = Arc::new(AtomicBool::new(false));
+        manager.job = Some(voice::VoiceJob {
+            receiver: rx,
+            handle: None,
+            stop_flag: stop_flag.clone(),
+        });
+        assert!(manager.request_early_stop());
+        assert!(stop_flag.load(Ordering::Relaxed));
+    }
+
+    #[test]
+    fn voice_manager_start_capture_errors_without_fallback() {
+        let mut config = AppConfig::parse_from(["test"]);
+        config.no_python_fallback = true;
+        let mut manager = VoiceManager::new(config);
+        assert!(manager.start_capture(VoiceCaptureTrigger::Manual).is_err());
+    }
+
+    #[test]
+    fn voice_manager_get_transcriber_errors_on_missing_model() {
+        let mut config = AppConfig::parse_from(["test"]);
+        config.whisper_model_path = Some("/no/such/model.bin".to_string());
+        let mut manager = VoiceManager::new(config);
+        assert!(manager.get_transcriber().is_err());
+    }
+
+    #[test]
+    fn start_voice_capture_reports_running_job_on_manual_only() {
+        let config = AppConfig::parse_from(["test"]);
+        let mut manager = VoiceManager::new(config);
+        let (_tx, rx) = mpsc::channel();
+        manager.job = Some(voice::VoiceJob {
+            receiver: rx,
+            handle: None,
+            stop_flag: Arc::new(AtomicBool::new(false)),
+        });
+
+        let (writer_tx, writer_rx) = crossbeam_channel::unbounded();
+        let mut deadline = None;
+        start_voice_capture(
+            &mut manager,
+            VoiceCaptureTrigger::Manual,
+            &writer_tx,
+            &mut deadline,
+        )
+        .expect("start capture manual");
+
+        let msg = writer_rx
+            .recv_timeout(Duration::from_millis(200))
+            .expect("status message");
+        match msg {
+            WriterMessage::Status { text } => {
+                assert!(text.contains("already running"));
+            }
+            _ => panic!("unexpected writer message"),
+        }
+
+        start_voice_capture(
+            &mut manager,
+            VoiceCaptureTrigger::Auto,
+            &writer_tx,
+            &mut deadline,
+        )
+        .expect("start capture auto");
+
+        assert!(writer_rx.try_recv().is_err());
+    }
+
+    #[test]
+    fn send_transcript_respects_mode_and_trims() {
+        let mut session = StubSession::default();
+        send_transcript(&mut session, " hello ", VoiceSendMode::Auto).unwrap();
+        assert_eq!(session.sent_with_newline, vec!["hello"]);
+
+        send_transcript(&mut session, " hi ", VoiceSendMode::Insert).unwrap();
+        assert_eq!(session.sent, vec!["hi"]);
+
+        send_transcript(&mut session, "   ", VoiceSendMode::Insert).unwrap();
+        assert_eq!(session.sent.len(), 1);
+    }
+
+    #[test]
+    fn handle_voice_message_sends_status_and_transcript() {
+        let config = OverlayConfig {
+            app: AppConfig::parse_from(["test"]),
+            prompt_regex: None,
+            prompt_log: None,
+            auto_voice: false,
+            auto_voice_idle_ms: 1200,
+            voice_send_mode: VoiceSendMode::Auto,
+        };
+        let mut session = StubSession::default();
+        let (writer_tx, writer_rx) = crossbeam_channel::unbounded();
+        let mut deadline = None;
+
+        handle_voice_message(
+            VoiceJobMessage::Transcript {
+                text: " hello ".to_string(),
+                source: VoiceCaptureSource::Native,
+            },
+            &config,
+            &mut session,
+            &writer_tx,
+            &mut deadline,
+            false,
+        );
+
+        let msg = writer_rx
+            .recv_timeout(Duration::from_millis(200))
+            .expect("status message");
+        match msg {
+            WriterMessage::Status { text } => {
+                assert!(text.contains("Transcript ready"));
+            }
+            _ => panic!("unexpected writer message"),
+        }
+        assert_eq!(session.sent_with_newline, vec!["hello"]);
+    }
+
+    #[test]
+    fn transcript_session_impl_sends_text() {
+        let mut session =
+            PtyOverlaySession::new("cat", ".", &[], "xterm-256color").expect("pty session");
+        TranscriptSession::send_text(&mut session, "ping\n").expect("send text");
+        assert!(recv_output_contains(&session.output_rx, "ping"));
+    }
+
+    #[test]
+    fn transcript_session_impl_sends_text_with_newline() {
+        let mut session =
+            PtyOverlaySession::new("cat", ".", &[], "xterm-256color").expect("pty session");
+        TranscriptSession::send_text_with_newline(&mut session, "pong")
+            .expect("send text with newline");
+        assert!(recv_output_contains(&session.output_rx, "pong"));
     }
 }

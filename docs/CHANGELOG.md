@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented here, following the SDLC policy defined in `agents.md`.
 
+## [1.0.12] - 2026-01-28
+
+### Testing & Reliability
+- **Mutation coverage expansion**: add test hooks and integration tests across PTY, IPC, Codex backend, and overlay paths.
+- **Overlay input/ANSI handling**: refactor input parsing and ANSI stripping for more robust control-sequence handling.
+- **Audio pipeline hardening**: refactor recorder module and tighten resample/trimming behavior for stability.
+
 ## [1.0.11] - 2026-01-28
 
 ### Testing & Quality
