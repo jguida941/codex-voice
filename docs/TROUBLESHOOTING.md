@@ -60,7 +60,7 @@ Transcription is taking too long.
 
 You spoke 5+ times while Codex was busy. Oldest transcript was discarded.
 
-**Fix:** Wait for Codex to finish before speaking again. Queue flushing is unreliable and tracked in the [backlog](active/BACKLOG.md).
+**Fix:** Wait for Codex to finish before speaking again. Queue flushing is unreliable and tracked in the [master plan](active/MASTER_PLAN.md).
 
 ### Voice capture already running
 
@@ -246,7 +246,7 @@ codex-voice --no-logs
 ## Getting Help
 
 - **Report bugs:** [GitHub Issues](https://github.com/jguida941/codex-voice/issues)
-- **Check known issues:** [Backlog](active/BACKLOG.md)
+- **Check known issues:** [Master Plan](active/MASTER_PLAN.md)
 
 ## See Also
 

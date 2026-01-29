@@ -1,7 +1,12 @@
+//! Audio capture state machine with voice activity detection.
+//!
+//! Manages the recording loop: accumulates audio frames, tracks speech duration,
+//! and decides when to stop based on silence detection or time limits.
+
 use super::vad::{FrameLabel, VadConfig, VadEngine, VadSmoother};
 use std::collections::VecDeque;
 
-/// Summarizes how capture ended and what resources were consumed.
+/// Metrics collected during audio capture for observability and debugging.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CaptureMetrics {
     pub capture_ms: u64,
@@ -161,6 +166,12 @@ impl FrameAccumulator {
     }
 }
 
+/// Tracks recording progress and determines when to stop capture.
+///
+/// The state machine monitors:
+/// - Total recording duration (enforces max limit)
+/// - Consecutive silence duration (triggers stop after speech ends)
+/// - Speech duration (ensures minimum speech before allowing stop)
 pub(super) struct CaptureState<'a> {
     cfg: &'a VadConfig,
     frame_ms: u64,
@@ -186,6 +197,14 @@ impl<'a> CaptureState<'a> {
         Self::new(cfg, frame_ms)
     }
 
+    /// Processes a frame and returns a stop reason if capture should end.
+    ///
+    /// Stop conditions:
+    /// 1. Max duration reached (hard limit)
+    /// 2. Silence detected after speech (user stopped talking)
+    ///
+    /// Note: Silence only triggers a stop after speech has been detected,
+    /// preventing premature stops when the mic starts in a quiet room.
     pub(super) fn on_frame(&mut self, label: FrameLabel) -> Option<StopReason> {
         match label {
             FrameLabel::Speech => {
@@ -200,11 +219,12 @@ impl<'a> CaptureState<'a> {
             }
         }
         self.total_ms = self.total_ms.saturating_add(self.frame_ms);
+
         if self.total_ms >= self.cfg.max_recording_duration_ms {
             return Some(StopReason::MaxDuration);
         }
-        // Only stop on silence if we've actually detected some speech first.
-        // This prevents immediate stops when the mic starts in a quiet environment.
+
+        // Only stop on silence after detecting speech (avoids false stops in quiet rooms)
         if self.speech_ms > 0
             && self.total_ms >= self.cfg.min_recording_duration_ms
             && self.silence_streak_ms >= self.cfg.silence_duration_ms

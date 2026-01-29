@@ -1,3 +1,9 @@
+//! Pseudo-terminal (PTY) session management.
+//!
+//! Spawns child processes (like Codex CLI) in a PTY so they behave as if
+//! running in an interactive terminal. Handles I/O forwarding, window resize
+//! signals, and graceful process termination.
+
 use crate::log_debug;
 use anyhow::{anyhow, Context, Result};
 use crossbeam_channel::{bounded, Receiver};
@@ -334,7 +340,18 @@ impl Drop for PtyOverlaySession {
     }
 }
 
-/// Fork and exec the Codex binary under a newly allocated PTY pair.
+/// Forks and execs a child process under a new PTY.
+///
+/// # Safety
+///
+/// This function performs low-level PTY allocation and process forking.
+/// The caller must ensure:
+/// - `argv` contains valid null-terminated C strings
+/// - `working_dir` is a valid directory path
+/// - The returned file descriptor is eventually closed
+///
+/// The child process calls `_exit(1)` on any setup failure to avoid
+/// undefined behavior from returning after `fork()`.
 pub(super) unsafe fn spawn_codex_child(
     argv: &[CString],
     working_dir: &CString,
@@ -377,7 +394,15 @@ pub(super) unsafe fn spawn_codex_child(
     Ok((master_fd, pid))
 }
 
-/// Child-side setup: hook the PTY to stdin/stdout/stderr and exec Codex.
+/// Child process setup after fork: configures PTY and execs the target binary.
+///
+/// # Safety
+///
+/// Must only be called in the child process after `fork()`. This function
+/// never returns - it either calls `execvp()` to replace the process image
+/// or `_exit(1)` on failure.
+///
+/// The `-> !` return type indicates this function diverges (never returns).
 pub(super) unsafe fn child_exec(
     slave_fd: RawFd,
     argv: &[CString],

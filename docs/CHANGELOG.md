@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to this project will be documented here, following the SDLC policy defined in `docs/dev/SDLC.md`.
+All notable changes to this project will be documented here, following the SDLC policy defined in `agents.md`.
 Note: Some historical entries reference internal documents that are not published in this repository.
 
 ## [1.0.24] - 2026-01-29

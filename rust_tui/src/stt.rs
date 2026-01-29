@@ -1,5 +1,7 @@
-//! Lightweight wrapper around whisper_rs that hides initialization noise and
-//! gives the rest of the app a simple "transcribe these samples" API.
+//! Whisper speech-to-text integration.
+//!
+//! Wraps `whisper_rs` to provide a simple transcription API. The model is loaded
+//! once and reused across captures to avoid repeated initialization overhead.
 
 #[cfg(unix)]
 mod platform {
@@ -12,25 +14,36 @@ mod platform {
     use std::sync::Once;
     use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters};
 
-    /// Owns a single Whisper context so multiple voice captures can reuse the same
-    /// memory-mapped model and stay fast.
+    /// Whisper model context for speech-to-text transcription.
+    ///
+    /// Holds the loaded GGML model in memory. Create once at startup and reuse
+    /// for all transcription requests to avoid repeated model loading.
     pub struct Transcriber {
         ctx: WhisperContext,
     }
 
     impl Transcriber {
-        /// Load the Whisper model, temporarily silencing stderr because whisper.cpp is chatty.
+        /// Loads the Whisper model from disk.
+        ///
+        /// Temporarily redirects stderr to `/dev/null` during loading because
+        /// whisper.cpp emits verbose initialization messages.
+        ///
+        /// # Errors
+        ///
+        /// Returns an error if the model file cannot be loaded or stderr
+        /// redirection fails.
         pub fn new(model_path: &str) -> Result<Self> {
             install_whisper_log_silencer();
 
-            // Suppress whisper.cpp's verbose output during model loading
             let null = std::fs::OpenOptions::new()
                 .write(true)
                 .open("/dev/null")
                 .context("failed to open /dev/null")?;
             let null_fd = null.as_raw_fd();
 
-            // Save original stderr
+            // SAFETY: dup(2) duplicates the stderr file descriptor. We restore it
+            // after model loading completes. This is safe because we hold the only
+            // reference and restore before returning.
             let orig_stderr = unsafe { libc::dup(2) };
             if orig_stderr < 0 {
                 return Err(anyhow!(

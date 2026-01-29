@@ -75,7 +75,7 @@ If auto-voice is off, press `Ctrl+R` to start recording.
 - **Insert mode Enter**: press `Enter` while recording to stop early, then press `Enter` again to send.
 - **Auto-voice status**: "Auto-voice enabled" means it is waiting to listen; the mic is not recording yet.
 - **Prompt detection fallback**: if auto-voice does not start after Codex finishes, it will fall back to an idle timer; set `--prompt-regex` if your prompt is unusual.
-- **When Codex is busy**: transcripts queue and send when the next prompt appears (status shows the queued count). If a prompt has not been detected yet, an idle timeout can still auto-send them. Queue flushing is currently unreliable and tracked in the [backlog](active/BACKLOG.md).
+- **When Codex is busy**: transcripts queue and send when the next prompt appears (status shows the queued count). If a prompt has not been detected yet, an idle timeout can still auto-send them. Queue flushing is currently unreliable and tracked in the [master plan](active/MASTER_PLAN.md).
 - **Python fallback**: if the Python pipeline is active, pressing `Enter` while recording cancels the capture instead of stopping early.
 
 ### Long dictation (auto-voice + insert)

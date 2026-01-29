@@ -18,6 +18,7 @@ codex-voice/
 │   ├── SECURITY.md       # Security policy
 │   └── workflows/        # CI workflows
 ├── Codex Voice.app/      # macOS double-click launcher
+├── agents.md             # SDLC policy and release checklist
 ├── QUICK_START.md        # Fast setup and commands
 ├── docs/
 │   ├── CHANGELOG.md        # Release history
@@ -26,13 +27,15 @@ codex-voice/
 │   ├── TROUBLESHOOTING.md  # Common issues and fixes
 │   ├── USAGE.md            # Controls and overlay behavior
 │   ├── active/             # Active plans and work in progress
-│   │   ├── BACKLOG.md            # Known issues and follow-ups
+│   │   ├── MASTER_PLAN.md        # Active work and verification
+│   │   ├── BACKLOG.md            # Deprecated pointer (see master plan)
 │   │   ├── MODULARIZATION_PLAN.md # Refactor checklist
-│   │   └── visual.md             # Visual design audit and plan
+│   │   ├── visual.md             # Visual design audit and plan
+│   ├── archive/            # Completed work entries
 │   └── dev/                # Reference and architecture docs
 │       ├── ARCHITECTURE.md       # Architecture diagrams and data flow
 │       ├── DEVELOPMENT.md        # Build/test workflow
-│       ├── SDLC.md               # SDLC policy and verification
+│       ├── SDLC.md               # Deprecated pointer to agents.md
 │       └── adr/                  # Architecture decision records
 ├── img/                 # Screenshots
 ├── rust_tui/            # Rust overlay + voice pipeline

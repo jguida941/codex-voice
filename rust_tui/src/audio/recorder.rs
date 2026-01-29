@@ -1,3 +1,8 @@
+//! System microphone recording via CPAL.
+//!
+//! Handles device enumeration, format conversion, and sample rate normalization.
+//! All audio is converted to 16kHz mono f32 PCM for Whisper compatibility.
+
 use super::capture::{CaptureMetrics, CaptureResult};
 #[cfg(not(test))]
 use super::capture::{CaptureState, FrameAccumulator, StopReason};
@@ -22,8 +27,10 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-/// Wraps the system input device abstraction so the rest of the app can ask for
-/// "speech-ready" samples without touching cpal or thinking about sample rates.
+/// Audio input device wrapper.
+///
+/// Abstracts CPAL device handling and provides methods for recording audio
+/// with automatic format conversion and resampling.
 pub struct Recorder {
     device: cpal::Device,
 }
@@ -212,6 +219,14 @@ fn mic_permission_hint() -> &'static str {
     }
 }
 
+/// Records audio with voice activity detection.
+///
+/// Captures audio in frames, runs VAD on each frame, and stops when:
+/// - The user stops speaking (silence detected after speech)
+/// - Maximum duration is reached
+/// - The stop flag is set externally
+///
+/// Returns the captured audio and metrics for observability.
 #[cfg(not(test))]
 fn record_with_vad_impl(
     recorder: &Recorder,

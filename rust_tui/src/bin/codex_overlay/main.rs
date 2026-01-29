@@ -1,3 +1,15 @@
+//! Codex Voice overlay - voice input for the Codex CLI.
+//!
+//! Runs Codex in a PTY and intercepts hotkeys for voice capture. Transcripts
+//! are injected as keystrokes, preserving Codex's native TUI.
+//!
+//! # Architecture
+//!
+//! - Input thread: reads stdin, intercepts Ctrl+R/V/Q
+//! - PTY reader: forwards Codex output to terminal
+//! - Writer thread: serializes output to avoid interleaving
+//! - Voice worker: background audio capture and STT
+
 mod config;
 mod input;
 mod prompt;
@@ -31,10 +43,19 @@ use crate::transcript::{
 use crate::voice_control::{handle_voice_message, start_voice_capture, VoiceManager};
 use crate::writer::{set_status, spawn_writer_thread, WriterMessage};
 
+/// Flag set by SIGWINCH handler to trigger terminal resize.
 static SIGWINCH_RECEIVED: AtomicBool = AtomicBool::new(false);
+
+/// Max pending messages for the output writer thread.
 const WRITER_CHANNEL_CAPACITY: usize = 512;
+
+/// Max pending input events before backpressure.
 const INPUT_CHANNEL_CAPACITY: usize = 256;
 
+/// Signal handler for terminal resize events.
+///
+/// Sets a flag that the main loop checks to update PTY dimensions.
+/// Only uses atomic operations (async-signal-safe).
 extern "C" fn handle_sigwinch(_: libc::c_int) {
     SIGWINCH_RECEIVED.store(true, Ordering::SeqCst);
 }

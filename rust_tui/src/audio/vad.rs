@@ -1,10 +1,14 @@
+//! Voice Activity Detection (VAD) for speech/silence classification.
+//!
+//! Processes audio frames and determines whether the user is speaking.
+//! Used to automatically stop recording after a period of silence.
+
 use super::TARGET_RATE;
 use crate::config::VoicePipelineConfig;
 use std::cmp::Ordering as CmpOrdering;
 use std::collections::VecDeque;
 
-/// Configuration knobs for silence-aware capture. Phase 2A keeps these simple
-/// and maps them from CLI/config entries.
+/// Configuration for silence-aware audio capture.
 #[derive(Debug, Clone)]
 pub struct VadConfig {
     pub sample_rate: u32,
@@ -96,6 +100,10 @@ impl From<VadDecision> for FrameLabel {
     }
 }
 
+/// Smooths VAD decisions using a sliding window majority vote.
+///
+/// Reduces false positives from brief noise spikes by requiring multiple
+/// consecutive frames to agree before changing the speech/silence state.
 pub(super) struct VadSmoother {
     window: VecDeque<FrameLabel>,
     window_size: usize,
@@ -109,6 +117,7 @@ impl VadSmoother {
         }
     }
 
+    /// Returns the majority label from the last `window_size` frames.
     pub(super) fn smooth(&mut self, label: FrameLabel) -> FrameLabel {
         if self.window_size <= 1 {
             return label;
