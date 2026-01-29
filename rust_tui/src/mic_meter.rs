@@ -73,11 +73,14 @@ fn recommend_threshold(ambient_db: f32, speech_db: f32) -> (f32, Option<&'static
         None
     };
 
-    (suggested.clamp(RECOMMENDED_FLOOR_DB, RECOMMENDED_CEILING_DB), warning)
+    (
+        suggested.clamp(RECOMMENDED_FLOOR_DB, RECOMMENDED_CEILING_DB),
+        warning,
+    )
 }
 
 fn validate_sample_ms(label: &str, value: u64) -> Result<()> {
-    if value < MIN_SAMPLE_MS || value > MAX_SAMPLE_MS {
+    if !(MIN_SAMPLE_MS..=MAX_SAMPLE_MS).contains(&value) {
         return Err(anyhow!(
             "--mic-meter-{label}-ms must be between {MIN_SAMPLE_MS} and {MAX_SAMPLE_MS} ms"
         ));
@@ -95,26 +98,28 @@ pub fn run_mic_meter(config: &AppConfig) -> Result<()> {
     let ambient_ms = config.mic_meter_ambient_ms;
     let speech_ms = config.mic_meter_speech_ms;
 
-    print!(
-        "Sampling ambient noise for {:.1}s... stay quiet.\n",
+    println!(
+        "Sampling ambient noise for {:.1}s... stay quiet.",
         ambient_ms as f32 / 1000.0
     );
     io::stdout().flush().ok();
     let ambient = measure(&recorder, Duration::from_millis(ambient_ms))?;
 
-    print!(
-        "Sampling speech for {:.1}s... speak normally.\n",
+    println!(
+        "Sampling speech for {:.1}s... speak normally.",
         speech_ms as f32 / 1000.0
     );
     io::stdout().flush().ok();
     let speech = measure(&recorder, Duration::from_millis(speech_ms))?;
 
     println!("\nResults (dBFS)");
-    println!("Ambient: RMS {ambient_rms:.1} dB, Peak {ambient_peak:.1} dB",
+    println!(
+        "Ambient: RMS {ambient_rms:.1} dB, Peak {ambient_peak:.1} dB",
         ambient_rms = ambient.rms_db,
         ambient_peak = ambient.peak_db
     );
-    println!("Speech:  RMS {speech_rms:.1} dB, Peak {speech_peak:.1} dB",
+    println!(
+        "Speech:  RMS {speech_rms:.1} dB, Peak {speech_peak:.1} dB",
         speech_rms = speech.rms_db,
         speech_peak = speech.peak_db
     );

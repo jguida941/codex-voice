@@ -86,7 +86,6 @@ credentials.json
 # Internal development docs
 PROJECT_OVERVIEW.md
 master_index.md
-agents.md
 project.md
 docs/audits/
 docs/architecture/
@@ -95,5 +94,4 @@ docs/references/
 docs/adr/
 **/PROJECT_OVERVIEW.md
 **/master_index.md
-**/agents.md
 rust_tui/mutants.out*

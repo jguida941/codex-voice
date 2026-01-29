@@ -3,12 +3,13 @@
 All notable changes to this project will be documented here, following the SDLC policy defined in `agents.md`.
 Note: Some historical entries reference internal documents that are not published in this repository.
 
-## [1.0.18] - 2026-01-29
+## [1.0.19] - 2026-01-29
 
 ### Changes
 - **Transcript flush**: queued transcripts now auto-send after a short idle period (not just on prompt).
 - **Queue merge**: queued transcripts are merged into a single message when flushed.
 - **New flag**: `--transcript-idle-ms` controls the idle threshold for transcript auto-send.
+- **CSI-u handling**: input parser now properly drops CSI-u sequences (avoids garbage text in the prompt).
 
 ## [1.0.17] - 2026-01-29
 

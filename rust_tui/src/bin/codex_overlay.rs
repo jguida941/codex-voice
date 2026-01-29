@@ -5,8 +5,8 @@ use crossterm::terminal::{disable_raw_mode, enable_raw_mode, size as terminal_si
 use regex::Regex;
 use rust_tui::pty_session::PtyOverlaySession;
 use rust_tui::{
-    audio, config::AppConfig, init_debug_log_file, log_debug, log_file_path, mic_meter, stt,
-    voice, VoiceCaptureSource, VoiceCaptureTrigger, VoiceJobMessage,
+    audio, config::AppConfig, init_debug_log_file, log_debug, log_file_path, mic_meter, stt, voice,
+    VoiceCaptureSource, VoiceCaptureTrigger, VoiceJobMessage,
 };
 use std::collections::VecDeque;
 use std::env;
@@ -305,17 +305,22 @@ fn main() -> Result<()> {
                 match chunk {
                     Ok(data) => {
                         prompt_tracker.feed_output(&data);
-                        try_flush_pending(
-                            &mut pending_transcripts,
-                            &prompt_tracker,
-                            &mut last_enter_at,
-                            &mut session,
-                            &writer_tx,
-                            &mut status_clear_deadline,
-                            &mut current_status,
-                            Instant::now(),
-                            transcript_idle_timeout,
-                        );
+                        {
+                            let mut io = TranscriptIo {
+                                session: &mut session,
+                                writer_tx: &writer_tx,
+                                status_clear_deadline: &mut status_clear_deadline,
+                                current_status: &mut current_status,
+                            };
+                            try_flush_pending(
+                                &mut pending_transcripts,
+                                &prompt_tracker,
+                                &mut last_enter_at,
+                                &mut io,
+                                Instant::now(),
+                                transcript_idle_timeout,
+                            );
+                        }
                         if writer_tx.send(WriterMessage::PtyOutput(data)).is_err() {
                             running = false;
                         }
@@ -350,14 +355,17 @@ fn main() -> Result<()> {
                                 transcript_idle_timeout,
                             );
                             if ready && pending_transcripts.is_empty() {
+                                let mut io = TranscriptIo {
+                                    session: &mut session,
+                                    writer_tx: &writer_tx,
+                                    status_clear_deadline: &mut status_clear_deadline,
+                                    current_status: &mut current_status,
+                                };
                                 let sent_newline = deliver_transcript(
                                     &text,
                                     source.label(),
                                     config.voice_send_mode,
-                                    &mut session,
-                                    &writer_tx,
-                                    &mut status_clear_deadline,
-                                    &mut current_status,
+                                    &mut io,
                                     0,
                                 );
                                 if sent_newline {
@@ -382,14 +390,17 @@ fn main() -> Result<()> {
                                     );
                                 }
                                 if ready {
+                                    let mut io = TranscriptIo {
+                                        session: &mut session,
+                                        writer_tx: &writer_tx,
+                                        status_clear_deadline: &mut status_clear_deadline,
+                                        current_status: &mut current_status,
+                                    };
                                     try_flush_pending(
                                         &mut pending_transcripts,
                                         &prompt_tracker,
                                         &mut last_enter_at,
-                                        &mut session,
-                                        &writer_tx,
-                                        &mut status_clear_deadline,
-                                        &mut current_status,
+                                        &mut io,
                                         now,
                                         transcript_idle_timeout,
                                     );
@@ -424,17 +435,22 @@ fn main() -> Result<()> {
                     }
                 }
 
-                try_flush_pending(
-                    &mut pending_transcripts,
-                    &prompt_tracker,
-                    &mut last_enter_at,
-                    &mut session,
-                    &writer_tx,
-                    &mut status_clear_deadline,
-                    &mut current_status,
-                    now,
-                    transcript_idle_timeout,
-                );
+                {
+                    let mut io = TranscriptIo {
+                        session: &mut session,
+                        writer_tx: &writer_tx,
+                        status_clear_deadline: &mut status_clear_deadline,
+                        current_status: &mut current_status,
+                    };
+                    try_flush_pending(
+                        &mut pending_transcripts,
+                        &prompt_tracker,
+                        &mut last_enter_at,
+                        &mut io,
+                        now,
+                        transcript_idle_timeout,
+                    );
+                }
 
                 if auto_voice_enabled
                     && voice_manager.is_idle()
@@ -490,14 +506,11 @@ fn push_pending_transcript(
     false
 }
 
-fn try_flush_pending(
+fn try_flush_pending<S: TranscriptSession>(
     pending: &mut VecDeque<PendingTranscript>,
     prompt_tracker: &PromptTracker,
     last_enter_at: &mut Option<Instant>,
-    session: &mut impl TranscriptSession,
-    writer_tx: &Sender<WriterMessage>,
-    status_clear_deadline: &mut Option<Instant>,
-    current_status: &mut Option<String>,
+    io: &mut TranscriptIo<'_, S>,
     now: Instant,
     transcript_idle_timeout: Duration,
 ) {
@@ -510,16 +523,7 @@ fn try_flush_pending(
         return;
     };
     let remaining = pending.len();
-    let sent_newline = deliver_transcript(
-        &batch.text,
-        &batch.label,
-        batch.mode,
-        session,
-        writer_tx,
-        status_clear_deadline,
-        current_status,
-        remaining,
-    );
+    let sent_newline = deliver_transcript(&batch.text, &batch.label, batch.mode, io, remaining);
     if sent_newline {
         *last_enter_at = Some(Instant::now());
     }
@@ -683,7 +687,7 @@ impl InputParser {
             }
 
             if buffer.len() >= 2 && buffer[1] == b'[' {
-                if is_csi_final(byte) {
+                if buffer.len() >= 3 && is_csi_final(byte) {
                     if is_csi_u_numeric(buffer) {
                         self.esc_buffer = None;
                     } else {
@@ -999,14 +1003,11 @@ fn send_transcript(
     }
 }
 
-fn deliver_transcript(
+fn deliver_transcript<S: TranscriptSession>(
     text: &str,
     label: &str,
     mode: VoiceSendMode,
-    session: &mut impl TranscriptSession,
-    writer_tx: &Sender<WriterMessage>,
-    status_clear_deadline: &mut Option<Instant>,
-    current_status: &mut Option<String>,
+    io: &mut TranscriptIo<'_, S>,
     queued_remaining: usize,
 ) -> bool {
     let status = if queued_remaining > 0 {
@@ -1014,21 +1015,12 @@ fn deliver_transcript(
     } else {
         format!("Transcript ready ({label})")
     };
-    set_status(
-        writer_tx,
-        status_clear_deadline,
-        current_status,
-        &status,
-        Some(Duration::from_secs(2)),
-    );
-    match send_transcript(session, text, mode) {
+    io.set_status(&status, Some(Duration::from_secs(2)));
+    match send_transcript(io.session, text, mode) {
         Ok(sent_newline) => sent_newline,
         Err(err) => {
             log_debug(&format!("failed to send transcript: {err:#}"));
-            set_status(
-                writer_tx,
-                status_clear_deadline,
-                current_status,
+            io.set_status(
                 "Failed to send transcript (see log)",
                 Some(Duration::from_secs(2)),
             );
@@ -1096,6 +1088,25 @@ struct PendingBatch {
     text: String,
     label: String,
     mode: VoiceSendMode,
+}
+
+struct TranscriptIo<'a, S: TranscriptSession> {
+    session: &'a mut S,
+    writer_tx: &'a Sender<WriterMessage>,
+    status_clear_deadline: &'a mut Option<Instant>,
+    current_status: &'a mut Option<String>,
+}
+
+impl<'a, S: TranscriptSession> TranscriptIo<'a, S> {
+    fn set_status(&mut self, text: &str, clear_after: Option<Duration>) {
+        set_status(
+            self.writer_tx,
+            self.status_clear_deadline,
+            self.current_status,
+            text,
+            clear_after,
+        );
+    }
 }
 
 struct VoiceManager {
@@ -1586,7 +1597,6 @@ mod tests {
         env::remove_var("CODEX_VOICE_PROMPT_LOG");
         assert_eq!(resolved, env_path);
     }
-
 
     #[test]
     fn resolve_prompt_regex_honors_config() {
