@@ -218,7 +218,7 @@ print_commands_table() {
 
 echo -e "${CORAL_BRIGHT}${BOLD}Quick Controls${NC}"
 print_controls_table
-echo -e "${DIM}Sensitivity: Ctrl+] (less sensitive) • Ctrl+\\ (more sensitive)${NC}"
+echo -e "${DIM}Sensitivity: Ctrl+] (less sensitive) • Ctrl+\\ or Ctrl+/ (more sensitive)${NC}"
 echo ""
 echo -e "${CORAL_BRIGHT}${BOLD}Common Commands${NC}"
 print_commands_table

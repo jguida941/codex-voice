@@ -43,13 +43,14 @@ First run will download a Whisper model if missing, then start the Rust overlay 
 - `Ctrl+V` - toggle auto-voice (disabling cancels any running capture)
 - `Ctrl+T` - toggle send mode (auto vs insert)
 - `Ctrl+]` - increase mic threshold by 5 dB (less sensitive)
-- `Ctrl+\` - decrease mic threshold by 5 dB (more sensitive)
+- `Ctrl+\` - decrease mic threshold by 5 dB (more sensitive; `Ctrl+/` also works)
 - `Ctrl+Q` - exit overlay
 - `Ctrl+C` - forwarded to Codex
 - `Enter` - in insert mode, stop capture early and transcribe what was captured
 
-Auto-voice keeps listening on silence; press `Ctrl+V` to stop auto-voice mode.
+Auto-voice keeps listening on silence; press `Ctrl+V` to stop auto-voice mode. The status line stays on "Auto-voice enabled" while waiting.
 If Codex is busy, voice transcripts are queued and sent on the next prompt or after a short idle period.
+Long dictation is chunked by `--voice-max-capture-ms` (default 30s, max 60s). Use insert mode for continuous dictation while Codex is busy.
 
 ## Common flags
 
@@ -58,6 +59,7 @@ codex-voice --auto-voice
 codex-voice --voice-send-mode insert
 codex-voice --voice-vad-threshold-db -50
 codex-voice --mic-meter
+codex-voice --voice-max-capture-ms 60000 --voice-buffer-ms 60000
 codex-voice --transcript-idle-ms 250
 codex-voice --prompt-regex '^codex> $'
 ```
@@ -96,5 +98,10 @@ $(brew --prefix)/opt/codex-voice/libexec/scripts/setup.sh models --base
   `./start.sh --no-python-fallback`
 - If Homebrew cannot link `codex-voice` because it already exists:
   `brew link --overwrite codex-voice` or remove the conflicting binary.
+- If `codex-voice` still shows an older version after a brew update, you likely have another
+  install earlier in PATH (often `~/.local/bin/codex-voice` from `./install.sh`). Check and remove it:
+  `which -a codex-voice` then rename/delete the older one and run `hash -r`.
+- Verify the Homebrew binary directly:
+  `$(brew --prefix)/opt/codex-voice/libexec/rust_tui/target/release/codex-voice --version`
 - Logs: `${TMPDIR}/codex_voice_tui.log`
 - Prompt detection log: `${TMPDIR}/codex_voice_prompt.log`

@@ -169,8 +169,21 @@ fn main() -> Result<()> {
             &mut status_clear_deadline,
             &mut current_status,
             "Auto-voice enabled",
-            Some(Duration::from_secs(2)),
+            None,
         );
+        if voice_manager.is_idle() {
+            if let Err(err) = start_voice_capture(
+                &mut voice_manager,
+                VoiceCaptureTrigger::Auto,
+                &writer_tx,
+                &mut status_clear_deadline,
+                &mut current_status,
+            ) {
+                log_debug(&format!("auto voice capture failed: {err:#}"));
+            } else {
+                last_auto_trigger_at = Some(Instant::now());
+            }
+        }
     }
 
     let mut running = true;
@@ -219,8 +232,25 @@ fn main() -> Result<()> {
                             &mut status_clear_deadline,
                             &mut current_status,
                             msg,
-                            Some(Duration::from_secs(2)),
+                            if auto_voice_enabled {
+                                None
+                            } else {
+                                Some(Duration::from_secs(2))
+                            },
                         );
+                        if auto_voice_enabled && voice_manager.is_idle() {
+                            if let Err(err) = start_voice_capture(
+                                &mut voice_manager,
+                                VoiceCaptureTrigger::Auto,
+                                &writer_tx,
+                                &mut status_clear_deadline,
+                                &mut current_status,
+                            ) {
+                                log_debug(&format!("auto voice capture failed: {err:#}"));
+                            } else {
+                                last_auto_trigger_at = Some(Instant::now());
+                            }
+                        }
                     }
                     Ok(InputEvent::ToggleSendMode) => {
                         config.voice_send_mode = match config.voice_send_mode {
@@ -354,6 +384,9 @@ fn main() -> Result<()> {
                                 now,
                                 transcript_idle_timeout,
                             );
+                            if auto_voice_enabled {
+                                prompt_tracker.note_activity(now);
+                            }
                             if ready && pending_transcripts.is_empty() {
                                 let mut io = TranscriptIo {
                                     session: &mut session,
@@ -414,6 +447,23 @@ fn main() -> Result<()> {
                                         &status,
                                         None,
                                     );
+                                }
+                            }
+                            if auto_voice_enabled
+                                && config.voice_send_mode == VoiceSendMode::Insert
+                                && pending_transcripts.is_empty()
+                                && voice_manager.is_idle()
+                            {
+                                if let Err(err) = start_voice_capture(
+                                    &mut voice_manager,
+                                    VoiceCaptureTrigger::Auto,
+                                    &writer_tx,
+                                    &mut status_clear_deadline,
+                                    &mut current_status,
+                                ) {
+                                    log_debug(&format!("auto voice capture failed: {err:#}"));
+                                } else {
+                                    last_auto_trigger_at = Some(now);
                                 }
                             }
                         }
@@ -479,6 +529,15 @@ fn main() -> Result<()> {
                         let _ = writer_tx.send(WriterMessage::ClearStatus);
                         status_clear_deadline = None;
                         current_status = None;
+                        if auto_voice_enabled && voice_manager.is_idle() {
+                            set_status(
+                                &writer_tx,
+                                &mut status_clear_deadline,
+                                &mut current_status,
+                                "Auto-voice enabled",
+                                None,
+                            );
+                        }
                     }
                 }
             }
@@ -663,6 +722,10 @@ impl InputParser {
                     self.flush_pending(out);
                     out.push(InputEvent::DecreaseSensitivity);
                 }
+                0x1f => {
+                    self.flush_pending(out);
+                    out.push(InputEvent::DecreaseSensitivity);
+                }
                 0x0d | 0x0a => {
                     self.flush_pending(out);
                     out.push(InputEvent::EnterKey);
@@ -774,45 +837,129 @@ fn spawn_writer_thread(rx: Receiver<WriterMessage>) -> thread::JoinHandle<()> {
     thread::spawn(move || {
         let mut stdout = io::stdout();
         let mut status: Option<String> = None;
+        let mut pending_status: Option<String> = None;
+        let mut pending_clear = false;
+        let mut needs_redraw = false;
         let mut rows = 0u16;
         let mut cols = 0u16;
+        let mut last_output_at = Instant::now();
 
         loop {
-            match rx.recv() {
+            match rx.recv_timeout(Duration::from_millis(25)) {
                 Ok(WriterMessage::PtyOutput(bytes)) => {
                     if stdout.write_all(&bytes).is_err() {
                         break;
                     }
-                    if let Some(text) = status.as_deref() {
-                        let _ = write_status_line(&mut stdout, text, rows, cols);
+                    last_output_at = Instant::now();
+                    if status.is_some() {
+                        needs_redraw = true;
                     }
                     let _ = stdout.flush();
                 }
                 Ok(WriterMessage::Status { text }) => {
-                    status = Some(text);
-                    let _ =
-                        write_status_line(&mut stdout, status.as_deref().unwrap_or(""), rows, cols);
-                    let _ = stdout.flush();
+                    pending_status = Some(text);
+                    pending_clear = false;
+                    needs_redraw = true;
+                    maybe_redraw_status(
+                        &mut stdout,
+                        &mut rows,
+                        &mut cols,
+                        &mut status,
+                        &mut pending_status,
+                        &mut pending_clear,
+                        &mut needs_redraw,
+                        last_output_at,
+                    );
                 }
                 Ok(WriterMessage::ClearStatus) => {
-                    status = None;
-                    let _ = clear_status_line(&mut stdout, rows, cols);
-                    let _ = stdout.flush();
+                    pending_status = None;
+                    pending_clear = true;
+                    needs_redraw = true;
+                    maybe_redraw_status(
+                        &mut stdout,
+                        &mut rows,
+                        &mut cols,
+                        &mut status,
+                        &mut pending_status,
+                        &mut pending_clear,
+                        &mut needs_redraw,
+                        last_output_at,
+                    );
                 }
                 Ok(WriterMessage::Resize { rows: r, cols: c }) => {
                     rows = r;
                     cols = c;
-                    if let Some(text) = status.as_deref() {
-                        let _ = write_status_line(&mut stdout, text, rows, cols);
-                        let _ = stdout.flush();
+                    if status.is_some() || pending_status.is_some() {
+                        needs_redraw = true;
                     }
+                    maybe_redraw_status(
+                        &mut stdout,
+                        &mut rows,
+                        &mut cols,
+                        &mut status,
+                        &mut pending_status,
+                        &mut pending_clear,
+                        &mut needs_redraw,
+                        last_output_at,
+                    );
                 }
-                Ok(WriterMessage::Shutdown) | Err(_) => {
+                Ok(WriterMessage::Shutdown) => break,
+                Err(crossbeam_channel::RecvTimeoutError::Timeout) => {
+                    maybe_redraw_status(
+                        &mut stdout,
+                        &mut rows,
+                        &mut cols,
+                        &mut status,
+                        &mut pending_status,
+                        &mut pending_clear,
+                        &mut needs_redraw,
+                        last_output_at,
+                    );
+                }
+                Err(crossbeam_channel::RecvTimeoutError::Disconnected) => {
                     break;
                 }
             }
         }
     })
+}
+
+fn maybe_redraw_status(
+    stdout: &mut io::Stdout,
+    rows: &mut u16,
+    cols: &mut u16,
+    status: &mut Option<String>,
+    pending_status: &mut Option<String>,
+    pending_clear: &mut bool,
+    needs_redraw: &mut bool,
+    last_output_at: Instant,
+) {
+    const STATUS_IDLE_MS: u64 = 50;
+    if !*needs_redraw {
+        return;
+    }
+    if last_output_at.elapsed() < Duration::from_millis(STATUS_IDLE_MS) {
+        return;
+    }
+    if *rows == 0 || *cols == 0 {
+        if let Ok((c, r)) = terminal_size() {
+            *rows = r;
+            *cols = c;
+        }
+    }
+    if *pending_clear {
+        let _ = clear_status_line(stdout, *rows, *cols);
+        *status = None;
+        *pending_clear = false;
+    }
+    if let Some(text) = pending_status.take() {
+        *status = Some(text);
+    }
+    if let Some(text) = status.as_deref() {
+        let _ = write_status_line(stdout, text, *rows, *cols);
+    }
+    *needs_redraw = false;
+    let _ = stdout.flush();
 }
 
 fn write_status_line(stdout: &mut dyn Write, text: &str, rows: u16, cols: u16) -> io::Result<()> {
@@ -887,7 +1034,11 @@ fn start_voice_capture(
 ) -> Result<()> {
     match voice_manager.start_capture(trigger)? {
         Some(info) => {
-            let mut status = format!("Listening... ({})", info.pipeline_label);
+            let mode_label = match trigger {
+                VoiceCaptureTrigger::Manual => "Manual Mode",
+                VoiceCaptureTrigger::Auto => "Auto Mode",
+            };
+            let mut status = format!("Listening {mode_label} ({})", info.pipeline_label);
             if let Some(note) = info.fallback_note {
                 status.push(' ');
                 status.push_str(&note);
@@ -1054,7 +1205,7 @@ fn should_auto_trigger(
     last_trigger_at: Option<Instant>,
 ) -> bool {
     if !prompt_tracker.has_seen_output() {
-        return false;
+        return last_trigger_at.is_none() && prompt_tracker.idle_ready(now, idle_timeout);
     }
     if let Some(prompt_at) = prompt_tracker.last_prompt_seen_at() {
         if last_trigger_at.is_none_or(|last| prompt_at > last) {
@@ -1649,6 +1800,7 @@ mod tests {
             (0x14, InputEvent::ToggleSendMode),
             (0x1d, InputEvent::IncreaseSensitivity),
             (0x1c, InputEvent::DecreaseSensitivity),
+            (0x1f, InputEvent::DecreaseSensitivity),
             (0x0a, InputEvent::EnterKey),
         ];
 

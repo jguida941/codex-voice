@@ -118,6 +118,35 @@ rm -f "$(brew --cache)"/codex-voice--*
 brew reinstall codex-voice
 ```
 
+If you still see an older version when running `codex-voice`, you likely have another
+install earlier in PATH (commonly `~/.local/bin/codex-voice` from `./install.sh`).
+Check and remove/rename the old one:
+
+```bash
+which -a codex-voice
+mv ~/.local/bin/codex-voice ~/.local/bin/codex-voice.bak  # or delete it
+hash -r
+```
+
+If you used a local install previously, also check for:
+
+```bash
+ls -l ~/codex-voice/bin/codex-voice 2>/dev/null
+```
+
+Then relink Homebrew and clear shell caches:
+
+```bash
+brew unlink codex-voice && brew link --overwrite codex-voice
+hash -r
+```
+
+To verify the Homebrew binary directly (bypasses the wrapper):
+
+```bash
+$(brew --prefix)/opt/codex-voice/libexec/rust_tui/target/release/codex-voice --version
+```
+
 3. Run from any project (first run downloads the model if missing):
 
 ```bash
@@ -194,7 +223,7 @@ Overlay mode runs the Codex CLI in a PTY and forwards raw ANSI output. You inter
 | `Ctrl+V` | Toggle auto-voice mode |
 | `Ctrl+T` | Toggle send mode (auto vs insert) |
 | `Ctrl+]` | Increase mic threshold +5 dB |
-| `Ctrl+\` | Decrease mic threshold -5 dB |
+| `Ctrl+\` | Decrease mic threshold -5 dB (or `Ctrl+/`) |
 | `Ctrl+Q` | Exit overlay |
 | `Ctrl+C` | Forward to Codex |
 
@@ -202,8 +231,9 @@ Insert send mode note: press Enter while recording to stop early and transcribe 
 When the transcript appears, press Enter again to send it to Codex. If the python fallback is
 active, Enter cancels the capture instead.
 
-Auto-voice stays enabled even when no speech is detected; press Ctrl+V to stop it.
+Auto-voice stays enabled even when no speech is detected; press Ctrl+V to stop it. The status line keeps "Auto-voice enabled" visible while waiting.
 If Codex is busy, voice transcripts are queued and sent when the next prompt appears or output goes idle (status shows the queued count). Queued transcripts are merged into one message when flushed.
+Long dictation is chunked by `--voice-max-capture-ms` (default 30s, max 60s). Use insert mode for continuous dictation while Codex is busy.
 
 | | |
 |---|---|
@@ -224,6 +254,8 @@ Run `codex-voice --help` for all options. Key flags:
 | `--auto-voice-idle-ms <MS>` | Idle timeout before auto-voice triggers | 1200 |
 | `--voice-send-mode <auto\|insert>` | `auto` sends newline, `insert` for editing + Enter stop | auto |
 | `--transcript-idle-ms <MS>` | Idle time before transcripts auto-send when output is quiet | 250 |
+| `--voice-max-capture-ms <MS>` | Max capture duration before stopping | 30000 |
+| `--voice-silence-tail-ms <MS>` | Trailing silence required to stop capture | 3000 |
 | `--voice-vad-threshold-db <DB>` | Mic sensitivity (lower = more sensitive) | -40 |
 | `--voice-vad-engine <earshot\|simple>` | VAD implementation | earshot |
 | `--input-device <NAME>` | Preferred audio input device | system default |

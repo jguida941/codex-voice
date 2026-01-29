@@ -3,6 +3,16 @@
 All notable changes to this project will be documented here, following the SDLC policy defined in `agents.md`.
 Note: Some historical entries reference internal documents that are not published in this repository.
 
+## [1.0.20] - 2026-01-29
+
+### UX + Controls
+- **Auto-voice startup**: auto mode now begins listening immediately when enabled (no silent wait).
+- **Auto-voice status**: keep "Auto-voice enabled" visible on startup and when toggling on.
+- **Status line stability**: defer status redraws until output is quiet to prevent ANSI garbage in the prompt.
+- **Insert-mode rearm**: auto-voice re-arms immediately after transcripts when using insert send mode.
+- **Capture limit**: max configurable capture duration raised to 60s (default still 30s).
+- **Sensitivity hotkey alias**: `Ctrl+/` now also decreases mic sensitivity (same as `Ctrl+\`).
+
 ## [1.0.19] - 2026-01-29
 
 ### Changes

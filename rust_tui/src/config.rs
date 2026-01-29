@@ -21,7 +21,7 @@ pub const DEFAULT_VOICE_VAD_THRESHOLD_DB: f32 = -40.0;
 pub const DEFAULT_VOICE_VAD_FRAME_MS: u64 = 20;
 pub const DEFAULT_MIC_METER_AMBIENT_MS: u64 = 3000;
 pub const DEFAULT_MIC_METER_SPEECH_MS: u64 = 3000;
-const MAX_CAPTURE_HARD_LIMIT_MS: u64 = 30_000;
+const MAX_CAPTURE_HARD_LIMIT_MS: u64 = 60_000;
 const ISO_639_1_CODES: &[&str] = &[
     "af", "am", "ar", "az", "be", "bg", "bn", "bs", "ca", "cs", "cy", "da", "de", "el", "en", "es",
     "et", "eu", "fa", "fi", "fil", "fr", "ga", "gl", "gu", "he", "hi", "hr", "hu", "hy", "id",
@@ -768,7 +768,7 @@ mod tests {
 
     #[test]
     fn accepts_voice_max_capture_limit() {
-        let mut cfg = base_voice_config_with_capture(30000);
+        let mut cfg = base_voice_config_with_capture(MAX_CAPTURE_HARD_LIMIT_MS);
         assert!(cfg.validate().is_ok());
     }
 
