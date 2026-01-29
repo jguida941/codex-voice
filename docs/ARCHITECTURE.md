@@ -9,6 +9,11 @@ adds voice capture + a minimal status overlay without touching Codex's native UI
 - Add **voice capture** and **auto-voice** without corrupting terminal output.
 - Keep a **minimal overlay** (one status line) and avoid custom UI rendering.
 
+## Architecture Decision Records (ADRs)
+
+We track key decisions in ADRs so the rationale stays visible over time. See
+`docs/adr/README.md` for the index, process, and template.
+
 ## System Overview (Rust Only)
 
 ```mermaid

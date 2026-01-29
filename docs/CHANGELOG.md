@@ -1,6 +1,15 @@
 # Changelog
 
 All notable changes to this project will be documented here, following the SDLC policy defined in `agents.md`.
+Note: Some historical entries reference internal documents that are not published in this repository.
+
+## [1.0.14] - 2026-01-29
+
+### UX + Controls
+- **Sensitivity hotkeys**: `Ctrl+]` / `Ctrl+\` adjust mic sensitivity (no Ctrl++/Ctrl+-).
+- **Mic meter mode**: add `--mic-meter` plus ambient/speech duration flags to recommend a VAD threshold.
+- **Startup/README updates**: refresh shortcut and command hints to match the new bindings.
+- **Transcript queue**: when Codex is busy, transcripts are queued and sent on the next prompt; status shows queued count.
 
 ## [1.0.13] - 2026-01-28
 
@@ -92,7 +101,7 @@ All notable changes to this project will be documented here, following the SDLC 
 ### Rust-Only Docs + Launchers (2026-01-23) - COMPLETE
 - **Docs sweep**: removed legacy CLI references from user-facing docs and the audit.
 - **Launchers aligned**: `start.sh` and `scripts/setup.sh` now run overlay-only; Windows launcher points to WSL/macos/linux.
-- **Backlog added**: `BACKLOG.md` tracks Python fallback removal work.
+- **Backlog added**: `docs/BACKLOG.md` tracks follow-up work and open UX items.
 
 ### Overlay UX (2026-01-23) - COMPLETE
 - **New hotkeys**: Ctrl+T toggles send mode (auto vs insert), Ctrl++/Ctrl+- adjust mic sensitivity in 5 dB steps.

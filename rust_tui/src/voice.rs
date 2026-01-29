@@ -7,10 +7,9 @@ use crate::config::VadEngineKind;
 use crate::log_debug;
 use crate::stt;
 use anyhow::{anyhow, Result};
+use regex::Regex;
 use std::sync::atomic::{AtomicBool, Ordering};
-#[cfg(test)]
-use std::sync::OnceLock;
-use std::sync::{mpsc, Arc, Mutex};
+use std::sync::{mpsc, Arc, Mutex, OnceLock};
 use std::thread;
 use std::time::Instant;
 
@@ -127,7 +126,7 @@ fn run_python_fallback(
     ));
     match call_python_transcription(config, stop_flag) {
         Ok(pipeline) => {
-            let transcript = pipeline.transcript.trim().to_string();
+            let transcript = sanitize_transcript(&pipeline.transcript);
             if transcript.is_empty() {
                 VoiceJobMessage::Empty {
                     source: VoiceCaptureSource::Python,
@@ -236,7 +235,7 @@ fn capture_voice_native(
         "capture_voice_native: Transcription complete in {stt_elapsed:.2}s"
     ));
 
-    let cleaned = transcript.trim().to_string();
+    let cleaned = sanitize_transcript(&transcript);
     if config.log_timings {
         log_debug(&format!(
             "timing|phase=voice_capture|record_s={:.3}|stt_s={:.3}|chars={}",
@@ -251,6 +250,25 @@ fn capture_voice_native(
     } else {
         Ok(Some(cleaned))
     }
+}
+
+fn sanitize_transcript(text: &str) -> String {
+    let trimmed = text.trim();
+    if trimmed.is_empty() {
+        return String::new();
+    }
+    static NON_SPEECH_RE: OnceLock<Regex> = OnceLock::new();
+    let re = NON_SPEECH_RE.get_or_init(|| {
+        Regex::new(
+            r"(?i)\[\s*\]|\(\s*\)|\[(?:\s*(?:silence|noise|inaudible|blank_audio|blank audio|music|laughter|applause|cough|breath(?:ing)?|wind|background)\s*)\]|\((?:\s*(?:silence|noise|inaudible|blank audio|music|laughter|applause|cough|breath(?:ing)?|wind|background|wind blowing)\s*)\)",
+        )
+        .expect("non-speech regex should compile")
+    });
+    let without_markers = re.replace_all(trimmed, " ");
+    without_markers
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 /// Emit structured metrics for perf_smoke consumption.

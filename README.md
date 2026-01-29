@@ -169,8 +169,8 @@ Overlay mode runs the Codex CLI in a PTY and forwards raw ANSI output. You inter
 | `Ctrl+R` | Start voice capture |
 | `Ctrl+V` | Toggle auto-voice mode |
 | `Ctrl+T` | Toggle send mode (auto vs insert) |
-| `Ctrl++` | Increase mic threshold +5 dB (often `Ctrl+=`) |
-| `Ctrl+-` | Decrease mic threshold -5 dB (may need `Ctrl+Shift+-`) |
+| `Ctrl+]` | Increase mic threshold +5 dB |
+| `Ctrl+\` | Decrease mic threshold -5 dB |
 | `Ctrl+Q` | Exit overlay |
 | `Ctrl+C` | Forward to Codex |
 
@@ -179,6 +179,7 @@ When the transcript appears, press Enter again to send it to Codex. If the pytho
 active, Enter cancels the capture instead.
 
 Auto-voice stays enabled even when no speech is detected; press Ctrl+V to stop it.
+If Codex is busy, voice transcripts are queued and sent when the next prompt appears (status shows the queued count).
 
 | | |
 |---|---|
@@ -202,6 +203,9 @@ Run `codex-voice --help` for all options. Key flags:
 | `--voice-vad-engine <earshot\|simple>` | VAD implementation | earshot |
 | `--input-device <NAME>` | Preferred audio input device | system default |
 | `--list-input-devices` | Print available audio devices and exit | - |
+| `--mic-meter` | Sample ambient + speech and recommend VAD threshold | - |
+| `--mic-meter-ambient-ms <MS>` | Ambient sample duration for mic meter | 3000 |
+| `--mic-meter-speech-ms <MS>` | Speech sample duration for mic meter | 3000 |
 
 #### Whisper & STT
 

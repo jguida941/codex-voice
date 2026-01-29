@@ -55,9 +55,9 @@ impl Recorder {
             .unwrap_or_else(|_| "Unknown Device".to_string())
     }
 
-    /// Record audio for `seconds`, normalize the incoming format, and return
+    /// Record audio for `duration`, normalize the incoming format, and return
     /// 16 kHz mono data that Whisper can consume directly.
-    pub fn record(&self, seconds: u64) -> Result<Vec<f32>> {
+    pub fn record_for(&self, duration: Duration) -> Result<Vec<f32>> {
         // Get the device's default config so we know the native format and channel count.
         let default_config = self.device.default_input_config()?;
         let format = default_config.sample_format();
@@ -122,7 +122,7 @@ impl Recorder {
         };
 
         stream.play()?;
-        std::thread::sleep(Duration::from_secs(seconds));
+        std::thread::sleep(duration);
         if let Err(err) = stream.pause() {
             log_debug(&format!("failed to pause audio stream: {err}"));
         }
@@ -139,6 +139,11 @@ impl Recorder {
         // Transcription assumes 16 kHz mono, so resample if the hardware rate differs.
         let processed = resample_to_target_rate(&samples, device_sample_rate);
         Ok(processed)
+    }
+
+    /// Record audio for `seconds`. Convenience wrapper around record_for.
+    pub fn record(&self, seconds: u64) -> Result<Vec<f32>> {
+        self.record_for(Duration::from_secs(seconds))
     }
 
     #[cfg(not(test))]

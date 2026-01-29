@@ -19,6 +19,8 @@ pub const DEFAULT_VOICE_CHANNEL_CAPACITY: usize = 100;
 pub const DEFAULT_VOICE_STT_TIMEOUT_MS: u64 = 60_000;
 pub const DEFAULT_VOICE_VAD_THRESHOLD_DB: f32 = -40.0;
 pub const DEFAULT_VOICE_VAD_FRAME_MS: u64 = 20;
+pub const DEFAULT_MIC_METER_AMBIENT_MS: u64 = 3000;
+pub const DEFAULT_MIC_METER_SPEECH_MS: u64 = 3000;
 const MAX_CAPTURE_HARD_LIMIT_MS: u64 = 30_000;
 const ISO_639_1_CODES: &[&str] = &[
     "af", "am", "ar", "az", "be", "bg", "bn", "bs", "ca", "cs", "cy", "da", "de", "el", "en", "es",
@@ -65,6 +67,18 @@ pub struct AppConfig {
     /// Print detected audio input devices and exit
     #[arg(long = "list-input-devices", default_value_t = false)]
     pub list_input_devices: bool,
+
+    /// Run mic meter and suggest a VAD threshold, then exit
+    #[arg(long = "mic-meter", default_value_t = false)]
+    pub mic_meter: bool,
+
+    /// Ambient noise sample duration for mic meter (milliseconds)
+    #[arg(long = "mic-meter-ambient-ms", default_value_t = DEFAULT_MIC_METER_AMBIENT_MS)]
+    pub mic_meter_ambient_ms: u64,
+
+    /// Speech sample duration for mic meter (milliseconds)
+    #[arg(long = "mic-meter-speech-ms", default_value_t = DEFAULT_MIC_METER_SPEECH_MS)]
+    pub mic_meter_speech_ms: u64,
 
     /// Enable persistent Codex PTY session (captures full TUI, use --persistent-codex to enable)
     #[arg(long = "persistent-codex", default_value_t = false)]
@@ -1018,23 +1032,38 @@ mod tests {
         assert_eq!(root, expected);
     }
 
-    #[test]
-    fn canonicalize_within_repo_rejects_outside_path() {
-        let repo_root = canonical_repo_root().unwrap();
+    fn outside_dir(repo_root: &Path, prefix: &str) -> Option<PathBuf> {
         let unique = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
             .as_millis();
-        let mut outside_dir = repo_root
-            .parent()
-            .unwrap_or(&repo_root)
-            .join(format!("codex_voice_outside_{unique}"));
-        if outside_dir.starts_with(&repo_root) {
-            outside_dir = env::temp_dir().join(format!("codex_voice_outside_{unique}"));
+        let temp_dir = env::temp_dir().join(format!("{prefix}_{unique}"));
+        if !temp_dir.starts_with(repo_root) {
+            return Some(temp_dir);
         }
+        repo_root
+            .parent()
+            .map(|parent| parent.join(format!("{prefix}_{unique}")))
+            .filter(|candidate| !candidate.starts_with(repo_root))
+    }
+
+    #[test]
+    fn canonicalize_within_repo_rejects_outside_path() {
+        let repo_root = canonical_repo_root().unwrap();
+        let Some(outside_dir) = outside_dir(&repo_root, "codex_voice_outside") else {
+            eprintln!("skipping: unable to create outside path");
+            return;
+        };
         let outside = outside_dir.join("outside.txt");
-        fs::create_dir_all(&outside_dir).unwrap();
-        fs::write(&outside, "x").unwrap();
+        if let Err(err) = fs::create_dir_all(&outside_dir) {
+            eprintln!("skipping: unable to create outside path: {err}");
+            return;
+        }
+        if let Err(err) = fs::write(&outside, "x") {
+            eprintln!("skipping: unable to write outside file: {err}");
+            let _ = fs::remove_dir_all(&outside_dir);
+            return;
+        }
         assert!(canonicalize_within_repo(&outside, "outside", &repo_root).is_err());
         let _ = fs::remove_file(outside);
         let _ = fs::remove_dir_all(outside_dir);
@@ -1055,20 +1084,17 @@ mod tests {
 
     #[test]
     fn validate_rejects_pipeline_script_outside_repo() {
-        let unique = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_millis();
         let repo_root = canonical_repo_root().unwrap();
-        let mut outside_dir = repo_root
-            .parent()
-            .unwrap_or(&repo_root)
-            .join(format!("pipeline_outside_{unique}"));
-        if outside_dir.starts_with(&repo_root) {
-            outside_dir = env::temp_dir().join(format!("pipeline_outside_{unique}"));
-        }
+        let Some(outside_dir) = outside_dir(&repo_root, "pipeline_outside") else {
+            eprintln!("skipping: unable to create outside path");
+            return;
+        };
         let script_path = outside_dir.join("pipeline.py");
-        fs::create_dir_all(&outside_dir).unwrap();
+        if let Err(err) = fs::create_dir_all(&outside_dir) {
+            eprintln!("skipping: unable to create outside path: {err}");
+            return;
+        }
+        let _ = fs::write(&script_path, "# test");
         let mut cfg = AppConfig::parse_from([
             "test-app",
             "--pipeline-script",

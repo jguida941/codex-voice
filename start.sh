@@ -116,8 +116,8 @@ print_controls_table_wide() {
 
     for row in \
         "Ctrl+R|Record (push-to-talk)|Ctrl+V|Toggle auto-voice" \
-        "Ctrl+T|Toggle send mode|Ctrl+=/++|Mic sensitivity +5 dB" \
-        "Ctrl+-|Mic sensitivity -5 dB|Ctrl+Q|Quit overlay"; do
+        "Ctrl+T|Toggle send mode|Ctrl+]|Mic sensitivity +5 dB" \
+        "Ctrl+\\|Mic sensitivity -5 dB|Ctrl+Q|Quit overlay"; do
         IFS='|' read -r key_left action_left key_right action_right <<< "$row"
         key_left="$(truncate "$key_left" "$col_key")"
         action_left="$(truncate "$action_left" "$col_action")"
@@ -153,8 +153,8 @@ print_controls_table_narrow() {
         "Ctrl+R|Record (push-to-talk)" \
         "Ctrl+V|Toggle auto-voice" \
         "Ctrl+T|Toggle send mode" \
-        "Ctrl+=/++|Mic sensitivity +5 dB" \
-        "Ctrl+-|Mic sensitivity -5 dB" \
+        "Ctrl+]|Mic sensitivity +5 dB" \
+        "Ctrl+\\|Mic sensitivity -5 dB" \
         "Ctrl+Q|Quit overlay"; do
         IFS='|' read -r key action <<< "$row"
         key="$(truncate "$key" "$col1")"
@@ -203,6 +203,7 @@ print_commands_table() {
     for row in \
         "$EXAMPLE_CMD --auto-voice|Start in auto-voice" \
         "$EXAMPLE_CMD --voice-send-mode insert|Start in insert mode" \
+        "$EXAMPLE_CMD --mic-meter|Measure ambient/speech levels" \
         "$EXAMPLE_CMD --voice-vad-threshold-db -50|Set mic threshold" \
         "$EXAMPLE_CMD --auto-voice-idle-ms 700|Auto-voice idle"; do
         IFS='|' read -r command purpose <<< "$row"
@@ -216,7 +217,7 @@ print_commands_table() {
 
 echo -e "${CORAL_BRIGHT}${BOLD}Quick Controls${NC}"
 print_controls_table
-echo -e "${DIM}Note: Ctrl++ is often Ctrl+=, Ctrl+- may require Ctrl+Shift+-${NC}"
+echo -e "${DIM}Sensitivity: Ctrl+] (less sensitive) • Ctrl+\\ (more sensitive)${NC}"
 echo ""
 echo -e "${CORAL_BRIGHT}${BOLD}Common Commands${NC}"
 print_commands_table

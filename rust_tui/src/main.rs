@@ -1,7 +1,8 @@
 use anyhow::Result;
 use clap::Parser;
 use rust_tui::{
-    audio::Recorder, config::AppConfig, init_debug_log_file, ipc, log_debug, log_file_path, ui, App,
+    audio::Recorder, config::AppConfig, init_debug_log_file, ipc, log_debug, log_file_path,
+    mic_meter, ui, App,
 };
 use std::env;
 
@@ -26,6 +27,11 @@ where
     if config.list_input_devices {
         let output = list_input_devices()?;
         print!("{output}");
+        return Ok(());
+    }
+
+    if config.mic_meter {
+        mic_meter::run_mic_meter(&config)?;
         return Ok(());
     }
 

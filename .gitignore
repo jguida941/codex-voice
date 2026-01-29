@@ -90,7 +90,10 @@ docs/audits/
 docs/architecture/
 docs/archive/
 docs/references/
+docs/adr/
 **/PROJECT_OVERVIEW.md
 **/master_index.md
 **/agents.md
 BACKLOG.md
+docs/BACKLOG.md
+rust_tui/mutants.out*

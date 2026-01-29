@@ -5,9 +5,10 @@ use crossterm::terminal::{disable_raw_mode, enable_raw_mode, size as terminal_si
 use regex::Regex;
 use rust_tui::pty_session::PtyOverlaySession;
 use rust_tui::{
-    audio, config::AppConfig, init_debug_log_file, log_debug, log_file_path, stt, voice,
-    VoiceCaptureSource, VoiceCaptureTrigger, VoiceJobMessage,
+    audio, config::AppConfig, init_debug_log_file, log_debug, log_file_path, mic_meter, stt,
+    voice, VoiceCaptureSource, VoiceCaptureTrigger, VoiceJobMessage,
 };
+use std::collections::VecDeque;
 use std::env;
 use std::io::{self, Read, Write};
 use std::path::PathBuf;
@@ -18,6 +19,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use vte::{Parser as VteParser, Perform};
 
 static SIGWINCH_RECEIVED: AtomicBool = AtomicBool::new(false);
+const MAX_PENDING_TRANSCRIPTS: usize = 5;
 
 extern "C" fn handle_sigwinch(_: libc::c_int) {
     SIGWINCH_RECEIVED.store(true, Ordering::SeqCst);
@@ -99,12 +101,17 @@ fn main() -> Result<()> {
     log_debug(&format!("Log file: {log_path:?}"));
 
     let mut config = OverlayConfig::parse();
-    config.app.validate()?;
-
     if config.app.list_input_devices {
         list_input_devices()?;
         return Ok(());
     }
+
+    if config.app.mic_meter {
+        mic_meter::run_mic_meter(&config.app)?;
+        return Ok(());
+    }
+
+    config.app.validate()?;
 
     install_sigwinch_handler()?;
 
@@ -145,6 +152,8 @@ fn main() -> Result<()> {
     let mut voice_manager = VoiceManager::new(config.app.clone());
     let mut auto_voice_enabled = config.auto_voice;
     let mut last_auto_trigger_at: Option<Instant> = None;
+    let mut last_enter_at: Option<Instant> = None;
+    let mut pending_transcripts: VecDeque<PendingTranscript> = VecDeque::new();
     let mut status_clear_deadline: Option<Instant> = None;
 
     if auto_voice_enabled {
@@ -263,6 +272,8 @@ fn main() -> Result<()> {
                             if let Err(err) = session.send_bytes(&[0x0d]) {
                                 log_debug(&format!("failed to write Enter to PTY: {err:#}"));
                                 running = false;
+                            } else {
+                                last_enter_at = Some(Instant::now());
                             }
                         }
                     }
@@ -278,6 +289,14 @@ fn main() -> Result<()> {
                 match chunk {
                     Ok(data) => {
                         prompt_tracker.feed_output(&data);
+                        try_flush_pending(
+                            &mut pending_transcripts,
+                            &prompt_tracker,
+                            &mut last_enter_at,
+                            &mut session,
+                            &writer_tx,
+                            &mut status_clear_deadline,
+                        );
                         if writer_tx.send(WriterMessage::PtyOutput(data)).is_err() {
                             running = false;
                         }
@@ -299,15 +318,155 @@ fn main() -> Result<()> {
                 prompt_tracker.on_idle(now, idle_timeout);
 
                 if let Some(message) = voice_manager.poll_message() {
-                    let rearm_auto = matches!(message, VoiceJobMessage::Empty { .. } | VoiceJobMessage::Error(_));
-                    handle_voice_message(
+                    let rearm_auto = matches!(
                         message,
-                        &config,
-                        &mut session,
+                        VoiceJobMessage::Empty { .. } | VoiceJobMessage::Error(_)
+                    );
+                    match message {
+                        VoiceJobMessage::Transcript { text, source } => {
+                            if prompt_ready(&prompt_tracker, last_enter_at) {
+                                deliver_transcript(
+                                    &text,
+                                    source,
+                                    config.voice_send_mode,
+                                    &mut session,
+                                    &writer_tx,
+                                    &mut status_clear_deadline,
+                                    pending_transcripts.len(),
+                                );
+                                last_enter_at = Some(now);
+                            } else {
+                                queue_transcript(
+                                    &mut pending_transcripts,
+                                    PendingTranscript {
+                                        text,
+                                        source,
+                                        mode: config.voice_send_mode,
+                                    },
+                                    &writer_tx,
+                                    &mut status_clear_deadline,
+                                );
+                            }
+                        }
+                        other => {
+                            handle_voice_message(
+                                other,
+                                &config,
+                                &mut session,
+                                &writer_tx,
+                                &mut status_clear_deadline,
+                                auto_voice_enabled,
+                            );
+                        }
+                    }
+                    if auto_voice_enabled && rearm_auto {
+                        // Treat empty/error captures as activity so auto-voice can re-arm after idle.
+                        prompt_tracker.note_activity(now);
+                    }
+                }
+
+                try_flush_pending(
+                    &mut pending_transcripts,
+                    &prompt_tracker,
+                    &mut last_enter_at,
+                    &mut session,
+                    &writer_tx,
+                    &mut status_clear_deadline,
+                );
+
+                if auto_voice_enabled
+                    && voice_manager.is_idle()
+                    && should_auto_trigger(
+                        &prompt_tracker,
+                        now,
+                        idle_timeout,
+                        last_auto_trigger_at,
+                    )
+                {
+                    if let Err(err) = start_voice_capture(
+                        &mut voice_manager,
+                        VoiceCaptureTrigger::Auto,
                         &writer_tx,
                         &mut status_clear_deadline,
-                        auto_voice_enabled,
-                    );
+                    ) {
+                        log_debug(&format!("auto voice capture failed: {err:#}"));
+                    } else {
+                        last_auto_trigger_at = Some(now);
+                    }
+                }
+
+                if let Some(deadline) = status_clear_deadline {
+                    if now >= deadline {
+                        let _ = writer_tx.send(WriterMessage::ClearStatus);
+                        status_clear_deadline = None;
+                    }
+                }
+            }
+        }
+    }
+
+    let _ = writer_tx.send(WriterMessage::ClearStatus);
+    let _ = writer_tx.send(WriterMessage::Shutdown);
+    disable_raw_mode()?;
+    log_debug("=== Codex Voice Overlay Exiting ===");
+    Ok(())
+}
+
+fn queue_transcript(
+    pending: &mut VecDeque<PendingTranscript>,
+    transcript: PendingTranscript,
+    writer_tx: &Sender<WriterMessage>,
+    status_clear_deadline: &mut Option<Instant>,
+) {
+    if pending.len() >= MAX_PENDING_TRANSCRIPTS {
+        pending.pop_front();
+        log_debug("pending transcript queue full; dropping oldest transcript");
+    }
+    pending.push_back(transcript);
+    let status = format!("Transcript queued ({})", pending.len());
+    set_status(writer_tx, status_clear_deadline, &status, None);
+}
+
+fn try_flush_pending(
+    pending: &mut VecDeque<PendingTranscript>,
+    prompt_tracker: &PromptTracker,
+    last_enter_at: &mut Option<Instant>,
+    session: &mut impl TranscriptSession,
+    writer_tx: &Sender<WriterMessage>,
+    status_clear_deadline: &mut Option<Instant>,
+) {
+    if pending.is_empty() {
+        return;
+    }
+    if !prompt_ready(prompt_tracker, *last_enter_at) {
+        return;
+    }
+    if let Some(next) = pending.pop_front() {
+        let remaining = pending.len();
+        deliver_transcript(
+            &next.text,
+            next.source,
+            next.mode,
+            session,
+            writer_tx,
+            status_clear_deadline,
+            remaining,
+        );
+        *last_enter_at = Some(Instant::now());
+    }
+}
+                        }
+                        other => {
+                            handle_voice_message(
+                                other,
+                                &config,
+                                &mut session,
+                                &writer_tx,
+                                &mut status_clear_deadline,
+                                auto_voice_enabled,
+                            );
+                        }
+                    }
                     if auto_voice_enabled && rearm_auto {
                         // Treat empty/error captures as activity so auto-voice can re-arm after idle.
                         prompt_tracker.note_activity(now);
@@ -407,6 +566,7 @@ fn resolve_prompt_regex(config: &OverlayConfig) -> Result<Option<Regex>> {
 struct InputParser {
     pending: Vec<u8>,
     skip_lf: bool,
+    esc_buffer: Option<Vec<u8>>,
 }
 
 impl InputParser {
@@ -414,11 +574,15 @@ impl InputParser {
         Self {
             pending: Vec::new(),
             skip_lf: false,
+            esc_buffer: None,
         }
     }
 
     fn consume_bytes(&mut self, bytes: &[u8], out: &mut Vec<InputEvent>) {
         for &byte in bytes {
+            if self.consume_escape(byte) {
+                continue;
+            }
             if self.skip_lf {
                 if byte == 0x0a {
                     self.skip_lf = false;
@@ -448,7 +612,7 @@ impl InputParser {
                     self.flush_pending(out);
                     out.push(InputEvent::IncreaseSensitivity);
                 }
-                0x1f => {
+                0x1c => {
                     self.flush_pending(out);
                     out.push(InputEvent::DecreaseSensitivity);
                 }
@@ -464,11 +628,73 @@ impl InputParser {
         }
     }
 
+    fn consume_escape(&mut self, byte: u8) -> bool {
+        const MAX_CSI_LEN: usize = 32;
+
+        if let Some(ref mut buffer) = self.esc_buffer {
+            buffer.push(byte);
+            if buffer.len() == 2 && buffer[1] != b'[' {
+                self.pending.extend_from_slice(buffer);
+                self.esc_buffer = None;
+                return true;
+            }
+
+            if buffer.len() >= 2 && buffer[1] == b'[' {
+                if is_csi_final(byte) {
+                    if is_csi_u_numeric(buffer) {
+                        self.esc_buffer = None;
+                    } else {
+                        self.pending.extend_from_slice(buffer);
+                        self.esc_buffer = None;
+                    }
+                    return true;
+                }
+                if buffer.len() > MAX_CSI_LEN {
+                    self.pending.extend_from_slice(buffer);
+                    self.esc_buffer = None;
+                    return true;
+                }
+                return true;
+            }
+
+            if buffer.len() > MAX_CSI_LEN {
+                self.pending.extend_from_slice(buffer);
+                self.esc_buffer = None;
+            }
+            return true;
+        }
+
+        if byte == 0x1b {
+            self.esc_buffer = Some(vec![byte]);
+            return true;
+        }
+        false
+    }
+
     fn flush_pending(&mut self, out: &mut Vec<InputEvent>) {
+        if let Some(buffer) = self.esc_buffer.take() {
+            self.pending.extend_from_slice(&buffer);
+        }
         if !self.pending.is_empty() {
             out.push(InputEvent::Bytes(std::mem::take(&mut self.pending)));
         }
     }
+}
+
+fn is_csi_final(byte: u8) -> bool {
+    (0x40..=0x7e).contains(&byte)
+}
+
+fn is_csi_u_numeric(buffer: &[u8]) -> bool {
+    if buffer.len() < 3 {
+        return false;
+    }
+    if buffer[0] != 0x1b || buffer[1] != b'[' || *buffer.last().unwrap() != b'u' {
+        return false;
+    }
+    buffer[2..buffer.len() - 1]
+        .iter()
+        .all(|b| b.is_ascii_digit() || *b == b';')
 }
 
 fn spawn_input_thread(tx: Sender<InputEvent>) -> thread::JoinHandle<()> {
@@ -701,6 +927,46 @@ fn send_transcript(
     Ok(())
 }
 
+fn deliver_transcript(
+    text: &str,
+    source: VoiceCaptureSource,
+    mode: VoiceSendMode,
+    session: &mut impl TranscriptSession,
+    writer_tx: &Sender<WriterMessage>,
+    status_clear_deadline: &mut Option<Instant>,
+    queued_remaining: usize,
+) {
+    let label = source.label();
+    let status = if queued_remaining > 0 {
+        format!("Transcript ready ({label}) • queued {queued_remaining}")
+    } else {
+        format!("Transcript ready ({label})")
+    };
+    set_status(
+        writer_tx,
+        status_clear_deadline,
+        &status,
+        Some(Duration::from_secs(2)),
+    );
+    if let Err(err) = send_transcript(session, text, mode) {
+        log_debug(&format!("failed to send transcript: {err:#}"));
+        set_status(
+            writer_tx,
+            status_clear_deadline,
+            "Failed to send transcript (see log)",
+            Some(Duration::from_secs(2)),
+        );
+    }
+}
+
+fn prompt_ready(prompt_tracker: &PromptTracker, last_enter_at: Option<Instant>) -> bool {
+    match (prompt_tracker.last_prompt_seen_at(), last_enter_at) {
+        (Some(prompt_at), Some(enter_at)) => prompt_at > enter_at,
+        (Some(_), None) => true,
+        _ => false,
+    }
+}
+
 fn should_auto_trigger(
     prompt_tracker: &PromptTracker,
     now: Instant,
@@ -730,6 +996,12 @@ fn using_native_pipeline(has_transcriber: bool, has_recorder: bool) -> bool {
 struct VoiceStartInfo {
     pipeline_label: &'static str,
     fallback_note: Option<String>,
+}
+
+struct PendingTranscript {
+    text: String,
+    source: VoiceCaptureSource,
+    mode: VoiceSendMode,
 }
 
 struct VoiceManager {
@@ -1267,7 +1539,7 @@ mod tests {
             (0x16, InputEvent::ToggleAutoVoice),
             (0x14, InputEvent::ToggleSendMode),
             (0x1d, InputEvent::IncreaseSensitivity),
-            (0x1f, InputEvent::DecreaseSensitivity),
+            (0x1c, InputEvent::DecreaseSensitivity),
             (0x0a, InputEvent::EnterKey),
         ];
 
@@ -1290,6 +1562,18 @@ mod tests {
             events,
             vec![InputEvent::EnterKey, InputEvent::Bytes(b"x".to_vec())]
         );
+    }
+
+    #[test]
+    fn input_parser_drops_csi_u_sequences() {
+        let events = parse_events(&[b"\x1b[48;0;0u"]);
+        assert!(events.is_empty());
+    }
+
+    #[test]
+    fn input_parser_preserves_arrow_sequences() {
+        let events = parse_events(&[b"\x1b[A"]);
+        assert_eq!(events, vec![InputEvent::Bytes(b"\x1b[A".to_vec())]);
     }
 
     #[test]

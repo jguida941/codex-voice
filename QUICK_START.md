@@ -42,13 +42,14 @@ First run will download a Whisper model if missing, then start the Rust overlay 
 - `Ctrl+R` - start voice capture
 - `Ctrl+V` - toggle auto-voice (disabling cancels any running capture)
 - `Ctrl+T` - toggle send mode (auto vs insert)
-- `Ctrl++` - increase mic threshold by 5 dB (less sensitive, often Ctrl+=)
-- `Ctrl+-` - decrease mic threshold by 5 dB (more sensitive, may be Ctrl+Shift+-)
+- `Ctrl+]` - increase mic threshold by 5 dB (less sensitive)
+- `Ctrl+\` - decrease mic threshold by 5 dB (more sensitive)
 - `Ctrl+Q` - exit overlay
 - `Ctrl+C` - forwarded to Codex
 - `Enter` - in insert mode, stop capture early and transcribe what was captured
 
 Auto-voice keeps listening on silence; press `Ctrl+V` to stop auto-voice mode.
+If Codex is busy, voice transcripts are queued and sent on the next prompt.
 
 ## Common flags
 
@@ -56,6 +57,7 @@ Auto-voice keeps listening on silence; press `Ctrl+V` to stop auto-voice mode.
 codex-voice --auto-voice
 codex-voice --voice-send-mode insert
 codex-voice --voice-vad-threshold-db -50
+codex-voice --mic-meter
 codex-voice --prompt-regex '^codex> $'
 ```
 
