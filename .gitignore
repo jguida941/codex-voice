@@ -97,3 +97,4 @@ docs/adr/
 **/master_index.md
 **/agents.md
 rust_tui/mutants.out*
+claudeaudit.md

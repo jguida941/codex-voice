@@ -9,7 +9,7 @@ use std::{
     sync::{
         atomic::{AtomicBool, Ordering},
         mpsc::TryRecvError,
-        Arc, Mutex,
+        Arc, Mutex, OnceLock,
     },
     thread,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
@@ -27,8 +27,14 @@ use serde::Deserialize;
 
 /// Maximum number of lines to retain in the scrollback buffer.
 const OUTPUT_MAX_LINES: usize = 500;
+/// Maximum characters retained in the input buffer.
+const INPUT_MAX_CHARS: usize = 8_000;
 /// Spinner cadence for Codex worker status updates.
 const CODEX_SPINNER_INTERVAL: Duration = Duration::from_millis(150);
+const LOG_MAX_BYTES: u64 = 5 * 1024 * 1024;
+static LOG_ENABLED: AtomicBool = AtomicBool::new(false);
+static LOG_CONTENT_ENABLED: AtomicBool = AtomicBool::new(false);
+static LOG_STATE: OnceLock<Mutex<LogState>> = OnceLock::new();
 macro_rules! state_change {
     ($self:expr, $field:ident, $value:expr) => {{
         $self.$field = $value;
@@ -45,29 +51,119 @@ pub fn log_file_path() -> PathBuf {
     env::temp_dir().join("codex_voice_tui.log")
 }
 
+struct LogWriter {
+    path: PathBuf,
+    file: fs::File,
+    max_bytes: u64,
+    bytes_written: u64,
+}
+
+impl LogWriter {
+    fn new(path: PathBuf, max_bytes: u64) -> Option<Self> {
+        let mut bytes_written = fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
+        if bytes_written > max_bytes {
+            let _ = fs::remove_file(&path);
+            bytes_written = 0;
+        }
+        let file = fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&path)
+            .ok()?;
+        Some(Self {
+            path,
+            file,
+            max_bytes,
+            bytes_written,
+        })
+    }
+
+    fn rotate_if_needed(&mut self, next_len: usize) {
+        if self.bytes_written.saturating_add(next_len as u64) <= self.max_bytes {
+            return;
+        }
+        if let Ok(file) = fs::OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(true)
+            .open(&self.path)
+        {
+            self.file = file;
+            self.bytes_written = 0;
+        }
+    }
+
+    fn write_line(&mut self, line: &str) {
+        self.rotate_if_needed(line.len());
+        if self.file.write_all(line.as_bytes()).is_ok() {
+            self.bytes_written = self.bytes_written.saturating_add(line.len() as u64);
+        }
+    }
+}
+
+#[derive(Default)]
+struct LogState {
+    writer: Option<LogWriter>,
+}
+
+fn log_state() -> &'static Mutex<LogState> {
+    LOG_STATE.get_or_init(|| Mutex::new(LogState::default()))
+}
+
+/// Configure logging based on CLI flags or environment.
+pub fn init_logging(config: &AppConfig) {
+    let enabled = (config.logs || config.log_timings) && !config.no_logs;
+    let content_enabled = enabled && config.log_content;
+    LOG_ENABLED.store(enabled, Ordering::Relaxed);
+    LOG_CONTENT_ENABLED.store(content_enabled, Ordering::Relaxed);
+
+    let mut state = log_state()
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    if enabled {
+        state.writer = LogWriter::new(log_file_path(), LOG_MAX_BYTES);
+    } else {
+        state.writer = None;
+    }
+}
+
 /// Write debug messages to a temp file so we can troubleshoot without corrupting the TUI.
 pub fn log_debug(msg: &str) {
-    use std::fs::OpenOptions;
-
-    let log_path = log_file_path();
+    if !LOG_ENABLED.load(Ordering::Relaxed) {
+        return;
+    }
     let timestamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs();
-
-    if let Ok(mut file) = OpenOptions::new().create(true).append(true).open(log_path) {
-        let _ = writeln!(file, "[{timestamp}] {msg}");
+    let line = format!("[{timestamp}] {msg}\n");
+    let mut state = log_state()
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    if let Some(writer) = state.writer.as_mut() {
+        writer.write_line(&line);
     }
 }
 
-/// Remove the log file if it grows past 5 MB between runs.
-pub fn init_debug_log_file() {
-    let log_path = log_file_path();
-    if let Ok(metadata) = fs::metadata(&log_path) {
-        const MAX_BYTES: u64 = 5 * 1024 * 1024;
-        if metadata.len() > MAX_BYTES {
-            let _ = fs::remove_file(&log_path);
-        }
+/// Write logs that may contain user content (prompt/transcript snippets).
+pub fn log_debug_content(msg: &str) {
+    if !LOG_CONTENT_ENABLED.load(Ordering::Relaxed) {
+        return;
+    }
+    log_debug(msg);
+}
+
+#[cfg(test)]
+pub(crate) fn set_logging_for_tests(enabled: bool, content_enabled: bool) {
+    LOG_ENABLED.store(enabled, Ordering::Relaxed);
+    LOG_CONTENT_ENABLED.store(content_enabled, Ordering::Relaxed);
+    let mut state = log_state()
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    if enabled {
+        state.writer = LogWriter::new(log_file_path(), LOG_MAX_BYTES);
+    } else {
+        state.writer = None;
     }
 }
 
@@ -648,22 +744,66 @@ impl App {
     fn handle_voice_job_message(&mut self, message: VoiceJobMessage) -> bool {
         let mut auto_restart = false;
         match message {
-            VoiceJobMessage::Transcript { text, source } => {
+            VoiceJobMessage::Transcript {
+                text,
+                source,
+                metrics,
+            } => {
                 log_debug("Voice capture completed successfully");
-                self.input = text;
-                self.status = format!(
-                    "Transcript captured ({}); edit and press Enter.",
-                    source.label()
-                );
+                let mut input = text;
+                let truncated = if input.len() > INPUT_MAX_CHARS {
+                    input.truncate(INPUT_MAX_CHARS);
+                    true
+                } else {
+                    false
+                };
+                self.input = input;
+                let drop_note = metrics
+                    .as_ref()
+                    .filter(|metrics| metrics.frames_dropped > 0)
+                    .map(|metrics| format!("dropped {} frames", metrics.frames_dropped));
+                let drop_suffix = drop_note
+                    .as_ref()
+                    .map(|note| format!(", {note}"))
+                    .unwrap_or_default();
+                if truncated {
+                    self.status = format!(
+                        "Transcript captured ({}{drop_suffix}); truncated to {INPUT_MAX_CHARS} chars.",
+                        source.label(),
+                        drop_suffix = drop_suffix
+                    );
+                } else {
+                    self.status = format!(
+                        "Transcript captured ({}{drop_suffix}); edit and press Enter.",
+                        source.label(),
+                        drop_suffix = drop_suffix
+                    );
+                }
             }
-            VoiceJobMessage::Empty { source } => {
+            VoiceJobMessage::Empty { source, metrics } => {
                 log_debug("Voice capture detected no speech");
+                let drop_note = metrics
+                    .as_ref()
+                    .filter(|metrics| metrics.frames_dropped > 0)
+                    .map(|metrics| format!("dropped {} frames", metrics.frames_dropped));
+                let drop_suffix = drop_note
+                    .as_ref()
+                    .map(|note| format!(", {note}"))
+                    .unwrap_or_default();
                 if self.voice_enabled {
-                    self.status = "Auto-voice enabled.".into();
+                    if let Some(note) = drop_note {
+                        self.status = format!("Auto-voice enabled ({note})");
+                    } else {
+                        self.status = "Auto-voice enabled.".into();
+                    }
                     auto_restart = true;
                 } else {
                     self.input.clear();
-                    self.status = format!("No speech detected ({}). Try again.", source.label());
+                    self.status = format!(
+                        "No speech detected ({}{drop_suffix}). Try again.",
+                        source.label(),
+                        drop_suffix = drop_suffix
+                    );
                 }
             }
             VoiceJobMessage::Error(err) => {
@@ -734,6 +874,14 @@ impl App {
     }
 
     pub(crate) fn push_input_char(&mut self, ch: char) {
+        if self.input.len() >= INPUT_MAX_CHARS {
+            let msg = format!("Input limit reached (max {INPUT_MAX_CHARS} chars).");
+            if self.status != msg {
+                self.status = msg;
+                self.request_redraw();
+            }
+            return;
+        }
         state_change!(self, {
             self.input.push(ch);
         });
@@ -762,8 +910,36 @@ mod tests {
     use super::*;
     use crate::codex::{self, BackendEvent, BackendEventKind, BackendStats};
     use clap::Parser;
+    use std::env;
+    use std::sync::{Mutex, OnceLock};
     use std::thread;
     use std::time::{Duration, Instant};
+
+    static LOG_TEST_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+
+    fn with_logging_enabled(action: impl FnOnce()) {
+        let _guard = LOG_TEST_LOCK
+            .get_or_init(|| Mutex::new(()))
+            .lock()
+            .expect("log test lock");
+        set_logging_for_tests(true, false);
+        action();
+        set_logging_for_tests(false, false);
+    }
+
+    fn with_log_lock(action: impl FnOnce()) {
+        let _guard = LOG_TEST_LOCK
+            .get_or_init(|| Mutex::new(()))
+            .lock()
+            .expect("log test lock");
+        action();
+    }
+
+    fn clear_log_env() {
+        env::remove_var("CODEX_VOICE_LOGS");
+        env::remove_var("CODEX_VOICE_NO_LOGS");
+        env::remove_var("CODEX_VOICE_LOG_CONTENT");
+    }
 
     fn test_config() -> AppConfig {
         let mut config = AppConfig::parse_from(["codex-voice-tests"]);
@@ -879,23 +1055,72 @@ mod tests {
 
     #[test]
     fn perf_smoke_emits_voice_metrics() {
-        let log_path = crate::log_file_path();
-        let _ = std::fs::remove_file(&log_path);
-        let metrics = audio::CaptureMetrics {
-            capture_ms: 800,
-            speech_ms: 600,
-            silence_tail_ms: 200,
-            frames_processed: 5,
-            frames_dropped: 0,
-            early_stop_reason: audio::StopReason::VadSilence { tail_ms: 200 },
-        };
-        voice::log_voice_metrics(&metrics);
-        let contents =
-            std::fs::read_to_string(&log_path).expect("perf smoke log file should exist");
-        assert!(
-            contents.contains("voice_metrics|"),
-            "voice metrics log not found"
-        );
+        with_logging_enabled(|| {
+            let log_path = crate::log_file_path();
+            let _ = std::fs::remove_file(&log_path);
+            let metrics = audio::CaptureMetrics {
+                capture_ms: 800,
+                speech_ms: 600,
+                silence_tail_ms: 200,
+                frames_processed: 5,
+                frames_dropped: 0,
+                early_stop_reason: audio::StopReason::VadSilence { tail_ms: 200 },
+            };
+            voice::log_voice_metrics(&metrics);
+            let contents =
+                std::fs::read_to_string(&log_path).expect("perf smoke log file should exist");
+            assert!(
+                contents.contains("voice_metrics|"),
+                "voice metrics log not found"
+            );
+        });
+    }
+
+    #[test]
+    fn logging_disabled_by_default() {
+        with_log_lock(|| {
+            clear_log_env();
+            let log_path = crate::log_file_path();
+            let _ = std::fs::remove_file(&log_path);
+            let config = AppConfig::parse_from(["codex-voice-tests"]);
+            init_logging(&config);
+            log_debug("should-not-write");
+            assert!(std::fs::metadata(&log_path).is_err());
+        });
+    }
+
+    #[test]
+    fn logging_enabled_writes_log() {
+        with_log_lock(|| {
+            clear_log_env();
+            let log_path = crate::log_file_path();
+            let _ = std::fs::remove_file(&log_path);
+            let mut config = AppConfig::parse_from(["codex-voice-tests"]);
+            config.logs = true;
+            init_logging(&config);
+            log_debug("log-enabled");
+            let contents = std::fs::read_to_string(&log_path).expect("log file should be created");
+            assert!(contents.contains("log-enabled"));
+        });
+    }
+
+    #[test]
+    fn log_content_requires_flag() {
+        with_log_lock(|| {
+            clear_log_env();
+            let log_path = crate::log_file_path();
+            let _ = std::fs::remove_file(&log_path);
+            let mut config = AppConfig::parse_from(["codex-voice-tests"]);
+            config.logs = true;
+            config.log_content = false;
+            init_logging(&config);
+            log_debug_content("secret");
+            let contents = std::fs::read_to_string(&log_path).unwrap_or_default();
+            assert!(
+                !contents.contains("secret"),
+                "content should not be logged without --log-content"
+            );
+        });
     }
 
     #[test]

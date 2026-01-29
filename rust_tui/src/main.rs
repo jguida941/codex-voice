@@ -1,8 +1,8 @@
 use anyhow::Result;
 use clap::Parser;
 use rust_tui::{
-    audio::Recorder, config::AppConfig, init_debug_log_file, ipc, log_debug, log_file_path,
-    mic_meter, ui, App,
+    audio::Recorder, config::AppConfig, init_logging, ipc, log_debug, log_file_path, mic_meter, ui,
+    App,
 };
 use std::env;
 
@@ -17,12 +17,7 @@ where
     I: IntoIterator<Item = T>,
     T: Into<std::ffi::OsString> + Clone,
 {
-    init_debug_log_file();
-    let log_path = log_file_path();
-    log_debug("=== Codex Voice TUI Started ===");
-    log_debug(&format!("Log file: {log_path:?}"));
-
-    let config = AppConfig::parse_from(args);
+    let mut config = AppConfig::parse_from(args);
 
     if config.list_input_devices {
         let output = list_input_devices()?;
@@ -34,6 +29,12 @@ where
         mic_meter::run_mic_meter(&config)?;
         return Ok(());
     }
+
+    config.validate()?;
+    init_logging(&config);
+    let log_path = log_file_path();
+    log_debug("=== Codex Voice TUI Started ===");
+    log_debug(&format!("Log file: {log_path:?}"));
 
     // Run in JSON IPC mode for external UI integration
     if config.json_ipc {

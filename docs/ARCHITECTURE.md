@@ -38,6 +38,15 @@ What this means:
 - The overlay **injects transcripts** as if typed by the user.
 - The status line is drawn at the bottom using ANSI save/restore.
 
+## Components
+
+| Component | Path | Purpose |
+|-----------|------|---------|
+| Rust Overlay | `rust_tui/src/bin/codex_overlay.rs` | PTY passthrough UI with voice overlay |
+| Voice Pipeline | `rust_tui/src/voice.rs` | Audio capture orchestration + STT |
+| PTY Session | `rust_tui/src/pty_session.rs` | Raw PTY passthrough and prompt-safe output |
+| Python fallback | `scripts/codex_voice.py` | Optional fallback STT pipeline |
+
 ## Threads + Channels
 
 ```mermaid
@@ -189,6 +198,22 @@ Notes:
 - Use `--no-python-fallback` to force native Whisper and surface errors early.
 - When fallback is active, the overlay status line shows "Python pipeline" and logs record the switch.
 
+## Logging and privacy
+
+- File logs are opt-in: `--logs` (add `--log-content` to include prompt/transcript snippets).
+- Debug logs rotate to avoid unbounded growth.
+- Prompt detection logs are opt-in via `--prompt-log` or `CODEX_VOICE_PROMPT_LOG` (disabled by `--no-logs`).
+
+## STT behavior (non-streaming)
+
+- Transcription is non-streaming: each capture is fully recorded before Whisper runs.
+- There is no chunk overlap; latency scales with capture length and model size.
+
+## Audio device behavior
+
+- The input device is chosen at startup.
+- Device hotplug/recovery is not implemented; if the mic disconnects, restart or pick another device.
+
 ## Timing + Latency (Voice + Codex)
 
 ```mermaid
@@ -278,6 +303,7 @@ ANSI save/restore (`ESC 7` / `ESC 8`) to avoid corrupting Codex's screen.
 
 ## Debugging + Logs
 
-- Logs: `${TMPDIR}/codex_voice_tui.log`
-- Prompt detection log: `${TMPDIR}/codex_voice_prompt.log`
+- Logs are opt-in: enable with `--logs` (add `--log-content` for prompt/transcript snippets).
+- Debug log: `${TMPDIR}/codex_voice_tui.log` (created only when logs are enabled).
+- Prompt detection log: only when `--prompt-log` or `CODEX_VOICE_PROMPT_LOG` is set.
 - Use `--no-python-fallback` to force native Whisper and surface errors early.

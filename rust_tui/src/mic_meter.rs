@@ -1,11 +1,9 @@
 use crate::audio::Recorder;
-use crate::config::AppConfig;
+use crate::config::{AppConfig, MAX_MIC_METER_SAMPLE_MS, MIN_MIC_METER_SAMPLE_MS};
 use anyhow::{anyhow, Result};
 use std::io::{self, Write};
 use std::time::Duration;
 
-const MIN_SAMPLE_MS: u64 = 500;
-const MAX_SAMPLE_MS: u64 = 30_000;
 const RECOMMENDED_FLOOR_DB: f32 = -80.0;
 const RECOMMENDED_CEILING_DB: f32 = -10.0;
 
@@ -80,9 +78,9 @@ fn recommend_threshold(ambient_db: f32, speech_db: f32) -> (f32, Option<&'static
 }
 
 fn validate_sample_ms(label: &str, value: u64) -> Result<()> {
-    if !(MIN_SAMPLE_MS..=MAX_SAMPLE_MS).contains(&value) {
+    if !(MIN_MIC_METER_SAMPLE_MS..=MAX_MIC_METER_SAMPLE_MS).contains(&value) {
         return Err(anyhow!(
-            "--mic-meter-{label}-ms must be between {MIN_SAMPLE_MS} and {MAX_SAMPLE_MS} ms"
+            "--mic-meter-{label}-ms must be between {MIN_MIC_METER_SAMPLE_MS} and {MAX_MIC_METER_SAMPLE_MS} ms"
         ));
     }
     Ok(())
@@ -133,4 +131,31 @@ pub fn run_mic_meter(config: &AppConfig) -> Result<()> {
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn rms_db_returns_zero_for_unity_signal() {
+        let samples = vec![1.0_f32; 100];
+        let rms = rms_db(&samples);
+        assert!((rms - 0.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn peak_db_tracks_peak_amplitude() {
+        let samples = vec![0.5_f32, -0.25_f32];
+        let peak = peak_db(&samples);
+        let expected = 20.0 * 0.5_f32.log10();
+        assert!((peak - expected).abs() < 0.01);
+    }
+
+    #[test]
+    fn recommend_threshold_warns_when_speech_close_to_ambient() {
+        let (threshold, warning) = recommend_threshold(-40.0, -36.0);
+        assert!(threshold > -40.0);
+        assert!(warning.is_some());
+    }
 }

@@ -11,7 +11,7 @@ const MAX_CODEX_ARGS: usize = 64;
 const MAX_CODEX_ARG_BYTES: usize = 8 * 1024;
 pub const DEFAULT_VOICE_SAMPLE_RATE: u32 = 16_000;
 pub const DEFAULT_VOICE_MAX_CAPTURE_MS: u64 = 30_000;
-pub const DEFAULT_VOICE_SILENCE_TAIL_MS: u64 = 3000;
+pub const DEFAULT_VOICE_SILENCE_TAIL_MS: u64 = 1000;
 pub const DEFAULT_VOICE_MIN_SPEECH_MS: u64 = 300;
 pub const DEFAULT_VOICE_LOOKBACK_MS: u64 = 500;
 pub const DEFAULT_VOICE_BUFFER_MS: u64 = 30_000;
@@ -19,8 +19,11 @@ pub const DEFAULT_VOICE_CHANNEL_CAPACITY: usize = 100;
 pub const DEFAULT_VOICE_STT_TIMEOUT_MS: u64 = 60_000;
 pub const DEFAULT_VOICE_VAD_THRESHOLD_DB: f32 = -40.0;
 pub const DEFAULT_VOICE_VAD_FRAME_MS: u64 = 20;
+pub const DEFAULT_VOICE_VAD_SMOOTHING_FRAMES: usize = 3;
 pub const DEFAULT_MIC_METER_AMBIENT_MS: u64 = 3000;
 pub const DEFAULT_MIC_METER_SPEECH_MS: u64 = 3000;
+pub const MIN_MIC_METER_SAMPLE_MS: u64 = 500;
+pub const MAX_MIC_METER_SAMPLE_MS: u64 = 30_000;
 const MAX_CAPTURE_HARD_LIMIT_MS: u64 = 60_000;
 const ISO_639_1_CODES: &[&str] = &[
     "af", "am", "ar", "az", "be", "bg", "bn", "bs", "ca", "cs", "cy", "da", "de", "el", "en", "es",
@@ -42,6 +45,10 @@ pub struct AppConfig {
     /// Path to the Codex CLI binary
     #[arg(long, default_value = "codex")]
     pub codex_cmd: String,
+
+    /// Path to the Claude CLI binary (IPC mode)
+    #[arg(long = "claude-cmd", env = "CLAUDE_CMD", default_value = "claude")]
+    pub claude_cmd: String,
 
     /// Extra arguments to pass to the Codex CLI (repeatable)
     #[arg(long = "codex-arg", action = ArgAction::Append, value_name = "ARG")]
@@ -84,9 +91,29 @@ pub struct AppConfig {
     #[arg(long = "persistent-codex", default_value_t = false)]
     pub persistent_codex: bool,
 
+    /// Enable file logging (debug)
+    #[arg(long = "logs", env = "CODEX_VOICE_LOGS", default_value_t = false)]
+    pub logs: bool,
+
+    /// Disable all file logging (overrides --logs and log env vars)
+    #[arg(long = "no-logs", env = "CODEX_VOICE_NO_LOGS", default_value_t = false)]
+    pub no_logs: bool,
+
+    /// Allow logging prompt/content snippets (debug log only)
+    #[arg(
+        long = "log-content",
+        env = "CODEX_VOICE_LOG_CONTENT",
+        default_value_t = false
+    )]
+    pub log_content: bool,
+
     /// Enable verbose timing logs
     #[arg(long)]
     pub log_timings: bool,
+
+    /// Allow Claude CLI to run without permission prompts (IPC mode)
+    #[arg(long = "claude-skip-permissions", default_value_t = false)]
+    pub claude_skip_permissions: bool,
 
     /// Path to whisper executable
     #[arg(long, default_value = "whisper")]
@@ -99,6 +126,14 @@ pub struct AppConfig {
     /// Whisper model path (required for whisper.cpp)
     #[arg(long)]
     pub whisper_model_path: Option<String>,
+
+    /// Whisper beam size (native pipeline only; >1 enables beam search)
+    #[arg(long = "whisper-beam-size", default_value_t = 0)]
+    pub whisper_beam_size: u32,
+
+    /// Whisper temperature (native pipeline only)
+    #[arg(long = "whisper-temperature", default_value_t = 0.0)]
+    pub whisper_temperature: f32,
 
     /// FFmpeg binary location
     #[arg(long, default_value = "ffmpeg")]
@@ -161,6 +196,13 @@ pub struct AppConfig {
     #[arg(long = "voice-vad-frame-ms", default_value_t = DEFAULT_VOICE_VAD_FRAME_MS)]
     pub voice_vad_frame_ms: u64,
 
+    /// VAD smoothing window (frames)
+    #[arg(
+        long = "voice-vad-smoothing-frames",
+        default_value_t = DEFAULT_VOICE_VAD_SMOOTHING_FRAMES
+    )]
+    pub voice_vad_smoothing_frames: usize,
+
     /// Voice activity detector implementation to use
     #[arg(
         long = "voice-vad-engine",
@@ -195,6 +237,7 @@ pub struct VoicePipelineConfig {
     pub stt_timeout_ms: u64,
     pub vad_threshold_db: f32,
     pub vad_frame_ms: u64,
+    pub vad_smoothing_frames: usize,
     pub python_fallback_allowed: bool,
     pub vad_engine: VadEngineKind,
 }
@@ -314,6 +357,36 @@ impl AppConfig {
                 self.voice_vad_frame_ms
             );
         }
+        if !(1..=10).contains(&self.voice_vad_smoothing_frames) {
+            bail!(
+                "--voice-vad-smoothing-frames must be between 1 and 10, got {}",
+                self.voice_vad_smoothing_frames
+            );
+        }
+        if !(MIN_MIC_METER_SAMPLE_MS..=MAX_MIC_METER_SAMPLE_MS).contains(&self.mic_meter_ambient_ms)
+        {
+            bail!(
+                "--mic-meter-ambient-ms must be between {MIN_MIC_METER_SAMPLE_MS} and {MAX_MIC_METER_SAMPLE_MS} ms"
+            );
+        }
+        if !(MIN_MIC_METER_SAMPLE_MS..=MAX_MIC_METER_SAMPLE_MS).contains(&self.mic_meter_speech_ms)
+        {
+            bail!(
+                "--mic-meter-speech-ms must be between {MIN_MIC_METER_SAMPLE_MS} and {MAX_MIC_METER_SAMPLE_MS} ms"
+            );
+        }
+        if self.whisper_beam_size > 10 {
+            bail!(
+                "--whisper-beam-size must be between 0 and 10, got {}",
+                self.whisper_beam_size
+            );
+        }
+        if !(0.0..=5.0).contains(&self.whisper_temperature) {
+            bail!(
+                "--whisper-temperature must be between 0.0 and 5.0, got {}",
+                self.whisper_temperature
+            );
+        }
 
         #[cfg(not(feature = "vad_earshot"))]
         if matches!(self.voice_vad_engine, VadEngineKind::Earshot) {
@@ -321,6 +394,7 @@ impl AppConfig {
         }
 
         self.codex_cmd = sanitize_binary(&self.codex_cmd, "--codex-cmd", &["codex"])?;
+        self.claude_cmd = sanitize_binary(&self.claude_cmd, "--claude-cmd", &["claude"])?;
         self.python_cmd =
             sanitize_binary(&self.python_cmd, "--python-cmd", &["python3", "python"])?;
         self.ffmpeg_cmd = sanitize_binary(&self.ffmpeg_cmd, "--ffmpeg-cmd", &["ffmpeg"])?;
@@ -367,26 +441,30 @@ impl AppConfig {
                 .ok_or_else(|| anyhow!("whisper model path must be valid UTF-8"))?;
         }
 
-        if self.lang.trim().is_empty()
-            || !self
+        if self.lang.trim().is_empty() {
+            bail!("--lang must not be empty");
+        }
+        if !self.lang.eq_ignore_ascii_case("auto") {
+            if !self
                 .lang
                 .chars()
                 .all(|ch| ch.is_ascii_alphabetic() || ch == '-' || ch == '_')
-        {
-            bail!("--lang must contain only alphabetic characters or '-'/'_' separators");
-        }
-        // Allow locale-style values but only check the leading ISO-639-1 code.
-        let lang_primary = self
-            .lang
-            .split(['-', '_'])
-            .next()
-            .unwrap_or("")
-            .to_ascii_lowercase();
-        if !ISO_639_1_CODES.contains(&lang_primary.as_str()) {
-            bail!(
-                "--lang must start with a valid ISO-639-1 code, got '{}'",
-                self.lang
-            );
+            {
+                bail!("--lang must contain only alphabetic characters or '-'/'_' separators");
+            }
+            // Allow locale-style values but only check the leading ISO-639-1 code.
+            let lang_primary = self
+                .lang
+                .split(['-', '_'])
+                .next()
+                .unwrap_or("")
+                .to_ascii_lowercase();
+            if !ISO_639_1_CODES.contains(&lang_primary.as_str()) {
+                bail!(
+                    "--lang must start with a valid ISO-639-1 code or be 'auto', got '{}'",
+                    self.lang
+                );
+            }
         }
 
         // Avoid huge argument lists when forwarding to Codex.
@@ -432,6 +510,7 @@ impl AppConfig {
             stt_timeout_ms: self.voice_stt_timeout_ms,
             vad_threshold_db: self.voice_vad_threshold_db,
             vad_frame_ms: self.voice_vad_frame_ms,
+            vad_smoothing_frames: self.voice_vad_smoothing_frames,
             python_fallback_allowed: !self.no_python_fallback,
             vad_engine: self.voice_vad_engine,
         }
@@ -622,6 +701,48 @@ mod tests {
         assert!(cfg.validate().is_ok());
         let mut cfg = AppConfig::parse_from(["test-app", "--lang", "pt_BR"]);
         assert!(cfg.validate().is_ok());
+    }
+
+    #[test]
+    fn accepts_auto_language() {
+        let mut cfg = AppConfig::parse_from(["test-app", "--lang", "auto"]);
+        assert!(cfg.validate().is_ok());
+    }
+
+    #[test]
+    fn rejects_mic_meter_samples_out_of_bounds() {
+        let mut cfg = AppConfig::parse_from(["test-app", "--mic-meter-ambient-ms", "100"]);
+        assert!(cfg.validate().is_err());
+        let mut cfg = AppConfig::parse_from(["test-app", "--mic-meter-speech-ms", "60001"]);
+        assert!(cfg.validate().is_err());
+    }
+
+    #[test]
+    fn rejects_vad_smoothing_frames_out_of_bounds() {
+        let mut cfg = AppConfig::parse_from(["test-app", "--voice-vad-smoothing-frames", "0"]);
+        assert!(cfg.validate().is_err());
+        let mut cfg = AppConfig::parse_from(["test-app", "--voice-vad-smoothing-frames", "11"]);
+        assert!(cfg.validate().is_err());
+    }
+
+    #[test]
+    fn rejects_whisper_beam_size_out_of_bounds() {
+        let mut cfg = AppConfig::parse_from(["test-app", "--whisper-beam-size", "11"]);
+        assert!(cfg.validate().is_err());
+    }
+
+    #[test]
+    fn rejects_whisper_temperature_out_of_bounds() {
+        let mut cfg = AppConfig::parse_from(["test-app", "--whisper-temperature", "-1.0"]);
+        assert!(cfg.validate().is_err());
+        let mut cfg = AppConfig::parse_from(["test-app", "--whisper-temperature", "6.0"]);
+        assert!(cfg.validate().is_err());
+    }
+
+    #[test]
+    fn rejects_invalid_claude_cmd() {
+        let mut cfg = AppConfig::parse_from(["test-app", "--claude-cmd", "not-claude"]);
+        assert!(cfg.validate().is_err());
     }
 
     #[test]

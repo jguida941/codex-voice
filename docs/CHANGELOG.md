@@ -3,6 +3,13 @@
 All notable changes to this project will be documented here, following the SDLC policy defined in `agents.md`.
 Note: Some historical entries reference internal documents that are not published in this repository.
 
+## [1.0.21] - 2026-01-29
+
+### Build + Release
+- **Whisper crates compatibility**: align `whisper-rs` to the latest compatible 0.14.x release to avoid `links = "whisper"` conflicts.
+- **Status redraw refactor**: reduce argument fanout in the overlay status redraw helper (clippy clean).
+- **macOS app version**: align `Codex Voice.app` Info.plist to 1.0.21.
+
 ## [1.0.20] - 2026-01-29
 
 ### UX + Controls
@@ -12,6 +19,30 @@ Note: Some historical entries reference internal documents that are not publishe
 - **Insert-mode rearm**: auto-voice re-arms immediately after transcripts when using insert send mode.
 - **Capture limit**: max configurable capture duration raised to 60s (default still 30s).
 - **Sensitivity hotkey alias**: `Ctrl+/` now also decreases mic sensitivity (same as `Ctrl+\`).
+- **Transcript queueing**: once a prompt is detected, transcripts now wait for the next prompt instead of auto-sending on idle.
+- **Prompt detection**: default prompt detection now auto-learns the prompt line (no default regex).
+
+### Reliability + Privacy
+- **Logging opt-in**: debug logs are disabled by default; enable with `--logs` (add `--log-content` for prompt/transcript snippets).
+- **Prompt log opt-in**: prompt detection logs are disabled by default unless `--prompt-log` is set.
+- **Log caps**: debug and prompt logs now rotate to avoid unbounded growth.
+- **Buffer caps**: overlay input/writer channels, PTY combined output, and TUI input buffers are bounded.
+- **Queue safety**: transcript queue drops now warn in the status line.
+- **Security hardening**: `--claude-cmd` is sanitized; `--claude-skip-permissions` is configurable.
+
+### Whisper + Audio
+- **VAD smoothing**: new `--voice-vad-smoothing-frames` reduces flapping in noisy rooms.
+- **Silence tail default**: reduced to 1000ms for lower latency.
+- **Whisper tuning**: added `--lang auto`, `--whisper-beam-size`, and `--whisper-temperature`.
+- **Capture metrics**: dropped audio frames are surfaced in the status line when present.
+
+### Tests
+- **New coverage** for mic meter calculations, STT error paths, UI input handling, transcript queue drop/flush, and config validation.
+
+### Docs
+- **README refresh**: streamlined quick start and moved deep sections into focused docs.
+- **New guides**: added install, usage, CLI flags, troubleshooting, and development docs.
+- **CLI flags**: consolidated into a single doc with codex-voice and rust_tui sections, plus missing flags and log env vars.
 
 ## [1.0.19] - 2026-01-29
 
@@ -160,7 +191,7 @@ Note: Some historical entries reference internal documents that are not publishe
 - **Resizing support**: SIGWINCH handling updates PTY size and keeps the overlay stable.
 - **Startup/launcher updates**: `start.sh` now defaults to overlay, ensures a Whisper model exists, and passes `--whisper-model-path`; macOS app launcher now uses overlay mode.
 - **Docs refresh**: new `ARCHITECTURE.md` with detailed Rust-only diagrams and flows; README expanded with install paths, commands, and Homebrew instructions.
-- **Repo hygiene**: `docs/architecture`, `docs/archive`, and `docs/references` are now ignored by git and removed from the tracked set.
+- **Repo hygiene**: internal architecture/archive/reference directories are now ignored by git and removed from the tracked set.
 
 ### Project Cleanup + macOS Launcher (2026-01-11) - COMPLETE
 - **Added macOS app launcher**: `Codex Voice.app` now in repo alongside `start.sh` and `start.bat` for cross-platform consistency.
@@ -203,10 +234,10 @@ Note: Some historical entries reference internal documents that are not publishe
 
 ### CRITICAL - Phase 2B Design Correction (2025-11-13 Evening)
 - **Rejected original Phase 2B "chunked Whisper" proposal (Option A)** after identifying fatal architectural flaw: sequential chunk transcription provides NO latency improvement (capture + Σchunks often slower than capture + single_batch). Original proposal would have wasted weeks implementing slower approach.
-- **Documented corrected design** in `docs/architecture/2025-11-13/PHASE_2B_CORRECTED_DESIGN.md` specifying streaming mel + Whisper FFI architecture (Option B) as only viable path to <750ms voice latency target. User confirmed requirement: "we need to do option 2 i want it to be responsive not slow".
+- **Documented corrected design** in the internal architecture archive (2025-11-13), specifying streaming mel + Whisper FFI architecture (Option B) as only viable path to <750ms voice latency target. User confirmed requirement: "we need to do option 2 i want it to be responsive not slow".
 - **Design includes:** Three-worker parallel architecture (capture/mel/stt), streaming Whisper FFI wrapper, fallback ladder (streaming→batch→Python), comprehensive measurement gates, 5-6 week implementation plan, and mandatory approval gates before any coding begins.
-- **Measurement gate executed:** Recorded 10 end-to-end Ctrl+R→Codex runs (short/medium commands) and captured results in `docs/architecture/2025-11-13/LATENCY_MEASUREMENTS.md`. Voice pipeline averages 1.19 s, Codex averages 9.2 s (≈88 % of total latency), so Phase 2B remains blocked until Codex latency is addressed or stakeholders explicitly accept the limited ROI.
-- **Codex remediation plan:** Authored `docs/architecture/2025-11-13/CODEX_LATENCY_PLAN.md` covering telemetry upgrades, PTY/CLI health checks, CLI profiling, and alternative backend options. Phase 2B remains gated on executing this plan and obtaining stakeholder approval.
+- **Measurement gate executed:** Recorded 10 end-to-end Ctrl+R→Codex runs (short/medium commands) and captured results in the internal architecture archive (2025-11-13). Voice pipeline averages 1.19 s, Codex averages 9.2 s (≈88 % of total latency), so Phase 2B remains blocked until Codex latency is addressed or stakeholders explicitly accept the limited ROI.
+- **Codex remediation plan:** Authored the Codex latency plan in the internal architecture archive (2025-11-13), covering telemetry upgrades, PTY/CLI health checks, CLI profiling, and alternative backend options. Phase 2B remains gated on executing this plan and obtaining stakeholder approval.
 - **Persistent PTY fix:** Health check now waits 5 s and only verifies the child process is alive (no synthetic prompts), so conversations start clean and persistent sessions stay responsive. Python helper path was removed; persistent mode is pure Rust. Next Codex task is streaming output so the UI shows tokens as they arrive.
 - **Next steps:** (1) Address Codex latency or approve proceeding despite the bottleneck, (2) Decide between local streaming (Option B) vs. cloud STT vs. deferral, (3) Confirm complexity budget (5–6 weeks acceptable), (4) Only after approvals resume Phase 2B work.
 
@@ -218,10 +249,10 @@ Note: Some historical entries reference internal documents that are not publishe
 - Added the `vad_earshot` optional dependency/feature wiring in `Cargo.toml` together with the new `rust_tui/src/vad_earshot.rs` adapter.
 - Updated the voice pipeline to call `Recorder::record_with_vad`, log per-utterance metrics, and honor the latency plan’s logging/backpressure rules.
 - Introduced the async Codex worker module (`rust_tui/src/codex.rs`) plus the supporting test-only job hook harness so Codex calls can run off the UI thread and remain unit-testable without shelling out.
-- Documented the approved Phase 1 backend plan (“Option 2.5” event-stream refactor) in `docs/architecture/2025-11-13/ARCHITECTURE.md`, capturing the Wrapper Scope Correction + Instruction blocks required before touching Codex integration.
+- Documented the approved Phase 1 backend plan (“Option 2.5” event-stream refactor) in the internal architecture archive (2025-11-13), capturing the Wrapper Scope Correction + Instruction blocks required before touching Codex integration.
 - Added perf/memory guard rails: `app::tests::{perf_smoke_emits_timing_log,memory_guard_backend_threads_drop}` together with `.github/workflows/perf_smoke.yml` and `.github/workflows/memory_guard.yml` so CI enforces telemetry output and backend thread cleanup.
 - Implemented the Phase 1 backend refactor: `CodexBackend`/`BackendJob` abstractions with bounded queues, `CliBackend` PTY ownership, App wiring to backend events, and new queue/tests (`cargo test --no-default-features`).
-- Benchmark harness for Phase 2A: `audio::offline_capture_from_pcm`, the `voice_benchmark` binary, `scripts/benchmark_voice.sh`, and `docs/architecture/2025-11-13/BENCHMARKS.md` capture deterministic short/medium/long clip metrics that feed the capture_ms SLA.
+- Benchmark harness for Phase 2A: `audio::offline_capture_from_pcm`, the `voice_benchmark` binary, and `scripts/benchmark_voice.sh` capture deterministic short/medium/long clip metrics that feed the capture_ms SLA (internal benchmark notes live in the 2025-11-13 archive).
 
 ### Changed
 - Replaced the `Recorder::record_with_vad` stub (non-test builds) with the new chunked capture loop (bounded channel + VAD decisions + metrics) ahead of the perf_smoke gate.
@@ -242,9 +273,9 @@ Note: Some historical entries reference internal documents that are not publishe
 
 ## [2025-11-12]
 ### Added
-- Established baseline governance artifacts: `master_index.md`, repository `CHANGELOG.md`, root `PROJECT_OVERVIEW.md` (planned updates), and the initial dated architecture folder under `docs/architecture/`.
-- Consolidated legacy documentation into the daily architecture tree (`docs/architecture/YYYY-MM-DD/`), `docs/references/` (formerly `docs/guides/`), and `docs/audits/`; backfilled the original architecture overview into `docs/architecture/2025-11-11/`.
-- Relocated root-level guides (`ARCHITECTURE.md`, `MASTER_DOC.md`, `plan.md`) into `docs/references/`, corrected the historical architecture baseline to `docs/architecture/2025-11-11/`, and updated navigation pointers accordingly.
+- Established baseline governance artifacts: `master_index.md`, repository `CHANGELOG.md`, root `PROJECT_OVERVIEW.md` (planned updates), and the initial dated architecture folder in the internal archive.
+- Consolidated legacy documentation into the daily architecture tree (internal archive), the references set, and audits; backfilled the original architecture overview into the internal archive (2025-11-11).
+- Relocated root-level guides (`ARCHITECTURE.md`, `MASTER_DOC.md`, `plan.md`) into the internal references set, corrected the historical architecture baseline to the internal archive (2025-11-11), and updated navigation pointers accordingly.
 - Updated the new references (`quick_start.md`, `testing.md`, `python_legacy.md`) to reflect the current Rust pipeline (Ctrl+R voice key, `cargo run` workflow, native audio tests) and annotated the legacy plan in `docs/archive/MVP_PLAN_2024.md`.
 - Added a concise root `README.md`, introduced the “You Are Here” section in `PROJECT_OVERVIEW.md`, renamed `docs/guides/` → `docs/references/` (`quick_start.md`, `testing.md`, `python_legacy.md`, `milestones.md`, `troubleshooting.md`), and archived superseded guides under `docs/archive/OBSOLETE_GUIDES_2025-11-12/`.
 - Updated helper scripts (`rust_tui/test_performance.sh`, `test_voice.sh`, `simple_test.sh`, `final_test.sh`) to rely on `cargo run`, Ctrl+R instructions, and the shared `${TMPDIR}/codex_voice_tui.log`.

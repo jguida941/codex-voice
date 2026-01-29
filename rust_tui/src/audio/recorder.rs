@@ -75,7 +75,9 @@ impl Recorder {
 
         // cpal delivers samples on a callback thread; collect them in a shared
         // buffer so we can keep ownership on the caller side.
-        let buffer = Arc::new(Mutex::new(Vec::<f32>::new()));
+        let expected_samples =
+            (duration.as_secs_f64() * device_sample_rate as f64 * channels as f64).ceil() as usize;
+        let buffer = Arc::new(Mutex::new(Vec::<f32>::with_capacity(expected_samples)));
         let buffer_clone = buffer.clone();
 
         // Keep the error callback quiet in the UI and mirror issues into the log.
@@ -128,11 +130,14 @@ impl Recorder {
         }
         drop(stream);
 
-        let samples = buffer.lock().unwrap();
+        let samples = buffer
+            .lock()
+            .map_err(|_| anyhow!("audio buffer lock poisoned"))?;
 
         if samples.is_empty() {
             return Err(anyhow!(
-                "no samples captured from '{device_name}'; check microphone permissions and availability"
+                "no samples captured from '{device_name}'; check microphone permissions and availability. {}",
+                mic_permission_hint()
             ));
         }
 
@@ -176,6 +181,25 @@ impl Recorder {
     }
 }
 
+fn mic_permission_hint() -> &'static str {
+    #[cfg(target_os = "macos")]
+    {
+        "macOS: System Settings > Privacy & Security > Microphone (enable your terminal)."
+    }
+    #[cfg(target_os = "linux")]
+    {
+        "Linux: check PipeWire/PulseAudio permissions and ensure the device is not muted."
+    }
+    #[cfg(target_os = "windows")]
+    {
+        "Windows: Settings > Privacy & Security > Microphone (allow access for your terminal)."
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
+    {
+        "Check OS microphone permissions."
+    }
+}
+
 #[cfg(not(test))]
 fn record_with_vad_impl(
     recorder: &Recorder,
@@ -203,11 +227,14 @@ fn record_with_vad_impl(
     let stream = match format {
         SampleFormat::F32 => {
             let dispatcher = dispatcher.clone();
+            let dropped = dropped.clone();
             recorder.device.build_input_stream(
                 &device_config,
                 move |data: &[f32], _| {
-                    if let Ok(mut pump) = dispatcher.lock() {
+                    if let Ok(mut pump) = dispatcher.try_lock() {
                         pump.push(data, channels, |sample| sample);
+                    } else {
+                        dropped.fetch_add(1, Ordering::Relaxed);
                     }
                 },
                 err_fn,
@@ -216,11 +243,14 @@ fn record_with_vad_impl(
         }
         SampleFormat::I16 => {
             let dispatcher = dispatcher.clone();
+            let dropped = dropped.clone();
             recorder.device.build_input_stream(
                 &device_config,
                 move |data: &[i16], _| {
-                    if let Ok(mut pump) = dispatcher.lock() {
+                    if let Ok(mut pump) = dispatcher.try_lock() {
                         pump.push(data, channels, |sample| sample as f32 / 32_768.0);
+                    } else {
+                        dropped.fetch_add(1, Ordering::Relaxed);
                     }
                 },
                 err_fn,
@@ -229,13 +259,16 @@ fn record_with_vad_impl(
         }
         SampleFormat::U16 => {
             let dispatcher = dispatcher.clone();
+            let dropped = dropped.clone();
             recorder.device.build_input_stream(
                 &device_config,
                 move |data: &[u16], _| {
-                    if let Ok(mut pump) = dispatcher.lock() {
+                    if let Ok(mut pump) = dispatcher.try_lock() {
                         pump.push(data, channels, |sample| {
                             (sample as f32 - 32_768.0) / 32_768.0
                         });
+                    } else {
+                        dropped.fetch_add(1, Ordering::Relaxed);
                     }
                 },
                 err_fn,
@@ -249,6 +282,7 @@ fn record_with_vad_impl(
 
     let mut accumulator = FrameAccumulator::from_config(cfg);
     let mut state = CaptureState::new(cfg, frame_ms);
+    let mut smoother = VadSmoother::new(cfg.smoothing_frames);
     let mut metrics = CaptureMetrics::default();
     let mut stop_reason = StopReason::MaxDuration;
     let wait_time = Duration::from_millis(frame_ms);
@@ -276,7 +310,7 @@ fn record_with_vad_impl(
                 let decision = vad.process_frame(&target_frame);
                 metrics.frames_processed += 1;
 
-                let label = FrameLabel::from(decision);
+                let label = smoother.smooth(FrameLabel::from(decision));
                 accumulator.push_frame(target_frame, label);
                 if let Some(reason) = state.on_frame(label) {
                     stop_reason = reason;

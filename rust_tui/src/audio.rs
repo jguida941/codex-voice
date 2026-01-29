@@ -48,6 +48,7 @@ pub struct VadConfig {
     pub lookback_ms: u64,
     pub buffer_ms: u64,
     pub channel_capacity: usize,
+    pub smoothing_frames: usize,
 }
 
 impl Default for VadConfig {
@@ -62,12 +63,13 @@ impl Default for VadConfig {
             lookback_ms: 500,
             buffer_ms: 10_000,
             channel_capacity: 64,
+            smoothing_frames: 3,
         }
     }
 }
 
 /// Summarizes how capture ended and what resources were consumed.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CaptureMetrics {
     pub capture_ms: u64,
     pub speech_ms: u64,
@@ -91,7 +93,7 @@ impl Default for CaptureMetrics {
 }
 
 /// Explains why capture stopped so perf smoke tests can classify failures.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StopReason {
     VadSilence { tail_ms: u64 },
     MaxDuration,
@@ -131,6 +133,7 @@ impl From<&VoicePipelineConfig> for VadConfig {
             lookback_ms: cfg.lookback_ms,
             buffer_ms: cfg.buffer_ms,
             channel_capacity: cfg.channel_capacity,
+            smoothing_frames: cfg.vad_smoothing_frames,
         }
     }
 }
@@ -174,6 +177,45 @@ impl From<VadDecision> for FrameLabel {
             VadDecision::Speech => FrameLabel::Speech,
             VadDecision::Silence => FrameLabel::Silence,
             VadDecision::Uncertain => FrameLabel::Uncertain,
+        }
+    }
+}
+
+struct VadSmoother {
+    window: VecDeque<FrameLabel>,
+    window_size: usize,
+}
+
+impl VadSmoother {
+    fn new(window_size: usize) -> Self {
+        Self {
+            window: VecDeque::new(),
+            window_size: window_size.max(1),
+        }
+    }
+
+    fn smooth(&mut self, label: FrameLabel) -> FrameLabel {
+        if self.window_size <= 1 {
+            return label;
+        }
+        self.window.push_back(label);
+        if self.window.len() > self.window_size {
+            self.window.pop_front();
+        }
+
+        let mut speech = 0usize;
+        let mut silence = 0usize;
+        for item in &self.window {
+            match item {
+                FrameLabel::Speech => speech += 1,
+                FrameLabel::Silence => silence += 1,
+                FrameLabel::Uncertain => {}
+            }
+        }
+        match speech.cmp(&silence) {
+            CmpOrdering::Greater => FrameLabel::Speech,
+            CmpOrdering::Less => FrameLabel::Silence,
+            CmpOrdering::Equal => label,
         }
     }
 }
@@ -413,6 +455,7 @@ pub fn offline_capture_from_pcm(
     let frame_samples = ((cfg.sample_rate as u64 * cfg.frame_ms) / 1000).max(1) as usize;
     let mut accumulator = FrameAccumulator::from_config(cfg);
     let mut state = CaptureState::new(cfg, cfg.frame_ms);
+    let mut smoother = VadSmoother::new(cfg.smoothing_frames);
     let mut metrics = CaptureMetrics::default();
     let mut stop_reason = StopReason::MaxDuration;
 
@@ -424,7 +467,7 @@ pub fn offline_capture_from_pcm(
         frame.resize(frame_samples, 0.0);
         let decision = vad.process_frame(&frame);
         metrics.frames_processed += 1;
-        let label = FrameLabel::from(decision);
+        let label = smoother.smooth(FrameLabel::from(decision));
         accumulator.push_frame(frame, label);
         if let Some(reason) = state.on_frame(label) {
             stop_reason = reason;
@@ -1186,6 +1229,7 @@ mod tests {
             stt_timeout_ms: 55_555,
             vad_threshold_db: -12.5,
             vad_frame_ms: 25,
+            vad_smoothing_frames: 3,
             python_fallback_allowed: true,
             vad_engine: crate::config::VadEngineKind::Simple,
         };
@@ -1202,6 +1246,22 @@ mod tests {
         assert_eq!(vad.lookback_ms, cfg.lookback_ms);
         assert_eq!(vad.buffer_ms, cfg.buffer_ms);
         assert_eq!(vad.channel_capacity, cfg.channel_capacity);
+        assert_eq!(vad.smoothing_frames, cfg.vad_smoothing_frames);
+    }
+
+    #[test]
+    fn vad_smoother_majority_vote_prefers_stable_label() {
+        let mut smoother = VadSmoother::new(3);
+        assert_eq!(smoother.smooth(FrameLabel::Speech), FrameLabel::Speech);
+        assert_eq!(smoother.smooth(FrameLabel::Silence), FrameLabel::Silence);
+        assert_eq!(smoother.smooth(FrameLabel::Speech), FrameLabel::Speech);
+    }
+
+    #[test]
+    fn vad_smoother_window_size_one_noop() {
+        let mut smoother = VadSmoother::new(1);
+        assert_eq!(smoother.smooth(FrameLabel::Silence), FrameLabel::Silence);
+        assert_eq!(smoother.smooth(FrameLabel::Speech), FrameLabel::Speech);
     }
 
     #[test]

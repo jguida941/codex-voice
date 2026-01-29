@@ -9,7 +9,8 @@ use rust_tui::config::{
     default_vad_engine, VadEngineKind, VoicePipelineConfig, DEFAULT_VOICE_BUFFER_MS,
     DEFAULT_VOICE_CHANNEL_CAPACITY, DEFAULT_VOICE_LOOKBACK_MS, DEFAULT_VOICE_MAX_CAPTURE_MS,
     DEFAULT_VOICE_MIN_SPEECH_MS, DEFAULT_VOICE_SAMPLE_RATE, DEFAULT_VOICE_SILENCE_TAIL_MS,
-    DEFAULT_VOICE_STT_TIMEOUT_MS, DEFAULT_VOICE_VAD_FRAME_MS, DEFAULT_VOICE_VAD_THRESHOLD_DB,
+    DEFAULT_VOICE_STT_TIMEOUT_MS, DEFAULT_VOICE_VAD_FRAME_MS, DEFAULT_VOICE_VAD_SMOOTHING_FRAMES,
+    DEFAULT_VOICE_VAD_THRESHOLD_DB,
 };
 #[cfg(feature = "vad_earshot")]
 use rust_tui::vad_earshot;
@@ -70,6 +71,12 @@ struct Args {
     voice_vad_frame_ms: u64,
 
     #[arg(
+        long = "voice-vad-smoothing-frames",
+        default_value_t = DEFAULT_VOICE_VAD_SMOOTHING_FRAMES
+    )]
+    voice_vad_smoothing_frames: usize,
+
+    #[arg(
         long = "voice-vad-engine",
         value_enum,
         default_value_t = default_vad_engine()
@@ -112,6 +119,7 @@ fn build_pipeline_config(args: &Args) -> VoicePipelineConfig {
         stt_timeout_ms: args.voice_stt_timeout_ms,
         vad_threshold_db: args.voice_vad_threshold_db,
         vad_frame_ms: args.voice_vad_frame_ms,
+        vad_smoothing_frames: args.voice_vad_smoothing_frames,
         python_fallback_allowed: true,
         vad_engine: args.voice_vad_engine,
     }

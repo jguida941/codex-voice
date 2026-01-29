@@ -43,6 +43,7 @@ const PTY_QUIET_GRACE_MS: u64 = 200;
 const PTY_QUIET_GRACE_MS: u64 = 2000; // 2s quiet period (was 350ms)
 const PTY_HEALTHCHECK_TIMEOUT_MS: u64 = 5000; // 5s health check (was 2000ms)
 const BACKEND_EVENT_CAPACITY: usize = 1024;
+const PTY_MAX_OUTPUT_BYTES: usize = 2 * 1024 * 1024;
 
 /// Unique identifier for Codex requests routed through the backend.
 pub type JobId = u64;
@@ -838,6 +839,7 @@ fn call_codex_via_session<S: CodexSession>(
         .context("failed to write prompt to persistent Codex session")?;
 
     let mut combined_raw = Vec::new();
+    let mut truncated_output = false;
     let start_time = Instant::now();
     let overall_timeout = Duration::from_millis(PTY_OVERALL_TIMEOUT_MS);
     let first_output_deadline =
@@ -857,6 +859,14 @@ fn call_codex_via_session<S: CodexSession>(
         let output_chunks = session.read_output_timeout(Duration::from_millis(50));
         for chunk in output_chunks {
             combined_raw.extend_from_slice(&chunk);
+            if combined_raw.len() > PTY_MAX_OUTPUT_BYTES {
+                let excess = combined_raw.len() - PTY_MAX_OUTPUT_BYTES;
+                combined_raw = combined_raw.split_off(excess);
+                if !truncated_output {
+                    log_debug("Persistent Codex session output exceeded cap; truncating");
+                    truncated_output = true;
+                }
+            }
             last_raw_output = Instant::now();
             if first_raw_output.is_none() {
                 first_raw_output = Some(last_raw_output);

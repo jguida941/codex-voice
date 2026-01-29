@@ -291,3 +291,34 @@ pub fn draw(frame: &mut ratatui::Frame<'_>, app: &App) {
     let cursor_y = chunks[1].y + 1;
     frame.set_cursor(cursor_x, cursor_y);
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::AppConfig;
+    use clap::Parser;
+
+    fn test_app() -> App {
+        let mut config = AppConfig::parse_from(["test-app"]);
+        config.persistent_codex = false;
+        App::new(config)
+    }
+
+    #[test]
+    fn handle_key_event_appends_and_backspaces() {
+        let mut app = test_app();
+        handle_key_event(
+            &mut app,
+            KeyEvent::new(KeyCode::Char('a'), KeyModifiers::empty()),
+        )
+        .expect("key event");
+        assert_eq!(app.sanitized_input_text(), "a");
+
+        handle_key_event(
+            &mut app,
+            KeyEvent::new(KeyCode::Backspace, KeyModifiers::empty()),
+        )
+        .expect("key event");
+        assert_eq!(app.sanitized_input_text(), "");
+    }
+}

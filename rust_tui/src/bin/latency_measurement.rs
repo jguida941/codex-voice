@@ -272,7 +272,7 @@ fn measure_synthetic_run(
         let guard = transcriber
             .lock()
             .map_err(|_| anyhow!("transcriber lock poisoned"))?;
-        guard.transcribe(&capture.audio, &config.lang)?
+        guard.transcribe(&capture.audio, config)?
     } else {
         bail!("Synthetic mode requires native Whisper model");
     };

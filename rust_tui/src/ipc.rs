@@ -24,7 +24,7 @@ use crate::codex::{
 const USE_PTY: bool = true;
 use crate::config::AppConfig;
 use crate::voice::{self, VoiceJob, VoiceJobMessage};
-use crate::{audio, log_debug, stt};
+use crate::{audio, log_debug, log_debug_content, stt};
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::env;
@@ -250,8 +250,8 @@ impl IpcState {
                 .as_millis()
         );
 
-        // Get Claude command from env or default
-        let claude_cmd = env::var("CLAUDE_CMD").unwrap_or_else(|_| "claude".to_string());
+        // Use validated Claude command from config
+        let claude_cmd = config.claude_cmd.clone();
 
         // Initialize Codex backend
         let codex_backend = Arc::new(CliBackend::new(config.clone()));
@@ -452,10 +452,14 @@ fn spawn_stdin_reader(tx: Sender<IpcCommand>) -> thread::JoinHandle<()> {
 // Claude Backend
 // ============================================================================
 
-fn start_claude_job(claude_cmd: &str, prompt: &str) -> Result<ClaudeJob, String> {
+fn start_claude_job(
+    claude_cmd: &str,
+    prompt: &str,
+    skip_permissions: bool,
+) -> Result<ClaudeJob, String> {
     use std::process::{Command, Stdio};
 
-    log_debug(&format!(
+    log_debug_content(&format!(
         "Starting Claude job with prompt: {}...",
         &prompt[..prompt.len().min(30)]
     ));
@@ -463,9 +467,12 @@ fn start_claude_job(claude_cmd: &str, prompt: &str) -> Result<ClaudeJob, String>
     // Use --print with --dangerously-skip-permissions for non-interactive operation
     // This allows file operations without permission prompts
     // TODO: Add PTY support to show thinking/tool calls in real-time
-    let mut child = Command::new(claude_cmd)
-        .arg("--print")
-        .arg("--dangerously-skip-permissions")
+    let mut command = Command::new(claude_cmd);
+    command.arg("--print");
+    if skip_permissions {
+        command.arg("--dangerously-skip-permissions");
+    }
+    let mut child = command
         .arg(prompt)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
@@ -711,7 +718,7 @@ fn run_ipc_loop(
         // Check for new commands (non-blocking)
         match cmd_rx.try_recv() {
             Ok(cmd) => {
-                log_debug(&format!("IPC command received: {cmd:?}"));
+                log_debug_content(&format!("IPC command received: {cmd:?}"));
                 state.cancelled = false;
 
                 match cmd {
@@ -909,7 +916,11 @@ fn start_provider_job(state: &mut IpcState, provider: Provider, prompt: &str) {
                 }
             }
         }
-        Provider::Claude => match start_claude_job(&state.claude_cmd, prompt) {
+        Provider::Claude => match start_claude_job(
+            &state.claude_cmd,
+            prompt,
+            state.config.claude_skip_permissions,
+        ) {
             Ok(job) => {
                 state.current_job = Some(ActiveJob::Claude(job));
             }
@@ -1173,7 +1184,7 @@ fn process_claude_events(job: &mut ClaudeJob, cancelled: bool) -> bool {
     // Check for stdout output
     match job.stdout_rx.try_recv() {
         Ok(line) => {
-            log_debug(&format!(
+            log_debug_content(&format!(
                 "Claude job: got line: {}",
                 &line[..line.len().min(50)]
             ));
@@ -1258,7 +1269,11 @@ fn process_voice_events(job: &VoiceJob, cancelled: bool) -> bool {
     match job.receiver.try_recv() {
         Ok(msg) => {
             match msg {
-                VoiceJobMessage::Transcript { text, source } => {
+                VoiceJobMessage::Transcript {
+                    text,
+                    source,
+                    metrics: _,
+                } => {
                     send_event(&IpcEvent::VoiceEnd { error: None });
                     send_event(&IpcEvent::Transcript {
                         text,
@@ -1266,7 +1281,7 @@ fn process_voice_events(job: &VoiceJob, cancelled: bool) -> bool {
                     });
                     log_debug(&format!("Voice transcript via {}", source.label()));
                 }
-                VoiceJobMessage::Empty { source } => {
+                VoiceJobMessage::Empty { source, metrics: _ } => {
                     send_event(&IpcEvent::VoiceEnd {
                         error: Some("No speech detected".to_string()),
                     });
@@ -1869,6 +1884,7 @@ mod tests {
         tx.send(VoiceJobMessage::Transcript {
             text: "hello".to_string(),
             source: voice::VoiceCaptureSource::Native,
+            metrics: None,
         })
         .unwrap();
 
@@ -1894,6 +1910,7 @@ mod tests {
         };
         tx.send(VoiceJobMessage::Empty {
             source: voice::VoiceCaptureSource::Native,
+            metrics: None,
         })
         .unwrap();
 
@@ -2252,7 +2269,7 @@ mod tests {
         let snapshot = event_snapshot();
         let script =
             write_stub_script("#!/bin/sh\necho out-line\necho '' 1>&2\necho err-line 1>&2\n");
-        let mut job = start_claude_job(script.to_str().unwrap(), "prompt").unwrap();
+        let mut job = start_claude_job(script.to_str().unwrap(), "prompt", false).unwrap();
 
         let start = Instant::now();
         while start.elapsed() < Duration::from_secs(2) {

@@ -145,7 +145,7 @@ check_codex() {
         return 0
     else
         print_warning "Codex CLI not found in PATH"
-        echo "         Install from: npm install -g @anthropic-ai/codex"
+        echo "         Install from: npm install -g @openai/codex"
         return 0
     fi
 }

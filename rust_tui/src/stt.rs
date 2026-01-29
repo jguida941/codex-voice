@@ -3,14 +3,14 @@
 
 #[cfg(unix)]
 mod platform {
+    use crate::config::AppConfig;
     use crate::log_debug;
     use anyhow::{anyhow, Context, Result};
     use std::io;
-    use std::os::raw::{c_char, c_void};
+    use std::os::raw::{c_char, c_uint, c_void};
     use std::os::unix::io::AsRawFd;
     use std::sync::Once;
     use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters};
-    use whisper_rs_sys::ggml_log_level;
 
     /// Owns a single Whisper context so multiple voice captures can reuse the same
     /// memory-mapped model and stay fast.
@@ -72,13 +72,27 @@ mod platform {
         }
 
         /// Run transcription for the captured PCM samples and return the concatenated text.
-        pub fn transcribe(&self, samples: &[f32], lang: &str) -> Result<String> {
+        pub fn transcribe(&self, samples: &[f32], config: &AppConfig) -> Result<String> {
             let mut state = self
                 .ctx
                 .create_state()
                 .context("failed to create whisper state")?;
-            let mut params = FullParams::new(SamplingStrategy::Greedy { best_of: 1 });
-            params.set_language(Some(lang));
+            let mut params = if config.whisper_beam_size > 1 {
+                FullParams::new(SamplingStrategy::BeamSearch {
+                    beam_size: config.whisper_beam_size as i32,
+                    patience: -1.0,
+                })
+            } else {
+                FullParams::new(SamplingStrategy::Greedy { best_of: 1 })
+            };
+            if config.lang.eq_ignore_ascii_case("auto") {
+                params.set_language(None);
+                params.set_detect_language(true);
+            } else {
+                params.set_language(Some(&config.lang));
+                params.set_detect_language(false);
+            }
+            params.set_temperature(config.whisper_temperature);
             // Limit CPU usage so laptops don't max out all cores.
             params.set_n_threads(num_cpus::get().min(8) as i32);
             params.set_print_progress(false);
@@ -89,19 +103,21 @@ mod platform {
             params.set_token_timestamps(false);
             state.full(params, samples)?;
             let mut transcript = String::new();
-            let num_segments = state.full_n_segments();
+            let num_segments = match state.full_n_segments() {
+                Ok(count) => count,
+                Err(err) => {
+                    log_debug(&format!("Whisper failed to read segment count: {err}"));
+                    return Ok(transcript);
+                }
+            };
             if num_segments < 0 {
                 log_debug("Whisper returned a negative segment count");
                 return Ok(transcript);
             }
             // Whisper splits output into small segments; stitch them together.
             for i in 0..num_segments {
-                let Some(segment) = state.get_segment(i) else {
-                    log_debug(&format!("Failed to access whisper segment {i}"));
-                    continue;
-                };
-                match segment.to_str() {
-                    Ok(text) => transcript.push_str(text),
+                match state.full_get_segment_text_lossy(i) {
+                    Ok(text) => transcript.push_str(&text),
                     Err(err) => log_debug(&format!("Failed to read whisper segment {i}: {err}")),
                 }
             }
@@ -120,7 +136,7 @@ mod platform {
 
     #[allow(unused_variables)]
     unsafe extern "C" fn whisper_log_callback(
-        _level: ggml_log_level,
+        _level: c_uint,
         _text: *const c_char,
         _user_data: *mut c_void,
     ) {
@@ -145,7 +161,7 @@ mod platform {
             ))
         }
 
-        pub fn transcribe(&self, _: &[f32], _: &str) -> Result<String> {
+        pub fn transcribe(&self, _: &[f32], _: &AppConfig) -> Result<String> {
             Err(anyhow!(
                 "Whisper transcription is currently supported only on Unix-like platforms"
             ))
@@ -155,3 +171,15 @@ mod platform {
 
 #[cfg(not(unix))]
 pub use platform::Transcriber;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[cfg(unix)]
+    #[test]
+    fn transcriber_rejects_missing_model() {
+        let result = Transcriber::new("/no/such/model.bin");
+        assert!(result.is_err());
+    }
+}

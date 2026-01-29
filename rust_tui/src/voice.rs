@@ -41,9 +41,11 @@ pub enum VoiceJobMessage {
     Transcript {
         text: String,
         source: VoiceCaptureSource,
+        metrics: Option<audio::CaptureMetrics>,
     },
     Empty {
         source: VoiceCaptureSource,
+        metrics: Option<audio::CaptureMetrics>,
     },
     Error(String),
 }
@@ -70,7 +72,7 @@ pub fn start_voice_job(
     transcriber: Option<Arc<Mutex<stt::Transcriber>>>,
     config: crate::config::AppConfig,
 ) -> VoiceJob {
-    let (tx, rx) = mpsc::channel();
+    let (tx, rx) = mpsc::sync_channel(1);
     let stop_flag = Arc::new(AtomicBool::new(false));
     let stop_flag_clone = stop_flag.clone();
 
@@ -99,12 +101,14 @@ fn perform_voice_capture(
     };
 
     match capture_voice_native(recorder, transcriber, config, stop_flag.clone()) {
-        Ok(Some(transcript)) => VoiceJobMessage::Transcript {
+        Ok((Some(transcript), metrics)) => VoiceJobMessage::Transcript {
             text: transcript,
             source: VoiceCaptureSource::Native,
+            metrics: Some(metrics),
         },
-        Ok(None) => VoiceJobMessage::Empty {
+        Ok((None, metrics)) => VoiceJobMessage::Empty {
             source: VoiceCaptureSource::Native,
+            metrics: Some(metrics),
         },
         Err(native_err) => fallback_or_error(config, &format!("{native_err:#}"), Some(stop_flag)),
     }
@@ -130,11 +134,13 @@ fn run_python_fallback(
             if transcript.is_empty() {
                 VoiceJobMessage::Empty {
                     source: VoiceCaptureSource::Python,
+                    metrics: None,
                 }
             } else {
                 VoiceJobMessage::Transcript {
                     text: transcript,
                     source: VoiceCaptureSource::Python,
+                    metrics: None,
                 }
             }
         }
@@ -200,9 +206,8 @@ fn capture_voice_native(
     transcriber: Arc<Mutex<stt::Transcriber>>,
     config: &crate::config::AppConfig,
     stop_flag: Arc<AtomicBool>,
-) -> Result<Option<String>> {
+) -> Result<(Option<String>, audio::CaptureMetrics)> {
     log_debug("capture_voice_native: Starting");
-    let lang = config.lang.clone();
     let pipeline_cfg = config.voice_pipeline_config();
     let vad_cfg: audio::VadConfig = (&pipeline_cfg).into();
     let record_start = Instant::now();
@@ -213,10 +218,11 @@ fn capture_voice_native(
         let mut vad_engine = create_vad_engine(&pipeline_cfg);
         recorder_guard.record_with_vad(&vad_cfg, vad_engine.as_mut(), Some(stop_flag))
     }?;
-    log_voice_metrics(&capture.metrics);
+    let metrics = capture.metrics.clone();
+    log_voice_metrics(&metrics);
     if capture.audio.is_empty() {
         log_debug("capture_voice_native: empty audio capture");
-        return Ok(None);
+        return Ok((None, metrics));
     }
     let record_elapsed = record_start.elapsed().as_secs_f64();
 
@@ -227,7 +233,7 @@ fn capture_voice_native(
             .lock()
             .map_err(|_| anyhow!("transcriber lock poisoned"))?;
         // Output suppression is now handled inside transcribe() method
-        transcriber_guard.transcribe(&capture.audio, &lang)?
+        transcriber_guard.transcribe(&capture.audio, config)?
     };
     let stt_elapsed = stt_start.elapsed().as_secs_f64();
 
@@ -246,9 +252,9 @@ fn capture_voice_native(
     }
 
     if cleaned.is_empty() {
-        Ok(None)
+        Ok((None, metrics))
     } else {
-        Ok(Some(cleaned))
+        Ok((Some(cleaned), metrics))
     }
 }
 
@@ -377,7 +383,11 @@ mod tests {
         });
 
         match message {
-            VoiceJobMessage::Transcript { text, source } => {
+            VoiceJobMessage::Transcript {
+                text,
+                source,
+                metrics: _,
+            } => {
                 assert_eq!(text, "hello");
                 assert_eq!(source, VoiceCaptureSource::Python);
             }
@@ -393,7 +403,7 @@ mod tests {
         });
 
         match message {
-            VoiceJobMessage::Empty { source } => {
+            VoiceJobMessage::Empty { source, metrics: _ } => {
                 assert_eq!(source, VoiceCaptureSource::Python);
             }
             other => panic!("expected empty message, got {other:?}"),
@@ -427,7 +437,11 @@ mod tests {
         );
 
         match message {
-            VoiceJobMessage::Transcript { text, source } => {
+            VoiceJobMessage::Transcript {
+                text,
+                source,
+                metrics: _,
+            } => {
                 assert_eq!(text, "fallback success");
                 assert_eq!(source, VoiceCaptureSource::Python);
             }

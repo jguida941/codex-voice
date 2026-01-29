@@ -189,18 +189,27 @@ def transcribe(path: str, whisper_cmd: str, lang: str, model: str, *, model_path
     base = tmpdir / "transcript"
     exe = Path(whisper_cmd).name.lower()
 
+    lang = lang.strip().lower()
+    use_auto = lang == "auto"
+
     if "whisper" == exe or exe.startswith("whisper"):
         # OpenAI whisper CLI
         # Writes <basename>.txt into output_dir
         out_dir = tmpdir
-        args = [whisper_cmd, path, "--language", lang, "--model", model, "--output_format", "txt", "--output_dir", str(out_dir)]
+        args = [whisper_cmd, path, "--model", model, "--output_format", "txt", "--output_dir", str(out_dir)]
+        if not use_auto:
+            args += ["--language", lang]
         _run(args)
         txt_path = out_dir / (Path(path).stem + ".txt")
     else:
         # whisper.cpp style
         if not model_path:
             raise RuntimeError("whisper.cpp requires --whisper-model-path to a ggml*.bin file")
-        args = [whisper_cmd, "-m", model_path, "-f", path, "-l", lang, "-otxt", "-of", str(base)]
+        args = [whisper_cmd, "-m", model_path, "-f", path, "-otxt", "-of", str(base)]
+        if use_auto:
+            args += ["-l", "auto"]
+        else:
+            args += ["-l", lang]
         _run(args)
         txt_path = Path(str(base) + ".txt")
 
@@ -442,7 +451,7 @@ def main():
     """
     ap = argparse.ArgumentParser(description="Voice → STT → Codex CLI", allow_abbrev=False)
     ap.add_argument("--seconds", type=int, default=5)
-    ap.add_argument("--lang", default="en")
+    ap.add_argument("--lang", default="en", help="Whisper language (ISO-639-1 or 'auto')")
     ap.add_argument("--whisper-cmd", default="whisper", help="OpenAI whisper CLI or whisper.cpp binary")
     ap.add_argument("--whisper-model", default="small", help="name for whisper, ignored by whisper.cpp")
     ap.add_argument("--whisper-model-path", default=None, help="path to ggml*.bin for whisper.cpp")
