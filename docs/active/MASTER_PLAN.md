@@ -12,8 +12,8 @@
 - `docs/CHANGELOG.md`
 
 ## Source inputs
-- `docs/archive/2026-01-29-claude-review.md`
-- `docs/archive/2026-01-29-claude-audit.md`
+- `docs/active/claude_review.md` (required for releases)
+- `claudeaudit.md` (local-only, not committed)
 - `docs/active/BACKLOG.md` (migrated here)
 
 ## Active work

@@ -28,6 +28,7 @@ codex-voice/
 │   ├── USAGE.md            # Controls and overlay behavior
 │   ├── active/             # Active plans and work in progress
 │   │   ├── MASTER_PLAN.md        # Active work and verification
+│   │   ├── claude_review.md      # Required release review (move to archive after ship)
 │   │   ├── BACKLOG.md            # Deprecated pointer (see master plan)
 │   │   ├── MODULARIZATION_PLAN.md # Refactor checklist
 │   │   ├── visual.md             # Visual design audit and plan

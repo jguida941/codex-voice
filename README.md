@@ -8,118 +8,107 @@
 [![Rust TUI CI](https://github.com/jguida941/codex-voice/actions/workflows/rust_tui.yml/badge.svg)](https://github.com/jguida941/codex-voice/actions/workflows/rust_tui.yml)
 [![Mutation Testing](https://github.com/jguida941/codex-voice/actions/workflows/mutation-testing.yml/badge.svg)](https://github.com/jguida941/codex-voice/actions/workflows/mutation-testing.yml)
 
-**Rust voice overlay for the official Codex CLI. Speak to Codex using local Whisper speech-to-text.**
-
-Voice transcription runs entirely on your machine via `whisper.cpp`. The overlay wraps Codex in a PTY,
-preserving its native TUI while injecting voice transcripts.
+Voice input for Codex CLI, written in Rust for speed. Talk instead of type and boost your productivity. Runs Whisper locally through Rust with ~250ms latency. No cloud, no API keys.
 
 ![Codex Voice Startup](img/startup.png)
 
-## Contents
+## What Codex-Voice Does
 
-- [Quick Start](#quick-start)
-- [Logs](#logs-opt-in)
-- [Controls](#controls-essentials)
-- [Features](#features)
-- [UI modes](#ui-modes)
-- [macOS App](#macos-app-folder-picker)
-- [Project layout](#project-layout-contributor-view)
-- [Docs](#docs)
-- [How It Works](#how-it-works)
-- [License](#license)
+Wraps Codex in a PTY and adds voice input. You talk → Whisper transcribes → text gets typed into Codex. Codex-Voice runs over Codex CLI, so you keep all Codex features like file editing, code generation, etc.
 
-## Quick Start
+- Written in Rust for speed
+- Local speech-to-text via whisper.cpp
+- ~250ms transcription time
+- No network calls
+- PTY overlay - Codex UI unchanged
+
+## Requirements
+
+- macOS or Linux (Windows needs WSL2)
+- Node.js (for Codex CLI)
+- Microphone access
+- ~1.5 GB disk for Whisper model
+
+## Install
 
 ```bash
-# Install Codex CLI
+# Install Codex CLI first
 npm install -g @openai/codex
 
-# Clone and install Codex Voice
+# Clone and build
 git clone https://github.com/jguida941/codex-voice.git
 cd codex-voice
 ./install.sh
 
-# Run from any project
-cd ~/my-project
+# Run it
+cd ~/your-project
 codex-voice
 ```
 
-First run downloads a Whisper model if missing. For other install options (Homebrew, macOS app,
-manual), see [docs/INSTALL.md](docs/INSTALL.md).
-Want the shortest path? See [QUICK_START.md](QUICK_START.md).
+First run downloads the Whisper model.
 
-## Logs (opt-in)
+**Other options:** [Homebrew](docs/INSTALL.md#homebrew) | [macOS App](docs/INSTALL.md#macos-app) | [Build from source](docs/INSTALL.md#from-source)
 
-Logs are disabled by default. To enable debug logs:
-`codex-voice --logs` (add `--log-content` for prompt/response snippets).
+## Controls
 
-## Controls (essentials)
+| Key | What it does |
+|-----|--------------|
+| `Ctrl+R` | Record voice |
+| `Ctrl+V` | Toggle auto-voice (hands-free mode) |
+| `Ctrl+T` | Toggle auto-send vs manual send |
+| `Ctrl+]` | Mic sensitivity up |
+| `Ctrl+\` | Mic sensitivity down (also `Ctrl+/`) |
+| `Ctrl+Q` | Quit |
+| `Ctrl+C` | Send interrupt to Codex |
 
-| Key | Action |
-|-----|--------|
-| `Ctrl+R` | Start voice capture |
-| `Ctrl+V` | Toggle auto-voice mode |
-| `Ctrl+T` | Toggle send mode (auto vs insert) |
-| `Ctrl+]` | Increase mic threshold +5 dB |
-| `Ctrl+\` | Decrease mic threshold -5 dB (or `Ctrl+/`) |
-| `Ctrl+Q` | Exit overlay |
-| `Ctrl+C` | Forward to Codex |
-
-For full behavior notes (insert mode, transcript queueing, long dictation), see
-[docs/USAGE.md](docs/USAGE.md).
+More details: [Usage Guide](docs/USAGE.md)
 
 ## Features
 
-- Voice input via microphone (Whisper STT)
-- Fast local transcription (~250ms after speech ends), no cloud API calls
-- Rust overlay preserves the full Codex TUI (PTY passthrough)
-- Auto-voice mode with queued transcripts when Codex is busy
-- Optional Python fallback when native capture is unavailable
+- **Local STT:** Whisper runs on your local machine
+- **PTY passthrough:** Integrates with Codex CLI seamlessly
+- **Auto-voice:** Code with Codex hands-free, no typing needed
+- **Transcript queue:** Speak while Codex is busy, transcripts send when ready
+- **No logging by default:** Enable with `--logs` if you need it
 
-## UI modes
+## macOS App
 
-- `codex-voice` (default): lightweight overlay with a single status line.
-- `rust_tui`: full-screen Rust TUI (primarily for IPC/dev workflows).
-- **Codex Voice.app** (macOS): folder picker that launches `codex-voice` in the chosen directory.
-
-## macOS App (folder picker)
-
-Double-click **Codex Voice.app** and choose your project folder. It launches the
-`codex-voice` overlay in a Terminal window.
+Double-click `Codex Voice.app`, pick a folder, it opens Terminal with codex-voice running.
 
 ![Folder Picker](img/folder-picker.png)
 
-## Project layout (contributor view)
+## How It Works
 
-- `rust_tui/src/bin/codex_overlay/main.rs` - overlay entrypoint
-- `rust_tui/src/audio/recorder.rs` - CPAL capture + resample
-- `rust_tui/src/mic_meter.rs` - mic meter + threshold recommendation
-- `rust_tui/src/stt.rs` - Whisper transcription
-- `scripts/codex_voice.py` - optional Python fallback
+```
+Mic → Whisper → Text → PTY → Codex
+                         ↓
+                     Terminal (raw output)
+```
+
+Codex runs in a PTY. Voice transcripts are sent as keystrokes. All Codex output passes through unchanged.
 
 ## Docs
 
-- [QUICK_START.md](QUICK_START.md)
-- [docs/INSTALL.md](docs/INSTALL.md)
-- [docs/USAGE.md](docs/USAGE.md)
-- [docs/CLI_FLAGS.md](docs/CLI_FLAGS.md)
-- [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)
-- [docs/active/MASTER_PLAN.md](docs/active/MASTER_PLAN.md)
-- [docs/active/BACKLOG.md](docs/active/BACKLOG.md)
-- [docs/active/MODULARIZATION_PLAN.md](docs/active/MODULARIZATION_PLAN.md)
-- [docs/dev/ARCHITECTURE.md](docs/dev/ARCHITECTURE.md)
-- [docs/dev/DEVELOPMENT.md](docs/dev/DEVELOPMENT.md)
-- [agents.md](agents.md)
-- [CONTRIBUTING.md](.github/CONTRIBUTING.md)
-- [SECURITY.md](.github/SECURITY.md)
-- [docs/CHANGELOG.md](docs/CHANGELOG.md)
+**Users**
+- [Quick Start](QUICK_START.md)
+- [Install](docs/INSTALL.md)
+- [Usage](docs/USAGE.md)
+- [CLI Flags](docs/CLI_FLAGS.md)
+- [Troubleshooting](docs/TROUBLESHOOTING.md)
 
-## How It Works
+**Developers**
+- [Development](docs/dev/DEVELOPMENT.md)
+- [Architecture](docs/dev/ARCHITECTURE.md)
+- [ADRs](docs/dev/adr/README.md)
+- [Contributing](.github/CONTRIBUTING.md)
+- [Changelog](docs/CHANGELOG.md)
 
-Codex Voice runs the Codex CLI in a real PTY and forwards raw ANSI output directly to your terminal.
-Voice transcripts are injected as keystrokes, so Codex stays fully native. See
-[docs/dev/ARCHITECTURE.md](docs/dev/ARCHITECTURE.md) for diagrams and data flow.
+## Contributing
+
+PRs welcome. See [CONTRIBUTING.md](.github/CONTRIBUTING.md).
+
+Issues: [github.com/jguida941/codex-voice/issues](https://github.com/jguida941/codex-voice/issues)
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+MIT - [LICENSE](LICENSE)

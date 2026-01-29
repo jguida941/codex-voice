@@ -3,6 +3,13 @@
 All notable changes to this project will be documented here, following the SDLC policy defined in `agents.md`.
 Note: Some historical entries reference internal documents that are not published in this repository.
 
+## [1.0.25] - 2026-01-29
+
+### Docs
+- Refresh README messaging, requirements, and controls summary for clearer onboarding.
+- Reorganize README navigation and contributing links for a tighter user/developer split.
+- Document the release review location in `docs/dev/DEVELOPMENT.md` and update master plan source inputs.
+
 ## [1.0.24] - 2026-01-29
 
 ### Build + Release
