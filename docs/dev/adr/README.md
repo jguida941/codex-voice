@@ -34,6 +34,16 @@ without re-litigating old context. Keep them short, factual, and specific.
 | [0001](0001-sensitivity-hotkeys.md) | Sensitivity Hotkeys (Ctrl+]/Ctrl+\\) | Accepted |
 | [0008](0008-transcript-queue-overflow.md) | Transcript Queue Overflow Handling | Accepted |
 
+### UI and HUD Architecture
+| ADR | Title | Status |
+|-----|-------|--------|
+| [0017](0017-focus-and-overlay-stack.md) | Focus and Overlay Stack Model | Proposed |
+| [0018](0018-selectable-menu-component.md) | SelectableMenu Component Contract | Proposed |
+| [0019](0019-preferences-and-config-migrations.md) | Preferences and Config Migrations | Proposed |
+| [0020](0020-action-registry-and-keybindings.md) | Action Registry and Keybindings | Proposed |
+| [0021](0021-history-storage-and-retention.md) | History Storage and Retention | Proposed |
+| [0022](0022-render-guarantees-and-layout-contract.md) | Render Guarantees and Layout Contract | Proposed |
+
 ### Security and Privacy
 | ADR | Title | Status |
 |-----|-------|--------|

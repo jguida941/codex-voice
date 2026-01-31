@@ -48,7 +48,7 @@
 - [ ] MP-028 Remove unnecessary clone in voice metrics message path.
 
 ### P1 - Architecture decision tracking
-- [ ] MP-038 Draft ADRs for upcoming UI enhancement architecture (focus/selection model, SelectableMenu reuse, preferences + migrations, action registry + keybindings, history storage, render guarantees).
+- [x] MP-038 Draft ADRs for upcoming UI enhancement architecture (focus/selection model, SelectableMenu reuse, preferences + migrations, action registry + keybindings, history storage, render guarantees).
 
 ### P2 - Observability, performance, and UX improvements
 - [ ] MP-030 Add structured logging (tracing) for better diagnostics.
