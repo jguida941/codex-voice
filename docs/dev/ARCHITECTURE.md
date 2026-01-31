@@ -1,7 +1,8 @@
 # Codex Voice (Rust Overlay) Architecture
 
-This document describes the Rust-only overlay mode. It runs the Codex CLI in a PTY and
-adds voice capture + a minimal status overlay without touching Codex's native UI.
+This document describes the Rust-only overlay mode. It runs the Codex CLI (or another
+AI CLI selected via `--backend`) in a PTY and adds voice capture + a minimal status
+overlay without touching the native UI.
 
 ## Contents
 
@@ -90,7 +91,7 @@ graph TD
 ```
 
 Why this matters:
-- **Input thread** intercepts Ctrl+R/Ctrl+V/Ctrl+Q without blocking Codex.
+- **Input thread** intercepts overlay hotkeys (voice, send mode, theme picker, help, sensitivity, exit) without blocking Codex.
 - **PTY reader** keeps ANSI intact while replying to terminal queries (DSR/DA).
 - **Writer thread** prevents output + status/help overlay interleaving.
 - **Voice thread** keeps audio/Whisper work off the main loop.
@@ -186,14 +187,15 @@ stateDiagram-v2
 
 ## Whisper Integration (Rust)
 
-- **Primary path:** `stt::Transcriber` uses `whisper-rs` with the model at
-  `--whisper-model-path`.
-- **Fallback:** if no model is configured or native capture fails, the code falls
-  back to Python (`scripts/codex_voice.py`) unless `--no-python-fallback` is set.
+- **Primary path:** `stt::Transcriber` uses `whisper-rs` with a GGML model resolved
+  from `--whisper-model-path` or auto-discovered from `--whisper-model` (default `small`)
+  in the repo `models/` directory.
+- **Fallback:** if native capture is unavailable or fails, the code falls back to Python
+  (`scripts/codex_voice.py`) unless `--no-python-fallback` is set.
 
 Common setup path:
 - `./scripts/setup.sh models --base` downloads `models/ggml-base.en.bin`.
-- `start.sh` passes `--whisper-model-path` into `codex-voice`.
+- `start.sh` passes `--whisper-model-path` into `codex-voice` when a model is found.
 
 ## Voice Error and Fallback Flow
 
@@ -317,7 +319,7 @@ quiet output intervals to avoid corrupting Codex's screen.
 - **Mic meter output** (`--mic-meter`) renders a bar display for ambient/speech levels.
 - **Session summary** prints on exit when activity is present.
 
-Design details and audit notes live in `docs/active/visual.md`.
+Design details and audit notes live in `docs/active/UI_ENHANCEMENT_PLAN.md`.
 
 ## Key Files
 

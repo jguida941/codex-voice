@@ -10,12 +10,18 @@ Note: Some historical entries reference internal documents that are not publishe
 - Live waveform + dB meter during recording in the status line.
 - Transcript preview snippet shown briefly after transcription.
 - Help/status shortcuts refreshed; overlay panels follow the active theme.
+- Compact HUD modules now surface queue depth and last capture latency when available.
 
 ### Audio Feedback
 - Optional notification sounds: `--sounds`, `--sound-on-complete`, `--sound-on-error`.
 
+### CLI
+- New `--backend` flag for selecting Codex/Claude/Gemini/Aider/OpenCode or a custom command (defaults to Codex).
+- Backend-specific prompt patterns are used when available; Codex continues to auto-learn prompts by default.
+- `--backend` custom commands now accept quoted arguments.
+
 ### Docs
-- Updated usage, quick start, CLI flags, README, and startup controls to match the new options.
+- Updated usage, quick start, CLI flags, README, install, troubleshooting, and architecture/development docs to match the new options.
 
 ## [1.0.27] - 2026-01-31
 
@@ -91,7 +97,7 @@ Note: Some historical entries reference internal documents that are not publishe
 - **README badges**: add CI, perf, memory guard, mutation testing, and license badges.
 - **Docs navigation**: add "See Also" tables to install, CLI flags, and troubleshooting docs.
 - **Dev docs**: expand contribution workflow, code style, and testing philosophy guidance.
-- **TS CLI docs**: clarify deprecated status and mark quick start as non-functional.
+- **Legacy CLI docs**: clarify deprecated status and mark quick start as non-functional.
 
 ## [1.0.22] - 2026-01-29
 
@@ -254,7 +260,7 @@ Note: Some historical entries reference internal documents that are not publishe
 - **README screenshot**: added startup screenshot to img/startup.png.
 
 ### Startup UX Polish (2026-01-24) - COMPLETE
-- **Codex Voice banner**: `start.sh` now uses the Rust launch banner from the TS CLI.
+- **Codex Voice banner**: `start.sh` now uses the Rust launch banner from the legacy CLI.
 - **Compact quickstart tables**: launch output shows quick controls + common commands in green tables.
 - **Adaptive layout**: smaller banner + dual-color columns keep tables visible in shorter terminals.
 - **Startup output test**: `scripts/tests/startup_output_test.sh` guards line widths.

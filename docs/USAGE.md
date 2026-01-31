@@ -1,6 +1,7 @@
 # Usage Guide
 
-This guide explains how to use Codex Voice for hands-free coding with the Codex CLI.
+This guide explains how to use Codex Voice for hands-free coding with the Codex CLI
+(or another AI CLI via `--backend`).
 
 ![Overlay Running](../img/overlay-running.png)
 
@@ -17,13 +18,17 @@ This guide explains how to use Codex Voice for hands-free coding with the Codex 
 
 ## Quick Start
 
-**Already installed?** Here's how to start talking to Codex:
+**Already installed?** Here's how to start talking to the CLI:
 
 1. **Launch**: Run `codex-voice` in your project folder
 2. **Speak**: Press `Ctrl+R`, say your request, then pause, it sends automatically
-3. **Done**: Your words appear as text and Codex responds
+3. **Done**: Your words appear as text and the CLI responds
 
 That's it! Read on for more control over how voice input works.
+
+**Backend note:** By default, `codex-voice` launches the Codex CLI. To target another AI CLI,
+pass `--backend` (for example `--backend claude` or `--backend gemini`). You can also pass a
+custom command string.
 
 ---
 
@@ -32,7 +37,7 @@ That's it! Read on for more control over how voice input works.
 When you speak, Codex Voice:
 1. Records your voice until you stop talking (silence detection)
 2. Transcribes it to text using Whisper (runs locally, nothing sent to the cloud)
-3. Types that text into Codex and optionally presses Enter for you
+3. Types that text into the active CLI (Codex by default) and optionally presses Enter for you
 
 You control **when** recording starts and **what happens** after transcription.
 
@@ -52,7 +57,7 @@ All shortcuts in one place:
 | `Ctrl+\` | **Threshold down** - Make mic more sensitive (-5 dB) |
 | `?` | **Help** - Show shortcut help overlay |
 | `Enter` | **Send/Stop** - In insert mode: stop recording early, or send typed text |
-| `Ctrl+C` | Forward interrupt to Codex |
+| `Ctrl+C` | Forward interrupt to CLI |
 | `Ctrl+Q` | **Quit** - Exit the overlay |
 
 **Tip**: `Ctrl+/` also works for decreasing threshold (same as `Ctrl+\`).
@@ -76,8 +81,8 @@ If auto-voice is off, press `Ctrl+R` to start recording.
 **Notes**
 - **Insert mode Enter**: press `Enter` while recording to stop early, then press `Enter` again to send.
 - **Auto-voice status**: "Auto-voice enabled" means it is waiting to listen; the mic is not recording yet.
-- **Prompt detection fallback**: if auto-voice does not start after Codex finishes, it will fall back to an idle timer; set `--prompt-regex` if your prompt is unusual.
-- **When Codex is busy**: transcripts queue and send when the next prompt appears (status shows the queued count). If a prompt has not been detected yet, an idle timeout can still auto-send them. Queue flushing is currently unreliable and tracked in the [master plan](active/MASTER_PLAN.md).
+- **Prompt detection fallback**: if auto-voice does not start after the CLI finishes, it will fall back to an idle timer; set `--prompt-regex` if your prompt is unusual or you are using a non-Codex backend.
+- **When the CLI is busy**: transcripts queue and send when the next prompt appears (status shows the queued count). If a prompt has not been detected yet, an idle timeout can still auto-send them. Queue flushing is currently unreliable and tracked in the [master plan](active/MASTER_PLAN.md).
 - **Python fallback**: if the Python pipeline is active, pressing `Enter` while recording cancels the capture instead of stopping early.
 
 ### Long dictation (auto-voice + insert)
@@ -136,13 +141,13 @@ Sections (left to right):
 
 | Status | Meaning |
 |--------|---------|
-| `Auto-voice enabled` | Listening will start when Codex is ready |
+| `Auto-voice enabled` | Listening will start when the CLI is ready |
 | `Listening Manual Mode (Rust pipeline)` | Recording now (you pressed Ctrl+R) |
 | `Listening Auto Mode (Rust pipeline)` | Recording now (auto-triggered) |
 | `Processing …` | Transcribing your speech (spinner updates) |
-| `Transcript ready (Rust pipeline)` | Text sent to Codex |
+| `Transcript ready (Rust pipeline)` | Text sent to the CLI |
 | `No speech detected` | Recording finished but no voice was heard |
-| `Transcript queued (2)` | 2 transcripts waiting for Codex to be ready |
+| `Transcript queued (2)` | 2 transcripts waiting for the CLI to be ready |
 | `Mic sensitivity: -35 dB` | Threshold changed |
 
 "Rust pipeline" means fast native transcription. "Python pipeline" means fallback mode (slower but more compatible).
@@ -163,6 +168,9 @@ Preview tips:
 Common startup configurations:
 
 ```bash
+# Use a different AI CLI backend
+codex-voice --backend claude
+
 # Fully hands-free (auto-voice + auto-send)
 codex-voice --auto-voice
 

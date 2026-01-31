@@ -1,12 +1,12 @@
 //! JSON-based IPC protocol for external UI integration.
 //!
 //! Defines the message types exchanged between the Rust backend and external
-//! frontends (e.g., TypeScript UI). Messages are newline-delimited JSON.
+//! frontends (e.g., UI clients). Messages are newline-delimited JSON.
 
 use serde::{Deserialize, Serialize};
 
 // ============================================================================
-// IPC Events (Rust → TypeScript)
+// IPC Events (Rust → client)
 // ============================================================================
 
 /// Events emitted by the Rust backend.
@@ -95,10 +95,10 @@ pub enum IpcEvent {
 }
 
 // ============================================================================
-// IPC Commands (TypeScript → Rust)
+// IPC Commands (client → Rust)
 // ============================================================================
 
-/// Commands received from the TypeScript frontend
+/// Commands received from an IPC client
 #[derive(Debug, Clone, Deserialize)]
 #[serde(tag = "cmd")]
 pub enum IpcCommand {

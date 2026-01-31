@@ -35,4 +35,4 @@ and risked interfering with ESC-prefixed sequences.
 
 ## Links
 
-- [Modularization Plan](../../active/MODULARIZATION_PLAN.md)
+- [UI Enhancement Plan](../../active/UI_ENHANCEMENT_PLAN.md)

@@ -12,8 +12,8 @@
 - `docs/CHANGELOG.md`
 
 ## Source inputs
-- `docs/active/claude_review.md` (required for releases)
-- `claudeaudit.md` (local-only, not committed)
+- `docs/active/claude_review.md` (local-only, gitignored)
+- `claudeaudit.md` (local-only, gitignored)
 - `docs/active/BACKLOG.md` (migrated here)
 
 ## Active work
@@ -47,6 +47,9 @@
 - [ ] MP-027 Address stderr redirection race during model load (or document as acceptable).
 - [ ] MP-028 Remove unnecessary clone in voice metrics message path.
 
+### P1 - Architecture decision tracking
+- [ ] MP-038 Draft ADRs for upcoming UI enhancement architecture (focus/selection model, SelectableMenu reuse, preferences + migrations, action registry + keybindings, history storage, render guarantees).
+
 ### P2 - Observability, performance, and UX improvements
 - [ ] MP-030 Add structured logging (tracing) for better diagnostics.
 - [ ] MP-031 Add PTY health monitoring to detect hung processes.
@@ -60,5 +63,3 @@
 ## Archive log
 - `docs/archive/2026-01-29-claudeaudit-completed.md`
 - `docs/archive/2026-01-29-docs-governance.md`
-- `docs/archive/2026-01-31-visual-md-complete.md`
-- `docs/archive/2026-01-31-claude-review-1.0.27.md`

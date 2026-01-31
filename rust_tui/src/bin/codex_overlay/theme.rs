@@ -2,6 +2,107 @@
 //!
 //! Provides predefined color palettes that can be selected via CLI flags.
 
+/// Border character set for drawing boxes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BorderSet {
+    pub top_left: char,
+    pub top_right: char,
+    pub bottom_left: char,
+    pub bottom_right: char,
+    pub horizontal: char,
+    pub vertical: char,
+    pub t_left: char,   // ├
+    pub t_right: char,  // ┤
+    pub t_top: char,    // ┬
+    pub t_bottom: char, // ┴
+}
+
+/// Standard single-line borders
+pub const BORDER_SINGLE: BorderSet = BorderSet {
+    top_left: '┌',
+    top_right: '┐',
+    bottom_left: '└',
+    bottom_right: '┘',
+    horizontal: '─',
+    vertical: '│',
+    t_left: '├',
+    t_right: '┤',
+    t_top: '┬',
+    t_bottom: '┴',
+};
+
+/// Double-line borders (elegant)
+pub const BORDER_DOUBLE: BorderSet = BorderSet {
+    top_left: '╔',
+    top_right: '╗',
+    bottom_left: '╚',
+    bottom_right: '╝',
+    horizontal: '═',
+    vertical: '║',
+    t_left: '╠',
+    t_right: '╣',
+    t_top: '╦',
+    t_bottom: '╩',
+};
+
+/// Heavy/bold borders
+pub const BORDER_HEAVY: BorderSet = BorderSet {
+    top_left: '┏',
+    top_right: '┓',
+    bottom_left: '┗',
+    bottom_right: '┛',
+    horizontal: '━',
+    vertical: '┃',
+    t_left: '┣',
+    t_right: '┫',
+    t_top: '┳',
+    t_bottom: '┻',
+};
+
+/// Rounded corners (modern)
+pub const BORDER_ROUNDED: BorderSet = BorderSet {
+    top_left: '╭',
+    top_right: '╮',
+    bottom_left: '╰',
+    bottom_right: '╯',
+    horizontal: '─',
+    vertical: '│',
+    t_left: '├',
+    t_right: '┤',
+    t_top: '┬',
+    t_bottom: '┴',
+};
+
+/// Minimal dotted borders (reserved for future themes)
+#[allow(dead_code)]
+pub const BORDER_DOTTED: BorderSet = BorderSet {
+    top_left: '·',
+    top_right: '·',
+    bottom_left: '·',
+    bottom_right: '·',
+    horizontal: '·',
+    vertical: '·',
+    t_left: '·',
+    t_right: '·',
+    t_top: '·',
+    t_bottom: '·',
+};
+
+/// No borders (spaces) (reserved for future themes)
+#[allow(dead_code)]
+pub const BORDER_NONE: BorderSet = BorderSet {
+    top_left: ' ',
+    top_right: ' ',
+    bottom_left: ' ',
+    bottom_right: ' ',
+    horizontal: ' ',
+    vertical: ' ',
+    t_left: ' ',
+    t_right: ' ',
+    t_top: ' ',
+    t_bottom: ' ',
+};
+
 /// ANSI color codes for a theme.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ThemeColors {
@@ -19,6 +120,21 @@ pub struct ThemeColors {
     pub info: &'static str,
     /// Reset code
     pub reset: &'static str,
+    /// Dim/muted text for secondary info
+    pub dim: &'static str,
+    /// Primary background color (for main status area)
+    pub bg_primary: &'static str,
+    /// Secondary background color (for shortcuts row)
+    pub bg_secondary: &'static str,
+    /// Border/frame color
+    pub border: &'static str,
+    /// Border character set
+    pub borders: BorderSet,
+    /// Mode indicator symbol
+    pub indicator_rec: &'static str,
+    pub indicator_auto: &'static str,
+    pub indicator_manual: &'static str,
+    pub indicator_idle: &'static str,
 }
 
 /// Available color themes.
@@ -108,6 +224,15 @@ pub const THEME_CORAL: ThemeColors = ThemeColors {
     error: "\x1b[91m",      // Bright red
     info: "\x1b[94m",       // Bright blue
     reset: "\x1b[0m",
+    dim: "\x1b[2m",         // Dim attribute
+    bg_primary: "",         // No background (transparent)
+    bg_secondary: "\x1b[48;5;236m", // Dark gray background
+    border: "\x1b[91m",     // Coral/red borders
+    borders: BORDER_SINGLE,
+    indicator_rec: "●",
+    indicator_auto: "◉",
+    indicator_manual: "●",
+    indicator_idle: "○",
 };
 
 /// Catppuccin Mocha theme - pastel colors
@@ -120,6 +245,15 @@ pub const THEME_CATPPUCCIN: ThemeColors = ThemeColors {
     error: "\x1b[38;2;243;139;168m",      // Red #f38ba8
     info: "\x1b[38;2;137;180;250m",       // Blue #89b4fa
     reset: "\x1b[0m",
+    dim: "\x1b[38;2;108;112;134m",        // Overlay0 #6c7086
+    bg_primary: "\x1b[48;2;30;30;46m",    // Base #1e1e2e
+    bg_secondary: "\x1b[48;2;24;24;37m",  // Mantle #181825
+    border: "\x1b[38;2;180;190;254m",     // Lavender #b4befe
+    borders: BORDER_DOUBLE,
+    indicator_rec: "◉",
+    indicator_auto: "◈",
+    indicator_manual: "◆",
+    indicator_idle: "◇",
 };
 
 /// Dracula theme - high contrast
@@ -132,6 +266,15 @@ pub const THEME_DRACULA: ThemeColors = ThemeColors {
     error: "\x1b[38;2;255;85;85m",        // Red #ff5555
     info: "\x1b[38;2;139;233;253m",       // Cyan #8be9fd
     reset: "\x1b[0m",
+    dim: "\x1b[38;2;98;114;164m",         // Comment #6272a4
+    bg_primary: "\x1b[48;2;40;42;54m",    // Background #282a36
+    bg_secondary: "\x1b[48;2;33;34;44m",  // Current Line darker
+    border: "\x1b[38;2;189;147;249m",     // Purple #bd93f9
+    borders: BORDER_HEAVY,
+    indicator_rec: "⬤",
+    indicator_auto: "⏺",
+    indicator_manual: "⏵",
+    indicator_idle: "○",
 };
 
 /// Nord theme - arctic blue-gray
@@ -144,6 +287,15 @@ pub const THEME_NORD: ThemeColors = ThemeColors {
     error: "\x1b[38;2;191;97;106m",       // Aurora red #bf616a
     info: "\x1b[38;2;136;192;208m",       // Frost #88c0d0
     reset: "\x1b[0m",
+    dim: "\x1b[38;2;76;86;106m",          // Polar Night #4c566a
+    bg_primary: "\x1b[48;2;46;52;64m",    // Polar Night #2e3440
+    bg_secondary: "\x1b[48;2;59;66;82m",  // Polar Night #3b4252
+    border: "\x1b[38;2;136;192;208m",     // Frost #88c0d0
+    borders: BORDER_ROUNDED,
+    indicator_rec: "◆",
+    indicator_auto: "❄",
+    indicator_manual: "▸",
+    indicator_idle: "◇",
 };
 
 /// ANSI 16-color theme - works on all color terminals
@@ -156,6 +308,15 @@ pub const THEME_ANSI: ThemeColors = ThemeColors {
     error: "\x1b[31m",      // Red
     info: "\x1b[36m",       // Cyan
     reset: "\x1b[0m",
+    dim: "\x1b[2m",         // Dim attribute
+    bg_primary: "\x1b[40m", // Black background
+    bg_secondary: "\x1b[40m",
+    border: "\x1b[37m",     // White
+    borders: BORDER_SINGLE,
+    indicator_rec: "*",
+    indicator_auto: "@",
+    indicator_manual: ">",
+    indicator_idle: "-",
 };
 
 /// No colors - plain text output
@@ -167,6 +328,15 @@ pub const THEME_NONE: ThemeColors = ThemeColors {
     error: "",
     info: "",
     reset: "",
+    dim: "",
+    bg_primary: "",
+    bg_secondary: "",
+    border: "",
+    borders: BORDER_SINGLE,
+    indicator_rec: "*",
+    indicator_auto: "@",
+    indicator_manual: ">",
+    indicator_idle: "-",
 };
 
 #[cfg(test)]
@@ -223,5 +393,21 @@ mod tests {
     fn theme_display_matches_name() {
         assert_eq!(format!("{}", Theme::Coral), "coral");
         assert_eq!(format!("{}", Theme::Catppuccin), "catppuccin");
+    }
+
+    #[test]
+    fn theme_has_unique_borders() {
+        // Each theme should have visually distinct borders
+        assert_eq!(Theme::Coral.colors().borders.horizontal, '─');
+        assert_eq!(Theme::Catppuccin.colors().borders.horizontal, '═');
+        assert_eq!(Theme::Dracula.colors().borders.horizontal, '━');
+        assert_eq!(Theme::Nord.colors().borders.top_left, '╭');
+    }
+
+    #[test]
+    fn theme_has_indicators() {
+        let colors = Theme::Coral.colors();
+        assert!(!colors.indicator_rec.is_empty());
+        assert!(!colors.indicator_auto.is_empty());
     }
 }

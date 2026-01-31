@@ -1,98 +1,152 @@
 //! Theme picker overlay.
 //!
 //! Displays available themes and allows selecting by number.
+//! Now shows a visual preview of each theme's unique style.
 
 use crate::theme::{Theme, ThemeColors};
 
-/// Theme options with labels.
-pub const THEME_OPTIONS: &[(&str, &str)] = &[
-    ("coral", "Default coral"),
-    ("catppuccin", "Pastel dark"),
-    ("dracula", "High contrast"),
-    ("nord", "Arctic blue"),
-    ("ansi", "ANSI 16-color"),
-    ("none", "No color"),
+/// Theme options with labels and border previews.
+pub const THEME_OPTIONS: &[(Theme, &str, &str)] = &[
+    (Theme::Coral, "coral", "─│┌ Default red accents"),
+    (Theme::Catppuccin, "catppuccin", "═║╔ Pastel elegance"),
+    (Theme::Dracula, "dracula", "━┃┏ Bold high contrast"),
+    (Theme::Nord, "nord", "─│╭ Rounded arctic blue"),
+    (Theme::Ansi, "ansi", "─│┌ 16-color compatible"),
+    (Theme::None, "none", "─│┌ No color styling"),
 ];
 
-pub fn format_theme_picker(theme: Theme, width: usize) -> String {
-    let colors = theme.colors();
+pub fn format_theme_picker(current_theme: Theme, width: usize) -> String {
+    let colors = current_theme.colors();
+    let borders = &colors.borders;
     let mut lines = Vec::new();
-    let content_width = width.clamp(34, 54);
+    let content_width = width.clamp(40, 60);
 
-    lines.push(format_box_top(&colors, content_width));
-    lines.push(format_title_line(
-        &colors,
-        "Codex Voice - Themes",
-        content_width,
+    // Top border using current theme's style
+    let top_inner: String = std::iter::repeat_n(borders.horizontal, content_width + 2).collect();
+    lines.push(format!(
+        "{}{}{}{}{}",
+        colors.border, borders.top_left, top_inner, borders.top_right, colors.reset
     ));
-    lines.push(format_separator(&colors, content_width));
 
-    for (idx, (name, desc)) in THEME_OPTIONS.iter().enumerate() {
-        let label = format!("{}. {}", idx + 1, name);
-        lines.push(format_option_line(&colors, &label, desc, content_width));
+    // Title
+    lines.push(format_title_line(&colors, borders, "Codex Voice - Themes", content_width));
+
+    // Separator
+    let sep_inner: String = std::iter::repeat_n(borders.horizontal, content_width + 2).collect();
+    lines.push(format!(
+        "{}{}{}{}{}",
+        colors.border, borders.t_left, sep_inner, borders.t_right, colors.reset
+    ));
+
+    // Theme options with visual preview
+    for (idx, (theme, name, desc)) in THEME_OPTIONS.iter().enumerate() {
+        let theme_colors = theme.colors();
+        let is_current = *theme == current_theme;
+        lines.push(format_option_line_with_preview(
+            &colors,
+            borders,
+            &theme_colors,
+            idx + 1,
+            name,
+            desc,
+            is_current,
+            content_width,
+        ));
     }
 
-    lines.push(format_separator(&colors, content_width));
-    lines.push(format_title_line(
-        &colors,
-        "Press 1-6 to select • Esc to close",
-        content_width,
+    // Bottom separator
+    lines.push(format!(
+        "{}{}{}{}{}",
+        colors.border, borders.t_left, sep_inner, borders.t_right, colors.reset
     ));
-    lines.push(format_box_bottom(&colors, content_width));
+
+    // Footer
+    lines.push(format_title_line(&colors, borders, "1-6 select • Esc close", content_width));
+
+    // Bottom border
+    let bottom_inner: String =
+        std::iter::repeat_n(borders.horizontal, content_width + 2).collect();
+    lines.push(format!(
+        "{}{}{}{}{}",
+        colors.border, borders.bottom_left, bottom_inner, borders.bottom_right, colors.reset
+    ));
 
     lines.join("\n")
 }
 
-fn format_box_top(colors: &ThemeColors, width: usize) -> String {
-    format!("{}┌{}┐{}", colors.info, "─".repeat(width + 2), colors.reset)
-}
+use crate::theme::BorderSet;
 
-fn format_box_bottom(colors: &ThemeColors, width: usize) -> String {
-    format!("{}└{}┘{}", colors.info, "─".repeat(width + 2), colors.reset)
-}
-
-fn format_separator(colors: &ThemeColors, width: usize) -> String {
-    format!("{}├{}┤{}", colors.info, "─".repeat(width + 2), colors.reset)
-}
-
-fn format_title_line(colors: &ThemeColors, title: &str, width: usize) -> String {
+fn format_title_line(
+    colors: &ThemeColors,
+    borders: &BorderSet,
+    title: &str,
+    width: usize,
+) -> String {
     let padding = width.saturating_sub(title.len());
     let left_pad = padding / 2;
     let right_pad = padding - left_pad;
     format!(
-        "{}│{} {}{}{} {}│{}",
-        colors.info,
+        "{}{}{}  {}{}{}  {}{}{}",
+        colors.border,
+        borders.vertical,
         colors.reset,
         " ".repeat(left_pad),
         title,
         " ".repeat(right_pad),
-        colors.info,
+        colors.border,
+        borders.vertical,
         colors.reset
     )
 }
 
-fn format_option_line(colors: &ThemeColors, label: &str, desc: &str, width: usize) -> String {
-    let label_width = 14;
-    let desc_width = width.saturating_sub(label_width + 3);
+#[allow(clippy::too_many_arguments)]
+fn format_option_line_with_preview(
+    colors: &ThemeColors,
+    borders: &BorderSet,
+    theme_colors: &ThemeColors,
+    num: usize,
+    name: &str,
+    desc: &str,
+    is_current: bool,
+    width: usize,
+) -> String {
+    // Build the preview indicator using the theme's own indicator
+    let preview = format!(
+        "{}{}{}",
+        theme_colors.recording,
+        theme_colors.indicator_rec,
+        colors.reset
+    );
+
+    // Current theme marker
+    let marker = if is_current { "▶" } else { " " };
+
+    let label = format!("{} {}. {}", marker, num, name);
+    let label_width = 16;
+    let desc_width = width.saturating_sub(label_width + 6);
     let label_padded = format!("{:<width$}", label, width = label_width);
     let desc_truncated: String = desc.chars().take(desc_width).collect();
     let desc_padded = format!("{:<width$}", desc_truncated, width = desc_width);
 
     format!(
-        "{}│{} {}{}{}   {} {}│{}",
-        colors.info,
+        "{}{}{} {} {}{}{} {} {}{}{}",
+        colors.border,
+        borders.vertical,
         colors.reset,
+        preview,
         colors.success,
         label_padded,
         colors.reset,
         desc_padded,
-        colors.info,
+        colors.border,
+        borders.vertical,
         colors.reset
     )
 }
 
 pub fn theme_picker_height() -> usize {
-    3 + THEME_OPTIONS.len() + 3
+    // Top border + title + separator + options + separator + footer + bottom border
+    1 + 1 + 1 + THEME_OPTIONS.len() + 1 + 1 + 1
 }
 
 #[cfg(test)]
@@ -109,9 +163,19 @@ mod tests {
     #[test]
     fn theme_picker_has_borders() {
         let output = format_theme_picker(Theme::Coral, 60);
-        assert!(output.contains("┌"));
-        assert!(output.contains("└"));
-        assert!(output.contains("│"));
+        // Uses theme-specific borders
+        let colors = Theme::Coral.colors();
+        assert!(output.contains(colors.borders.top_left));
+        assert!(output.contains(colors.borders.bottom_left));
+        assert!(output.contains(colors.borders.vertical));
+    }
+
+    #[test]
+    fn theme_picker_shows_current_theme() {
+        let output = format_theme_picker(Theme::Dracula, 60);
+        // Should have marker for current theme (Dracula = option 3)
+        assert!(output.contains("▶"));
+        assert!(output.contains("3. dracula"));
     }
 
     #[test]

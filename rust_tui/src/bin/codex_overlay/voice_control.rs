@@ -603,6 +603,7 @@ mod tests {
             voice_send_mode: VoiceSendMode::Auto,
             theme_name: None,
             no_color: false,
+            backend: "codex".to_string(),
         };
         let mut session = StubSession::default();
         let (writer_tx, writer_rx) = crossbeam_channel::unbounded();

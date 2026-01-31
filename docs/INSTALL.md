@@ -15,9 +15,11 @@ This doc covers all install and run options, plus model setup.
 
 ## Prerequisites
 
-- Codex CLI: `npm install -g @openai/codex`
+- Codex CLI (default backend): `npm install -g @openai/codex`
+- Optional: another AI CLI if you plan to use `--backend` (Claude, Gemini, Aider, OpenCode, etc.)
 - Rust toolchain (stable) for building from source: https://rustup.rs
 - Whisper model (GGML format). The install and start scripts can download one automatically.
+- Optional (Python fallback): `python3`, `ffmpeg`, and the `whisper` CLI on PATH.
 
 ## Option A: Install from source (recommended)
 
@@ -37,13 +39,21 @@ cd ~/my-project
 codex-voice
 ```
 
+To target another AI CLI, pass `--backend` (example):
+
+```bash
+codex-voice --backend claude
+```
+
 ### PATH notes
 
 If `codex-voice` is not found, the installer used the first writable directory in this order:
 `/opt/homebrew/bin`, `/usr/local/bin`, `~/.local/bin`, or `/path/to/codex-voice/bin`.
 Add that directory to PATH or set `CODEX_VOICE_INSTALL_DIR` before running `./install.sh`.
-If a `codex-voice` command already exists, the installer skips that location; remove the
-conflicting binary or set `CODEX_VOICE_INSTALL_DIR` to override.
+If a `codex-voice` command already exists in `/opt/homebrew/bin` or `/usr/local/bin`, the
+installer skips that location to avoid clobbering system/Homebrew installs. In `~/.local/bin`
+or the repo `bin/` directory it will overwrite. Remove the conflicting binary or set
+`CODEX_VOICE_INSTALL_DIR` to override.
 
 ## Option B: macOS App (folder picker)
 

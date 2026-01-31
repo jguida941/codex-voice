@@ -8,31 +8,31 @@
 [![Rust TUI CI](https://github.com/jguida941/codex-voice/actions/workflows/rust_tui.yml/badge.svg)](https://github.com/jguida941/codex-voice/actions/workflows/rust_tui.yml)
 [![Mutation Testing](https://github.com/jguida941/codex-voice/actions/workflows/mutation-testing.yml/badge.svg)](https://github.com/jguida941/codex-voice/actions/workflows/mutation-testing.yml)
 
-Voice input for Codex CLI, written in Rust for speed. Talk instead of type and boost your productivity. Runs Whisper locally through Rust with ~250ms latency. No cloud, no API keys.
+Voice input for the Codex CLI by default, with optional backend selection for other AI CLIs. Written in Rust for speed. Talk instead of type and boost your productivity. Runs Whisper locally through Rust with ~250ms latency. No cloud, no API keys.
 
 ![Codex Voice Startup](img/startup.png)
 
 ## What Codex-Voice Does
 
-Wraps Codex in a PTY and adds voice input. You talk → Whisper transcribes → text gets typed into Codex. Codex-Voice runs over Codex CLI, so you keep all Codex features like file editing, code generation, etc.
+Wraps Codex (or another AI CLI via `--backend`) in a PTY and adds voice input. You talk → Whisper transcribes → text gets typed into the CLI. Codex-Voice runs over the native CLI, so you keep its features like file editing and code generation.
 
 - Written in Rust for speed
 - Local speech-to-text via whisper.cpp
 - ~250ms transcription time
 - No network calls
-- PTY overlay - Codex UI unchanged
+- PTY overlay - CLI UI unchanged
 
 ## Requirements
 
 - macOS or Linux (Windows needs WSL2)
-- Node.js (for Codex CLI)
+- Node.js (for Codex CLI) or another supported AI CLI if using `--backend`
 - Microphone access
 - ~1.5 GB disk for Whisper model
 
 ## Install
 
 ```bash
-# Install Codex CLI first
+# Install Codex CLI first (default backend)
 npm install -g @openai/codex
 
 # Clone and build
@@ -46,6 +46,8 @@ codex-voice
 ```
 
 First run downloads the Whisper model.
+
+To target another AI CLI instead of Codex, pass `--backend` (example: `codex-voice --backend claude`).
 
 **Other options:** [Homebrew](docs/INSTALL.md#homebrew) | [macOS App](docs/INSTALL.md#macos-app) | [Build from source](docs/INSTALL.md#from-source)
 
@@ -62,16 +64,16 @@ First run downloads the Whisper model.
 | `?` | Show shortcut help |
 | `Enter` | Stop recording early (insert mode) / send prompt |
 | `Ctrl+Q` | Quit |
-| `Ctrl+C` | Send interrupt to Codex |
+| `Ctrl+C` | Send interrupt to CLI |
 
 More details: [Usage Guide](docs/USAGE.md)
 
 ## Features
 
 - **Local STT:** Whisper runs on your local machine
-- **PTY passthrough:** Integrates with Codex CLI seamlessly
-- **Auto-voice:** Code with Codex hands-free, no typing needed
-- **Transcript queue:** Speak while Codex is busy, transcripts send when ready
+- **PTY passthrough:** Integrates with the selected CLI seamlessly
+- **Auto-voice:** Code hands-free, no typing needed
+- **Transcript queue:** Speak while the CLI is busy, transcripts send when ready
 - **No logging by default:** Enable with `--logs` if you need it
 
 ## macOS App
@@ -83,12 +85,12 @@ Double-click `Codex Voice.app`, pick a folder, it opens Terminal with codex-voic
 ## How It Works
 
 ```
-Mic → Whisper → Text → PTY → Codex
+Mic → Whisper → Text → PTY → CLI
                          ↓
                      Terminal (raw output)
 ```
 
-Codex runs in a PTY. Voice transcripts are sent as keystrokes. All Codex output passes through unchanged.
+The CLI runs in a PTY. Voice transcripts are sent as keystrokes. All CLI output passes through unchanged.
 
 ## Docs
 

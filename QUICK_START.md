@@ -1,6 +1,6 @@
 # Codex Voice Quick Start (Overlay Mode)
 
-This is the shortest path to run Codex with voice in your terminal.
+This is the shortest path to run Codex (default backend) with voice in your terminal.
 Supported on macOS and Linux (use WSL2 if you are on Windows).
 
 ## 1) Prerequisites
@@ -35,6 +35,12 @@ codex-voice
 
 First run downloads a Whisper model if missing.
 
+To target another AI CLI instead of Codex, pass `--backend`:
+
+```bash
+codex-voice --backend claude
+```
+
 ## 4) Essential controls
 
 - `Ctrl+R` - start voice capture
@@ -45,7 +51,7 @@ First run downloads a Whisper model if missing.
 - `Ctrl+\` - decrease mic threshold by 5 dB (more sensitive; `Ctrl+/` also works)
 - `?` - show shortcut help
 - `Ctrl+Q` - exit overlay
-- `Ctrl+C` - forwarded to Codex
+- `Ctrl+C` - forwarded to the CLI
 - `Enter` - in insert mode, stop capture early and transcribe what was captured
 
 Full behavior notes and screenshots are in [docs/USAGE.md](docs/USAGE.md).

@@ -1,4 +1,5 @@
 pub mod audio;
+pub mod backend;
 pub mod codex;
 pub mod config;
 pub mod ipc;

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Integration test for Codex Voice IPC protocol
-# Tests the end-to-end flow between TypeScript frontend and Rust backend
+# Tests the end-to-end flow between IPC clients and the Rust backend
 #
 
 set -e
@@ -9,7 +9,6 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$(dirname "$SCRIPT_DIR")")"
 RUST_BINARY="$PROJECT_ROOT/rust_tui/target/release/rust_tui"
-TS_CLI_DIR="$PROJECT_ROOT/ts_cli"
 
 # Colors
 RED='\033[0;31m'
@@ -149,46 +148,7 @@ else
 fi
 
 # ============================================================================
-# Test 5: TypeScript build
-# ============================================================================
-
-print_test "TypeScript CLI build"
-
-if [ -d "$TS_CLI_DIR" ]; then
-    cd "$TS_CLI_DIR"
-    if [ -d "dist" ] && [ -f "dist/index.js" ]; then
-        pass "TypeScript CLI is built (dist/index.js exists)"
-    else
-        if npm run build 2>/dev/null; then
-            pass "TypeScript CLI builds successfully"
-        else
-            fail "TypeScript CLI build failed"
-        fi
-    fi
-else
-    skip "TypeScript CLI directory not found"
-fi
-
-# ============================================================================
-# Test 6: TypeScript bridge interface
-# ============================================================================
-
-print_test "TypeScript bridge interface"
-
-if [ -f "$TS_CLI_DIR/dist/bridge/rust-ipc.js" ]; then
-    pass "RustBridge module exists"
-else
-    fail "RustBridge module not found"
-fi
-
-if [ -f "$TS_CLI_DIR/dist/index.js" ]; then
-    pass "CLI entry point exists"
-else
-    fail "CLI entry point not found"
-fi
-
-# ============================================================================
-# Test 7: Protocol compatibility
+# Test 5: Protocol compatibility
 # ============================================================================
 
 print_test "Protocol version compatibility"

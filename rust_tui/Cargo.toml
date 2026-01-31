@@ -28,6 +28,7 @@ whisper-rs = { version = "0.14.1", default-features = false, features = [] }
 regex = "1"
 num_cpus = "1.17"
 gag = "1.0"
+shell-words = "1"
 rubato = { version = "0.12", optional = true }
 earshot = { version = "0.1", optional = true }
 

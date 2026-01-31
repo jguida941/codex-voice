@@ -1,12 +1,12 @@
-//! Codex Voice overlay - voice input for the Codex CLI.
+//! Codex Voice overlay - voice input for the Codex CLI (or another AI CLI via --backend).
 //!
-//! Runs Codex in a PTY and intercepts hotkeys for voice capture. Transcripts
-//! are injected as keystrokes, preserving Codex's native TUI.
+//! Runs the selected CLI in a PTY and intercepts hotkeys for voice capture. Transcripts
+//! are injected as keystrokes, preserving the native TUI.
 //!
 //! # Architecture
 //!
 //! - Input thread: reads stdin, intercepts Ctrl+R/V/Q
-//! - PTY reader: forwards Codex output to terminal
+//! - PTY reader: forwards CLI output to terminal
 //! - Writer thread: serializes output to avoid interleaving
 //! - Voice worker: background audio capture and STT
 
@@ -15,6 +15,8 @@ mod banner;
 mod color_mode;
 mod config;
 mod help;
+mod hud;
+mod icons;
 mod input;
 mod progress;
 mod prompt;
@@ -45,6 +47,7 @@ use std::time::{Duration, Instant};
 use crate::banner::{format_minimal_banner, format_startup_banner, BannerConfig};
 use crate::config::{OverlayConfig, VoiceSendMode};
 use crate::help::{format_help_overlay, help_overlay_height};
+use crate::hud::HudRegistry;
 use crate::input::{spawn_input_thread, InputEvent};
 use crate::prompt::{
     resolve_prompt_log, resolve_prompt_regex, should_auto_trigger, PromptLogger, PromptTracker,
@@ -121,20 +124,25 @@ fn main() -> Result<()> {
         })
         .unwrap_or_else(|| ".".to_string());
 
+    // Resolve backend command and args
+    let backend = config.resolve_backend();
+
     let prompt_log_path = if config.app.no_logs {
         None
     } else {
         resolve_prompt_log(&config)
     };
     let prompt_logger = PromptLogger::new(prompt_log_path);
-    let prompt_regex = resolve_prompt_regex(&config)?;
-    let mut prompt_tracker = PromptTracker::new(prompt_regex, prompt_logger);
+    let prompt_regex = resolve_prompt_regex(&config, backend.prompt_pattern.as_deref())?;
+    let mut prompt_tracker =
+        PromptTracker::new(prompt_regex.regex, prompt_regex.allow_auto_learn, prompt_logger);
 
     let banner_config = BannerConfig {
         auto_voice: config.auto_voice,
         theme: theme.to_string(),
         pipeline: "Rust".to_string(),
         sensitivity_db: config.app.voice_vad_threshold_db,
+        backend: backend.label.clone(),
     };
     let banner = match terminal_size() {
         Ok((cols, _)) if cols < 60 => format_minimal_banner(theme),
@@ -144,9 +152,9 @@ fn main() -> Result<()> {
     let _ = io::stdout().flush();
 
     let mut session = PtyOverlaySession::new(
-        &config.app.codex_cmd,
+        &backend.command,
         &working_dir,
-        &config.app.codex_args,
+        &backend.args,
         &config.app.term_value,
     )?;
 
@@ -170,6 +178,11 @@ fn main() -> Result<()> {
 
     let auto_idle_timeout = Duration::from_millis(config.auto_voice_idle_ms.max(100));
     let transcript_idle_timeout = Duration::from_millis(config.transcript_idle_ms.max(50));
+    let hud_registry = HudRegistry::with_defaults();
+    let meter_update_ms = hud_registry
+        .min_tick_interval()
+        .map(|duration| duration.as_millis() as u64)
+        .unwrap_or(METER_UPDATE_MS);
     let mut voice_manager = VoiceManager::new(config.app.clone());
     let live_meter = voice_manager.meter();
     let mut auto_voice_enabled = config.auto_voice;
@@ -271,7 +284,7 @@ fn main() -> Result<()> {
                                         overlay_mode = OverlayMode::None;
                                         let _ = writer_tx.send(WriterMessage::ClearOverlay);
                                     } else if let Some(idx) = bytes.iter().find_map(|b| theme_index_from_byte(*b)) {
-                                        if let Some((name, _)) = THEME_OPTIONS.get(idx) {
+                                        if let Some((_, name, _)) = THEME_OPTIONS.get(idx) {
                                             if let Some(requested) = Theme::from_name(name) {
                                                 config.theme_name = Some(name.to_string());
                                                 let (resolved, note) = resolve_theme_choice(&config, requested);
@@ -576,7 +589,7 @@ fn main() -> Result<()> {
                 }
 
                 if status_state.recording_state == RecordingState::Recording {
-                    if now.duration_since(last_meter_update) >= Duration::from_millis(METER_UPDATE_MS)
+                    if now.duration_since(last_meter_update) >= Duration::from_millis(meter_update_ms)
                     {
                         let level = live_meter.level_db();
                         meter_levels.push_back(level);
@@ -621,6 +634,12 @@ fn main() -> Result<()> {
                             source,
                             metrics,
                         } => {
+                            if let Some(started_at) = recording_started_at {
+                                if let Some(elapsed) = now.checked_duration_since(started_at) {
+                                    let ms = elapsed.as_millis().min(u128::from(u32::MAX)) as u32;
+                                    status_state.last_latency_ms = Some(ms);
+                                }
+                            }
                             let ready = transcript_ready(
                                 &prompt_tracker,
                                 last_enter_at,
@@ -686,6 +705,7 @@ fn main() -> Result<()> {
                                         mode: config.voice_send_mode,
                                     },
                                 );
+                                status_state.queue_depth = pending_transcripts.len();
                                 if dropped {
                                     set_status(
                                         &writer_tx,
@@ -753,6 +773,25 @@ fn main() -> Result<()> {
                             if sound_on_complete {
                                 let _ = writer_tx.send(WriterMessage::Bell { count: 1 });
                             }
+                        }
+                        VoiceJobMessage::Empty { source, metrics } => {
+                            if let Some(started_at) = recording_started_at {
+                                if let Some(elapsed) = now.checked_duration_since(started_at) {
+                                    let ms = elapsed.as_millis().min(u128::from(u32::MAX)) as u32;
+                                    status_state.last_latency_ms = Some(ms);
+                                }
+                            }
+                            handle_voice_message(
+                                VoiceJobMessage::Empty { source, metrics },
+                                &config,
+                                &mut session,
+                                &writer_tx,
+                                &mut status_clear_deadline,
+                                &mut current_status,
+                                &mut status_state,
+                                &mut session_stats,
+                                auto_voice_enabled,
+                            );
                         }
                         other => {
                             if sound_on_error && matches!(other, VoiceJobMessage::Error(_)) {

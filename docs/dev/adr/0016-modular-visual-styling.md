@@ -93,7 +93,7 @@ Implement a modular visual styling system with these components:
 
 ## Links
 
-- [Visual Design Audit](../../active/visual.md) - Original improvement plan
+- [UI Enhancement Plan](../../active/UI_ENHANCEMENT_PLAN.md) - Current UI roadmap
 - [NO_COLOR Standard](https://no-color.org/)
 - [Catppuccin Theme](https://github.com/catppuccin/catppuccin)
 - `rust_tui/src/bin/codex_overlay/` - Implementation location

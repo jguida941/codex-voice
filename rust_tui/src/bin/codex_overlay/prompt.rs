@@ -22,16 +22,39 @@ pub(crate) fn resolve_prompt_log(config: &OverlayConfig) -> Option<PathBuf> {
     None
 }
 
-pub(crate) fn resolve_prompt_regex(config: &OverlayConfig) -> Result<Option<Regex>> {
-    let Some(raw) = config
+pub(crate) struct PromptRegexConfig {
+    pub(crate) regex: Option<Regex>,
+    pub(crate) allow_auto_learn: bool,
+}
+
+pub(crate) fn resolve_prompt_regex(
+    config: &OverlayConfig,
+    backend_fallback: Option<&str>,
+) -> Result<PromptRegexConfig> {
+    let user_override = config
         .prompt_regex
         .clone()
-        .or_else(|| env::var("CODEX_VOICE_PROMPT_REGEX").ok())
-    else {
-        return Ok(None);
-    };
-    let regex = Regex::new(&raw).with_context(|| format!("invalid prompt regex: {raw}"))?;
-    Ok(Some(regex))
+        .or_else(|| env::var("CODEX_VOICE_PROMPT_REGEX").ok());
+    if let Some(raw) = user_override {
+        let regex = Regex::new(&raw).with_context(|| format!("invalid prompt regex: {raw}"))?;
+        return Ok(PromptRegexConfig {
+            regex: Some(regex),
+            allow_auto_learn: false,
+        });
+    }
+
+    if let Some(raw) = backend_fallback.map(str::trim).filter(|pattern| !pattern.is_empty()) {
+        let regex = Regex::new(raw).with_context(|| format!("invalid prompt regex: {raw}"))?;
+        return Ok(PromptRegexConfig {
+            regex: Some(regex),
+            allow_auto_learn: true,
+        });
+    }
+
+    Ok(PromptRegexConfig {
+        regex: None,
+        allow_auto_learn: true,
+    })
 }
 
 pub(crate) struct PromptLogger {
@@ -110,6 +133,7 @@ impl PromptLogger {
 pub(crate) struct PromptTracker {
     regex: Option<Regex>,
     learned_prompt: Option<String>,
+    allow_auto_learn: bool,
     last_prompt_seen_at: Option<Instant>,
     last_output_at: Instant,
     has_seen_output: bool,
@@ -147,10 +171,15 @@ fn strip_ansi_preserve_controls(bytes: &[u8]) -> Vec<u8> {
 }
 
 impl PromptTracker {
-    pub(crate) fn new(regex: Option<Regex>, prompt_logger: PromptLogger) -> Self {
+    pub(crate) fn new(
+        regex: Option<Regex>,
+        allow_auto_learn: bool,
+        prompt_logger: PromptLogger,
+    ) -> Self {
         Self {
             regex,
             learned_prompt: None,
+            allow_auto_learn,
             last_prompt_seen_at: None,
             last_output_at: Instant::now(),
             has_seen_output: false,
@@ -199,7 +228,10 @@ impl PromptTracker {
         if candidate.trim().is_empty() {
             return;
         }
-        if self.learned_prompt.is_none() && self.regex.is_none() {
+        if self.allow_auto_learn
+            && self.learned_prompt.is_none()
+            && !self.matches_prompt(&candidate)
+        {
             if !looks_like_prompt(&candidate) {
                 return;
             }
@@ -227,13 +259,14 @@ impl PromptTracker {
     }
 
     fn matches_prompt(&self, line: &str) -> bool {
+        let mut matches = false;
         if let Some(regex) = &self.regex {
-            return regex.is_match(line);
+            matches |= regex.is_match(line);
         }
         if let Some(prompt) = &self.learned_prompt {
-            return line.trim_end() == prompt.trim_end();
+            matches |= line.trim_end() == prompt.trim_end();
         }
-        false
+        matches
     }
 
     fn update_prompt_seen(&mut self, now: Instant, line: &str, reason: &str) {
@@ -336,6 +369,7 @@ mod tests {
             voice_send_mode: VoiceSendMode::Auto,
             theme_name: None,
             no_color: false,
+            backend: "codex".to_string(),
         };
         let resolved = resolve_prompt_log(&config);
         assert_eq!(
@@ -359,6 +393,7 @@ mod tests {
             voice_send_mode: VoiceSendMode::Auto,
             theme_name: None,
             no_color: false,
+            backend: "codex".to_string(),
         };
         let resolved = resolve_prompt_log(&config);
         env::remove_var("CODEX_VOICE_PROMPT_LOG");
@@ -379,6 +414,7 @@ mod tests {
             voice_send_mode: VoiceSendMode::Auto,
             theme_name: None,
             no_color: false,
+            backend: "codex".to_string(),
         };
         assert!(resolve_prompt_log(&config).is_none());
     }
@@ -395,9 +431,11 @@ mod tests {
             voice_send_mode: VoiceSendMode::Auto,
             theme_name: None,
             no_color: false,
+            backend: "codex".to_string(),
         };
-        let regex = resolve_prompt_regex(&config).expect("regex should compile");
-        assert!(regex.is_some());
+        let resolved = resolve_prompt_regex(&config, None).expect("regex should compile");
+        assert!(resolved.regex.is_some());
+        assert!(!resolved.allow_auto_learn);
     }
 
     #[test]
@@ -412,14 +450,15 @@ mod tests {
             voice_send_mode: VoiceSendMode::Auto,
             theme_name: None,
             no_color: false,
+            backend: "codex".to_string(),
         };
-        assert!(resolve_prompt_regex(&config).is_err());
+        assert!(resolve_prompt_regex(&config, None).is_err());
     }
 
     #[test]
     fn should_auto_trigger_checks_prompt_and_idle() {
         let logger = PromptLogger::new(Some(temp_log_path("prompt_tracker_auto")));
-        let mut tracker = PromptTracker::new(None, logger);
+        let mut tracker = PromptTracker::new(None, true, logger);
         let now = Instant::now();
         tracker.has_seen_output = true;
         tracker.last_output_at = now - Duration::from_millis(2000);
@@ -458,7 +497,7 @@ mod tests {
     #[test]
     fn prompt_tracker_feed_output_handles_control_bytes() {
         let logger = PromptLogger::new(Some(temp_log_path("prompt_tracker_control")));
-        let mut tracker = PromptTracker::new(None, logger);
+        let mut tracker = PromptTracker::new(None, true, logger);
         tracker.feed_output(b"ab\rde\tf\n");
         assert_eq!(tracker.last_line.as_deref(), Some("de f"));
         assert!(tracker.has_seen_output());
@@ -467,7 +506,7 @@ mod tests {
     #[test]
     fn prompt_tracker_idle_ready_on_threshold() {
         let logger = PromptLogger::new(Some(temp_log_path("prompt_tracker_idle")));
-        let mut tracker = PromptTracker::new(None, logger);
+        let mut tracker = PromptTracker::new(None, true, logger);
         let now = Instant::now();
         tracker.note_activity(now - Duration::from_millis(1000));
         assert!(tracker.idle_ready(now, Duration::from_millis(1000)));
@@ -486,7 +525,7 @@ mod tests {
     #[test]
     fn prompt_tracker_learns_prompt_on_idle() {
         let logger = PromptLogger::new(Some(env::temp_dir().join("codex_voice_prompt_test.log")));
-        let mut tracker = PromptTracker::new(None, logger);
+        let mut tracker = PromptTracker::new(None, true, logger);
         tracker.feed_output(b"codex> ");
         let now = tracker.last_output_at() + Duration::from_millis(2000);
         tracker.on_idle(now, Duration::from_millis(1000));
@@ -497,7 +536,7 @@ mod tests {
     fn prompt_tracker_matches_regex() {
         let logger = PromptLogger::new(Some(env::temp_dir().join("codex_voice_prompt_test.log")));
         let regex = Regex::new(r"^codex> $").unwrap();
-        let mut tracker = PromptTracker::new(Some(regex), logger);
+        let mut tracker = PromptTracker::new(Some(regex), false, logger);
         tracker.feed_output(b"codex> \n");
         assert!(tracker.last_prompt_seen_at().is_some());
     }
@@ -505,7 +544,7 @@ mod tests {
     #[test]
     fn prompt_tracker_ignores_non_graphic_bytes() {
         let logger = PromptLogger::new(Some(temp_log_path("prompt_tracker_non_graphic")));
-        let mut tracker = PromptTracker::new(None, logger);
+        let mut tracker = PromptTracker::new(None, true, logger);
         tracker.feed_output(b"hi\xC2\xA0there\n");
         assert_eq!(tracker.last_line.as_deref(), Some("hithere"));
     }
@@ -513,7 +552,7 @@ mod tests {
     #[test]
     fn prompt_tracker_on_idle_triggers_on_threshold() {
         let logger = PromptLogger::new(Some(temp_log_path("prompt_tracker_idle_threshold")));
-        let mut tracker = PromptTracker::new(None, logger);
+        let mut tracker = PromptTracker::new(None, true, logger);
         tracker.feed_output(b"codex> ");
         let now = tracker.last_output_at() + Duration::from_millis(1000);
         tracker.on_idle(now, Duration::from_millis(1000));
@@ -524,7 +563,7 @@ mod tests {
     fn prompt_tracker_on_idle_skips_when_regex_present() {
         let logger = PromptLogger::new(Some(temp_log_path("prompt_tracker_idle_regex")));
         let regex = Regex::new(r"^codex> $").unwrap();
-        let mut tracker = PromptTracker::new(Some(regex), logger);
+        let mut tracker = PromptTracker::new(Some(regex), false, logger);
         tracker.feed_output(b"not a prompt");
         let now = tracker.last_output_at() + Duration::from_millis(1000);
         tracker.on_idle(now, Duration::from_millis(1000));
@@ -532,9 +571,20 @@ mod tests {
     }
 
     #[test]
+    fn prompt_tracker_on_idle_learns_when_auto_learn_enabled() {
+        let logger = PromptLogger::new(Some(temp_log_path("prompt_tracker_idle_fallback")));
+        let regex = Regex::new(r"^>$").unwrap();
+        let mut tracker = PromptTracker::new(Some(regex), true, logger);
+        tracker.feed_output(b"codex> ");
+        let now = tracker.last_output_at() + Duration::from_millis(1000);
+        tracker.on_idle(now, Duration::from_millis(1000));
+        assert!(tracker.last_prompt_seen_at().is_some());
+    }
+
+    #[test]
     fn prompt_tracker_matches_learned_prompt() {
         let logger = PromptLogger::new(Some(temp_log_path("prompt_tracker_match")));
-        let mut tracker = PromptTracker::new(None, logger);
+        let mut tracker = PromptTracker::new(None, true, logger);
         tracker.learned_prompt = Some("codex> ".to_string());
         assert!(tracker.matches_prompt("codex> "));
     }
@@ -542,7 +592,7 @@ mod tests {
     #[test]
     fn prompt_tracker_rejects_mismatched_prompt() {
         let logger = PromptLogger::new(Some(temp_log_path("prompt_tracker_mismatch")));
-        let mut tracker = PromptTracker::new(None, logger);
+        let mut tracker = PromptTracker::new(None, true, logger);
         tracker.learned_prompt = Some("codex> ".to_string());
         assert!(!tracker.matches_prompt("nope> "));
     }
@@ -550,14 +600,14 @@ mod tests {
     #[test]
     fn prompt_tracker_has_seen_output_starts_false() {
         let logger = PromptLogger::new(Some(temp_log_path("prompt_tracker_seen")));
-        let tracker = PromptTracker::new(None, logger);
+        let tracker = PromptTracker::new(None, true, logger);
         assert!(!tracker.has_seen_output());
     }
 
     #[test]
     fn should_auto_trigger_respects_last_trigger_equal_times() {
         let logger = PromptLogger::new(Some(temp_log_path("prompt_tracker_last_trigger")));
-        let mut tracker = PromptTracker::new(None, logger);
+        let mut tracker = PromptTracker::new(None, true, logger);
         tracker.has_seen_output = true;
         let now = Instant::now();
         tracker.last_prompt_seen_at = Some(now);

@@ -97,3 +97,10 @@ docs/references/
 **/agents.md
 rust_tui/mutants.out*
 claudeaudit.md
+
+# AI tooling (local only)
+CLAUDE.md
+**/CLAUDE.md
+.claude/
+docs/active/claude_review*.md
+docs/active/visual*.md

@@ -48,7 +48,7 @@ pub const SHORTCUTS: &[Shortcut] = &[
     },
     Shortcut {
         key: "Ctrl+C",
-        description: "Cancel / Forward to Codex",
+        description: "Cancel / Forward to CLI",
     },
     Shortcut {
         key: "Enter",

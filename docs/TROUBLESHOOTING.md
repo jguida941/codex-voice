@@ -25,7 +25,7 @@ The mic recorded but no voice was heard above the threshold.
 
 **Fixes:**
 1. Speak louder or closer to the mic
-2. Lower the threshold: press `Ctrl+\` to make it more sensitive
+2. Lower the threshold: press `Ctrl+\` (or `Ctrl+/`) to make it more sensitive
 3. Run `codex-voice --mic-meter` to calibrate for your environment
 
 ### Voice capture failed (see log)
@@ -128,7 +128,7 @@ codex-voice --voice-vad-threshold-db -30
 
 ### Not sensitive enough (misses your voice)
 
-Press `Ctrl+\` to lower the threshold (more sensitive).
+Press `Ctrl+\` (or `Ctrl+/`) to lower the threshold (more sensitive).
 
 Or set it at startup:
 ```bash
@@ -150,6 +150,8 @@ It samples ambient noise and your speech, then suggests a threshold.
 
 ## Codex Issues
 
+If you're using `--backend` with a different AI CLI, substitute that CLI's command wherever you see `codex` below.
+
 ### Codex not responding
 
 1. Verify Codex CLI is installed:
@@ -168,7 +170,7 @@ It samples ambient noise and your speech, then suggests a threshold.
 
 ### Auto-voice not triggering
 
-Auto-voice waits for Codex to show a prompt before listening. If detection fails:
+Auto-voice waits for the CLI to show a prompt before listening. If detection fails (especially on non-Codex backends):
 
 #### Override prompt detection
 
@@ -233,7 +235,7 @@ codex-voice --logs --log-content
 
 ### Log file location
 
-Debug log: `${TMPDIR}/codex_voice_tui.log` (only created when `--logs` is enabled)
+Debug log: system temp dir (for example `${TMPDIR}/codex_voice_tui.log` on macOS or `/tmp/codex_voice_tui.log` on Linux)
 
 ### Disable all logging
 

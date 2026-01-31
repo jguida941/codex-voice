@@ -2,10 +2,14 @@
 //!
 //! Provides a structured status line with mode indicator, pipeline info,
 //! sensitivity level, status message, and keyboard shortcuts.
+//!
+//! Now supports a multi-row banner layout with themed borders.
 
 use crate::audio_meter::format_waveform;
+use crate::hud::{HudRegistry, HudState, LatencyModule, MeterModule, Mode as HudMode, QueueModule};
 use crate::status_style::StatusType;
-use crate::theme::{Theme, ThemeColors};
+use crate::theme::{BorderSet, Theme, ThemeColors};
+use std::sync::OnceLock;
 
 /// Current voice mode.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -91,6 +95,10 @@ pub struct StatusLineState {
     pub meter_db: Option<f32>,
     /// Optional transcript preview snippet
     pub transcript_preview: Option<String>,
+    /// Number of pending transcripts in queue
+    pub queue_depth: usize,
+    /// Last measured transcription latency in milliseconds
+    pub last_latency_ms: Option<u32>,
 }
 
 impl StatusLineState {
@@ -120,6 +128,22 @@ const SHORTCUTS_COMPACT: &[(&str, &str)] = &[
     ("^Y", "theme"),
 ];
 
+/// Multi-row status banner output.
+#[derive(Debug, Clone)]
+pub struct StatusBanner {
+    /// Individual lines to render (top to bottom)
+    pub lines: Vec<String>,
+    /// Number of rows this banner occupies
+    pub height: usize,
+}
+
+impl StatusBanner {
+    pub fn new(lines: Vec<String>) -> Self {
+        let height = lines.len();
+        Self { lines, height }
+    }
+}
+
 /// Terminal width breakpoints for responsive layout.
 mod breakpoints {
     /// Full layout with all sections
@@ -130,6 +154,223 @@ mod breakpoints {
     pub const COMPACT: usize = 40;
     /// Minimal layout - message only
     pub const MINIMAL: usize = 25;
+}
+
+/// Format the status as a multi-row banner with themed borders.
+///
+/// Layout (4 rows):
+/// ```text
+/// ╭─────────────────────────────────────────────────────── theme ─╮
+/// │ ● AUTO │ Rust │ -40dB  ▁▂▃▅▆▇█▅  -51dB  Status message here  │
+/// │ ^R rec  ^V auto  ^T send  ? help  ^Y theme                   │
+/// ╰──────────────────────────────────────────────────────────────╯
+/// ```
+pub fn format_status_banner(state: &StatusLineState, theme: Theme, width: usize) -> StatusBanner {
+    let colors = theme.colors();
+    let borders = &colors.borders;
+
+    // For very narrow terminals, fall back to simple single-line
+    if width < breakpoints::COMPACT {
+        let line = format_status_line(state, theme, width);
+        return StatusBanner::new(vec![line]);
+    }
+
+    let inner_width = width.saturating_sub(2); // Account for left/right borders
+
+    let lines = vec![
+        format_top_border(&colors, borders, theme, width),
+        format_main_row(state, &colors, borders, theme, inner_width),
+        format_shortcuts_row(&colors, borders, inner_width),
+        format_bottom_border(&colors, borders, width),
+    ];
+
+    StatusBanner::new(lines)
+}
+
+/// Format the top border with theme name badge.
+fn format_top_border(
+    colors: &ThemeColors,
+    borders: &BorderSet,
+    theme: Theme,
+    width: usize,
+) -> String {
+    let theme_name = format!(" {} ", theme);
+    let theme_badge_len = theme_name.len();
+
+    // Calculate border segments
+    let left_border_len = 2;
+    let right_border_len = width.saturating_sub(left_border_len + theme_badge_len + 1);
+
+    let left_segment: String = std::iter::repeat_n(borders.horizontal, left_border_len).collect();
+    let right_segment: String = std::iter::repeat_n(borders.horizontal, right_border_len).collect();
+
+    format!(
+        "{}{}{}{}{}{}{}{}{}",
+        colors.border,
+        borders.top_left,
+        left_segment,
+        colors.reset,
+        colors.dim,
+        theme_name,
+        colors.reset,
+        colors.border,
+        right_segment,
+        // borders.top_right,
+        // colors.reset
+    ) + &format!("{}{}", borders.top_right, colors.reset)
+}
+
+/// Format the main status row with mode, pipeline, meter, and message.
+fn format_main_row(
+    state: &StatusLineState,
+    colors: &ThemeColors,
+    borders: &BorderSet,
+    theme: Theme,
+    inner_width: usize,
+) -> String {
+    // Build content sections
+    let mode_section = format_mode_indicator(state, colors);
+    let pipeline_section = format!(" {} ", state.pipeline.label());
+    let sensitivity_section = format!(" {:>3.0}dB ", state.sensitivity_db);
+
+    // Duration (if recording)
+    let duration_section = if let Some(dur) = state.recording_duration {
+        format!(" {:.1}s ", dur)
+    } else {
+        String::new()
+    };
+
+    // Waveform and meter (if recording)
+    let meter_section = if state.recording_state == RecordingState::Recording
+        && !state.meter_levels.is_empty()
+    {
+        let waveform = format_waveform(&state.meter_levels, 8, theme);
+        if let Some(db) = state.meter_db {
+            format!(" {} {}{:>4.0}dB{} ", waveform, colors.info, db, colors.reset)
+        } else {
+            format!(" {} ", waveform)
+        }
+    } else {
+        String::new()
+    };
+
+    // Status message with color
+    let status_type = StatusType::from_message(&state.message);
+    let status_color = status_type.color(colors);
+    let message_section = if state.message.is_empty() {
+        if state.voice_mode == VoiceMode::Auto {
+            format!(
+                " {}Listening Auto Mode{}",
+                colors.info, colors.reset
+            )
+        } else {
+            " Ready".to_string()
+        }
+    } else {
+        format!(" {}{}{}", status_color, state.message, colors.reset)
+    };
+
+    // Combine all sections
+    let sep = format!("{}│{}", colors.dim, colors.reset);
+    let content = format!(
+        "{}{}{}{}{}{}{}",
+        mode_section,
+        sep,
+        pipeline_section,
+        sep,
+        sensitivity_section,
+        duration_section,
+        meter_section,
+    );
+
+    let content_width = display_width(&content);
+    let message_available = inner_width.saturating_sub(content_width + 1);
+    let truncated_message = truncate_display(&message_section, message_available);
+    let message_width = display_width(&truncated_message);
+
+    // Padding to fill the row
+    let padding_needed = inner_width.saturating_sub(content_width + message_width);
+    let padding = " ".repeat(padding_needed);
+
+    format!(
+        "{}{}{}{}{}{}{}{}{}",
+        colors.bg_primary,
+        colors.border,
+        borders.vertical,
+        colors.reset,
+        colors.bg_primary,
+        content,
+        truncated_message,
+        padding,
+        colors.reset,
+    ) + &format!(
+        "{}{}{}",
+        colors.border, borders.vertical, colors.reset
+    )
+}
+
+/// Format the mode indicator with appropriate color and symbol.
+fn format_mode_indicator(state: &StatusLineState, colors: &ThemeColors) -> String {
+    let (indicator, label, color) = match state.recording_state {
+        RecordingState::Recording => (colors.indicator_rec, "REC", colors.recording),
+        RecordingState::Processing => ("◐", "...", colors.processing),
+        RecordingState::Idle => match state.voice_mode {
+            VoiceMode::Auto => (colors.indicator_auto, "AUTO", colors.info),
+            VoiceMode::Manual => (colors.indicator_manual, "MANUAL", ""),
+            VoiceMode::Idle => (colors.indicator_idle, "IDLE", ""),
+        },
+    };
+
+    if color.is_empty() {
+        format!(" {} {} ", indicator, label)
+    } else {
+        format!(" {}{} {}{} ", color, indicator, label, colors.reset)
+    }
+}
+
+/// Format the shortcuts row with dimmed styling.
+fn format_shortcuts_row(colors: &ThemeColors, borders: &BorderSet, inner_width: usize) -> String {
+    let shortcuts: Vec<String> = SHORTCUTS_COMPACT
+        .iter()
+        .map(|(key, action)| format!("{}{}{} {}", colors.info, key, colors.reset, action))
+        .collect();
+    let shortcuts_str = shortcuts.join("  ");
+
+    let shortcuts_width = display_width(&shortcuts_str);
+    let padding_needed = inner_width.saturating_sub(shortcuts_width + 1);
+    let padding = " ".repeat(padding_needed);
+
+    format!(
+        "{}{}{}{}{}{}{}{}{}{}",
+        colors.bg_secondary,
+        colors.border,
+        borders.vertical,
+        colors.reset,
+        colors.bg_secondary,
+        colors.dim,
+        " ",
+        shortcuts_str,
+        padding,
+        colors.reset,
+    ) + &format!(
+        "{}{}{}",
+        colors.border, borders.vertical, colors.reset
+    )
+}
+
+/// Format the bottom border.
+fn format_bottom_border(colors: &ThemeColors, borders: &BorderSet, width: usize) -> String {
+    let inner: String =
+        std::iter::repeat_n(borders.horizontal, width.saturating_sub(2)).collect();
+
+    format!(
+        "{}{}{}{}{}",
+        colors.border,
+        borders.bottom_left,
+        inner,
+        borders.bottom_right,
+        colors.reset
+    )
 }
 
 /// Format the enhanced status line with responsive layout.
@@ -269,10 +510,42 @@ fn format_compact(
         }
     };
 
+    let registry = compact_hud_registry();
+    let hud_state = HudState {
+        mode: match state.voice_mode {
+            VoiceMode::Auto => HudMode::Auto,
+            VoiceMode::Manual => HudMode::Manual,
+            VoiceMode::Idle => HudMode::Insert,
+        },
+        is_recording: state.recording_state == RecordingState::Recording,
+        recording_duration_secs: state.recording_duration.unwrap_or(0.0),
+        audio_level_db: state.meter_db.unwrap_or(-60.0),
+        queue_depth: state.queue_depth,
+        last_latency_ms: state.last_latency_ms,
+        backend_name: String::new(),
+    };
+    let modules = registry.render_all(&hud_state, width, " ");
+    let left = if modules.is_empty() {
+        mode.clone()
+    } else {
+        format!("{} {}", mode, modules)
+    };
+
     let msg = format_message(state, colors, theme, width);
-    let mode_width = display_width(&mode);
-    let available = width.saturating_sub(mode_width + 1);
-    format!("{} {}", mode, truncate_display(&msg, available))
+    let left_width = display_width(&left);
+    let available = width.saturating_sub(left_width + 1);
+    format!("{} {}", left, truncate_display(&msg, available))
+}
+
+fn compact_hud_registry() -> &'static HudRegistry {
+    static REGISTRY: OnceLock<HudRegistry> = OnceLock::new();
+    REGISTRY.get_or_init(|| {
+        let mut registry = HudRegistry::new();
+        registry.register(Box::new(MeterModule::new()));
+        registry.register(Box::new(LatencyModule::new()));
+        registry.register(Box::new(QueueModule::new()));
+        registry
+    })
 }
 
 /// Format compact left section for medium terminals.

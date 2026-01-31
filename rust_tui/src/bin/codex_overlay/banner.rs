@@ -17,6 +17,8 @@ pub struct BannerConfig {
     pub pipeline: String,
     /// Microphone sensitivity in dB
     pub sensitivity_db: f32,
+    /// Backend CLI name (e.g., "claude", "gemini", "aider")
+    pub backend: String,
 }
 
 impl Default for BannerConfig {
@@ -26,6 +28,7 @@ impl Default for BannerConfig {
             theme: "coral".to_string(),
             pipeline: "Rust".to_string(),
             sensitivity_db: -35.0,
+            backend: "codex".to_string(),
         }
     }
 }
@@ -41,10 +44,11 @@ pub fn format_startup_banner(config: &BannerConfig, theme: Theme) -> String {
     };
 
     format!(
-        "{}Codex Voice{} v{} │ {} │ theme: {} │ auto-voice: {} │ {:.0}dB\n",
+        "{}Codex Voice{} v{} │ {} │ {} │ theme: {} │ auto-voice: {} │ {:.0}dB\n",
         colors.info,
         colors.reset,
         VERSION,
+        config.backend,
         config.pipeline,
         config.theme,
         auto_voice_status,
@@ -85,11 +89,13 @@ mod tests {
             theme: "catppuccin".to_string(),
             pipeline: "Rust".to_string(),
             sensitivity_db: -40.0,
+            backend: "gemini".to_string(),
         };
         let banner = format_startup_banner(&config, Theme::Coral);
         assert!(banner.contains("Rust"));
         assert!(banner.contains("-40dB"));
         assert!(banner.contains("on")); // auto-voice on
+        assert!(banner.contains("gemini")); // backend shown
     }
 
     #[test]

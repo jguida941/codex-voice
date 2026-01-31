@@ -28,11 +28,9 @@ codex-voice/
 │   ├── USAGE.md            # Controls and overlay behavior
 │   ├── active/             # Active plans and work in progress
 │   │   ├── MASTER_PLAN.md        # Active work and verification
-│   │   ├── claude_review.md      # Required release review (move to archive after ship)
 │   │   ├── BACKLOG.md            # Deprecated pointer (see master plan)
-│   │   ├── MODULARIZATION_PLAN.md # Refactor checklist
-│   │   ├── visual.md             # Visual design audit and plan
-│   ├── archive/            # Completed work entries
+│   │   ├── UI_ENHANCEMENT_PLAN.md # UI roadmap + research notes
+│   ├── archive/            # Completed work entries (incl. release reviews & retired plans)
 │   └── dev/                # Reference and architecture docs
 │       ├── ARCHITECTURE.md       # Architecture diagrams and data flow
 │       ├── DEVELOPMENT.md        # Build/test workflow
@@ -44,6 +42,7 @@ codex-voice/
 │       ├── bin/codex_overlay/main.rs # Overlay entry point
 │       ├── app/         # TUI state + logging
 │       ├── audio/       # CPAL recording, VAD, resample
+│       ├── backend/     # AI CLI backend presets (overlay selection)
 │       ├── codex/       # Provider backend + PTY worker
 │       ├── config/      # CLI flags + validation
 │       ├── ipc/         # JSON IPC mode
@@ -57,6 +56,9 @@ codex-voice/
 ├── start.sh             # Linux/macOS launcher
 └── install.sh           # One-time installer
 ```
+
+AI review notes (for example `claude_review.md`) are local-only, gitignored, and kept in
+`docs/active/` during a release.
 
 ## Building
 

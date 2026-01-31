@@ -1,9 +1,11 @@
 # CLI Flags
 
-Two binaries are built from this repo:
+Primary user-facing binaries built from this repo:
 
 - `codex-voice` (overlay, normal user path)
 - `rust_tui` (standalone TUI, JSON IPC; mostly for dev or integrations)
+
+Additional debug/test binaries live under `rust_tui/src/bin/`.
 
 Everything is grouped by binary so you don't have to cross-reference.
 
@@ -25,6 +27,7 @@ Tip: run `codex-voice --help` or `rust_tui --help` for the live CLI output.
 | `--auto-voice-idle-ms <MS>` | Idle time before auto-voice triggers when prompt detection is unknown | 1200 |
 | `--transcript-idle-ms <MS>` | Idle time before transcripts auto-send when a prompt has not been detected | 250 |
 | `--voice-send-mode <auto\|insert>` | Auto sends newline, insert leaves transcript for editing | auto |
+| `--backend <NAME\|CMD>` | Backend CLI preset (`codex`, `claude`, `gemini`, `aider`, `opencode`) or custom command | codex |
 | `--prompt-regex <REGEX>` | Override prompt detection regex | auto-learned |
 | `--prompt-log <PATH>` | Prompt detection log path | unset (disabled) |
 | `--theme <NAME>` | Status line theme (`coral`, `catppuccin`, `dracula`, `nord`, `ansi`, `none`) | coral |
@@ -34,8 +37,11 @@ Tip: run `codex-voice --help` or `rust_tui --help` for the live CLI output.
 | `--sound-on-error` | Beep on voice capture errors | off |
 
 Prompt detection notes:
-- If `--prompt-regex` is not set, the overlay auto-learns the prompt line after output goes idle.
+- If `--prompt-regex` is not set, the overlay uses a backend-specific prompt pattern when available, otherwise it auto-learns the prompt line after output goes idle.
 - Use `--prompt-regex` when your prompt line is unusual or auto-learned incorrectly.
+
+Backend notes:
+- For custom commands with spaces, wrap the command or args in quotes (e.g., `--backend "my tool --flag"`).
 
 ### Logging (shared flags)
 
@@ -60,12 +66,12 @@ Prompt detection notes:
 
 | Flag | Purpose | Default |
 |------|---------|---------|
-| `--whisper-model-path <PATH>` | Path to Whisper GGML model (required for native pipeline) | - |
+| `--whisper-model-path <PATH>` | Path to Whisper GGML model (auto-detected in `models/` if present) | - |
 | `--whisper-model <NAME>` | Whisper model name | small |
 | `--whisper-cmd <PATH>` | Whisper CLI binary (Python fallback) | whisper |
 | `--whisper-beam-size <N>` | Beam size (native pipeline only, 0 disables) | 0 |
 | `--whisper-temperature <T>` | Temperature (native pipeline only) | 0.0 |
-| `--lang <LANG>` | Language for Whisper | en |
+| `--lang <LANG>` | Language for Whisper (`auto` supported) | en |
 | `--no-python-fallback` | Fail instead of using Python fallback | off |
 | `--voice-stt-timeout-ms <MS>` | STT worker timeout before triggering fallback | 60000 |
 
@@ -89,8 +95,8 @@ Prompt detection notes:
 
 | Flag | Purpose | Default |
 |------|---------|---------|
-| `--codex-cmd <PATH>` | Path to Codex CLI binary | codex |
-| `--codex-arg <ARG>` | Extra args to Codex (repeatable) | - |
+| `--codex-cmd <PATH>` | Path to Codex CLI binary (used when `--backend codex`) | codex |
+| `--codex-arg <ARG>` | Extra args to Codex (repeatable, when `--backend codex`) | - |
 | `--term <TERM>` | TERM value exported to Codex | `TERM` or `xterm-256color` |
 | `--ffmpeg-cmd <PATH>` | FFmpeg binary location | ffmpeg |
 | `--ffmpeg-device <NAME>` | FFmpeg audio device override | - |
@@ -110,8 +116,9 @@ Prompt detection notes:
 | `CODEX_VOICE_LOGS` | Enable debug logging | unset |
 | `CODEX_VOICE_NO_LOGS` | Disable debug logging | unset |
 | `CODEX_VOICE_LOG_CONTENT` | Allow prompt/transcript snippets in logs | unset |
-| `CODEX_VOICE_FORCE_COLUMNS` | Force terminal columns for `start.sh` | unset |
-| `CODEX_VOICE_FORCE_LINES` | Force terminal rows for `start.sh` | unset |
+| `CODEX_VOICE_FORCE_COLUMNS` | Force terminal columns for `start.sh` (banner/testing) | unset |
+| `CODEX_VOICE_FORCE_LINES` | Force terminal rows for `start.sh` (banner/testing) | unset |
+| `CODEX_VOICE_STARTUP_ONLY` | Print startup banner/controls then exit (`start.sh` only) | unset |
 | `NO_COLOR` | Disable ANSI colors (standard) | unset |
 
 ## rust_tui
@@ -156,12 +163,12 @@ Prompt detection notes:
 
 | Flag | Purpose | Default |
 |------|---------|---------|
-| `--whisper-model-path <PATH>` | Path to Whisper GGML model (required for native pipeline) | - |
+| `--whisper-model-path <PATH>` | Path to Whisper GGML model (auto-detected in `models/` if present) | - |
 | `--whisper-model <NAME>` | Whisper model name | small |
 | `--whisper-cmd <PATH>` | Whisper CLI binary (Python fallback) | whisper |
 | `--whisper-beam-size <N>` | Beam size (native pipeline only, 0 disables) | 0 |
 | `--whisper-temperature <T>` | Temperature (native pipeline only) | 0.0 |
-| `--lang <LANG>` | Language for Whisper | en |
+| `--lang <LANG>` | Language for Whisper (`auto` supported) | en |
 | `--no-python-fallback` | Fail instead of using Python fallback | off |
 | `--voice-stt-timeout-ms <MS>` | STT worker timeout before triggering fallback | 60000 |
 
@@ -205,6 +212,7 @@ Prompt detection notes:
 | `CODEX_VOICE_LOG_CONTENT` | Allow prompt/transcript snippets in logs | unset |
 | `CODEX_VOICE_PROVIDER` | Default provider for IPC mode | codex |
 | `CLAUDE_CMD` | Path to Claude CLI for IPC mode | claude |
+| `CODEX_VOICE_TEST_DEVICES` | Test-only override for device listing (comma-separated) | unset |
 
 ## See Also
 

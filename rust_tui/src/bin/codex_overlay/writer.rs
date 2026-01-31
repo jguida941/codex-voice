@@ -4,7 +4,7 @@ use std::io::{self, Write};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use crate::status_line::{format_status_line, StatusLineState};
+use crate::status_line::{format_status_banner, StatusBanner, StatusLineState};
 use crate::status_style::StatusType;
 use crate::theme::Theme;
 
@@ -60,6 +60,7 @@ pub(crate) fn spawn_writer_thread(rx: Receiver<WriterMessage>) -> thread::JoinHa
         let mut last_output_at = Instant::now();
         let mut last_status_draw_at = Instant::now();
         let mut theme = Theme::default();
+        let mut current_banner_height: usize = 0; // Track banner height for clearing
 
         loop {
             match rx.recv_timeout(Duration::from_millis(25)) {
@@ -94,6 +95,7 @@ pub(crate) fn spawn_writer_thread(rx: Receiver<WriterMessage>) -> thread::JoinHa
                         last_output_at,
                         last_status_draw_at: &mut last_status_draw_at,
                         theme,
+                        current_banner_height: &mut current_banner_height,
                     });
                 }
                 Ok(WriterMessage::EnhancedStatus(state)) => {
@@ -117,6 +119,7 @@ pub(crate) fn spawn_writer_thread(rx: Receiver<WriterMessage>) -> thread::JoinHa
                         last_output_at,
                         last_status_draw_at: &mut last_status_draw_at,
                         theme,
+                        current_banner_height: &mut current_banner_height,
                     });
                 }
                 Ok(WriterMessage::ShowOverlay { content, height }) => {
@@ -139,6 +142,7 @@ pub(crate) fn spawn_writer_thread(rx: Receiver<WriterMessage>) -> thread::JoinHa
                         last_output_at,
                         last_status_draw_at: &mut last_status_draw_at,
                         theme,
+                        current_banner_height: &mut current_banner_height,
                     });
                 }
                 Ok(WriterMessage::ClearOverlay) => {
@@ -161,6 +165,7 @@ pub(crate) fn spawn_writer_thread(rx: Receiver<WriterMessage>) -> thread::JoinHa
                         last_output_at,
                         last_status_draw_at: &mut last_status_draw_at,
                         theme,
+                        current_banner_height: &mut current_banner_height,
                     });
                 }
                 Ok(WriterMessage::ClearStatus) => {
@@ -184,6 +189,7 @@ pub(crate) fn spawn_writer_thread(rx: Receiver<WriterMessage>) -> thread::JoinHa
                         last_output_at,
                         last_status_draw_at: &mut last_status_draw_at,
                         theme,
+                        current_banner_height: &mut current_banner_height,
                     });
                 }
                 Ok(WriterMessage::Bell { count }) => {
@@ -219,6 +225,7 @@ pub(crate) fn spawn_writer_thread(rx: Receiver<WriterMessage>) -> thread::JoinHa
                         last_output_at,
                         last_status_draw_at: &mut last_status_draw_at,
                         theme,
+                        current_banner_height: &mut current_banner_height,
                     });
                 }
                 Ok(WriterMessage::SetTheme(new_theme)) => {
@@ -245,6 +252,7 @@ pub(crate) fn spawn_writer_thread(rx: Receiver<WriterMessage>) -> thread::JoinHa
                         last_output_at,
                         last_status_draw_at: &mut last_status_draw_at,
                         theme,
+                        current_banner_height: &mut current_banner_height,
                     });
                 }
                 Err(crossbeam_channel::RecvTimeoutError::Disconnected) => {
@@ -298,6 +306,7 @@ struct StatusRedraw<'a> {
     last_output_at: Instant,
     last_status_draw_at: &'a mut Instant,
     theme: Theme,
+    current_banner_height: &'a mut usize,
 }
 
 fn maybe_redraw_status(ctx: StatusRedraw<'_>) {
@@ -320,9 +329,15 @@ fn maybe_redraw_status(ctx: StatusRedraw<'_>) {
         }
     }
     if *ctx.pending_clear {
-        let _ = clear_status_line(ctx.stdout, *ctx.rows, *ctx.cols);
+        // Clear multi-line banner if we had one
+        if *ctx.current_banner_height > 1 {
+            let _ = clear_status_banner(ctx.stdout, *ctx.rows, *ctx.current_banner_height);
+        } else {
+            let _ = clear_status_line(ctx.stdout, *ctx.rows, *ctx.cols);
+        }
         *ctx.status = None;
         *ctx.enhanced_status = None;
+        *ctx.current_banner_height = 0;
         *ctx.pending_clear = false;
     }
     if *ctx.pending_overlay_clear {
@@ -349,7 +364,13 @@ fn maybe_redraw_status(ctx: StatusRedraw<'_>) {
     if let Some(panel) = ctx.overlay_panel.as_ref() {
         let _ = write_overlay_panel(ctx.stdout, panel, *ctx.rows);
     } else if let Some(state) = ctx.enhanced_status.as_ref() {
-        let _ = write_enhanced_status_line(ctx.stdout, state, *ctx.rows, *ctx.cols, ctx.theme);
+        let banner = format_status_banner(state, ctx.theme, *ctx.cols as usize);
+        // Clear old banner if height changed
+        if *ctx.current_banner_height > 0 && *ctx.current_banner_height != banner.height {
+            let _ = clear_status_banner(ctx.stdout, *ctx.rows, *ctx.current_banner_height);
+        }
+        *ctx.current_banner_height = banner.height;
+        let _ = write_status_banner(ctx.stdout, &banner, *ctx.rows);
     } else if let Some(text) = ctx.status.as_deref() {
         let _ = write_status_line(ctx.stdout, text, *ctx.rows, *ctx.cols, ctx.theme);
     }
@@ -389,23 +410,50 @@ fn write_status_line(
     stdout.write_all(&sequence)
 }
 
-fn write_enhanced_status_line(
+/// Write a multi-line status banner at the bottom of the terminal.
+fn write_status_banner(
     stdout: &mut dyn Write,
-    state: &StatusLineState,
+    banner: &StatusBanner,
     rows: u16,
-    cols: u16,
-    theme: Theme,
 ) -> io::Result<()> {
-    if rows == 0 || cols == 0 {
+    if rows == 0 || banner.height == 0 {
         return Ok(());
     }
-    let formatted = format_status_line(state, theme, cols as usize);
+    let height = banner.height.min(rows as usize);
+    let start_row = rows.saturating_sub(height as u16).saturating_add(1);
+
     let mut sequence = Vec::new();
-    sequence.extend_from_slice(b"\x1b7");
-    sequence.extend_from_slice(format!("\x1b[{rows};1H").as_bytes());
-    sequence.extend_from_slice(b"\x1b[2K");
-    sequence.extend_from_slice(formatted.as_bytes());
-    sequence.extend_from_slice(b"\x1b8");
+    sequence.extend_from_slice(b"\x1b7"); // Save cursor
+
+    for (idx, line) in banner.lines.iter().take(height).enumerate() {
+        let row = start_row + idx as u16;
+        sequence.extend_from_slice(format!("\x1b[{row};1H").as_bytes()); // Move to row
+        sequence.extend_from_slice(b"\x1b[2K"); // Clear line
+        sequence.extend_from_slice(line.as_bytes()); // Write content
+    }
+
+    sequence.extend_from_slice(b"\x1b8"); // Restore cursor
+    stdout.write_all(&sequence)
+}
+
+/// Clear a multi-line status banner.
+fn clear_status_banner(stdout: &mut dyn Write, rows: u16, height: usize) -> io::Result<()> {
+    if rows == 0 || height == 0 {
+        return Ok(());
+    }
+    let height = height.min(rows as usize);
+    let start_row = rows.saturating_sub(height as u16).saturating_add(1);
+
+    let mut sequence = Vec::new();
+    sequence.extend_from_slice(b"\x1b7"); // Save cursor
+
+    for idx in 0..height {
+        let row = start_row + idx as u16;
+        sequence.extend_from_slice(format!("\x1b[{row};1H").as_bytes()); // Move to row
+        sequence.extend_from_slice(b"\x1b[2K"); // Clear line
+    }
+
+    sequence.extend_from_slice(b"\x1b8"); // Restore cursor
     stdout.write_all(&sequence)
 }
 

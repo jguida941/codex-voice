@@ -92,6 +92,7 @@ pub(crate) fn try_flush_pending<S: TranscriptSession>(
         return;
     };
     let remaining = pending.len();
+    io.status_state.queue_depth = remaining;
     let sent_newline =
         deliver_transcript(&batch.text, &batch.label, batch.mode, io, remaining, None);
     if sent_newline {
@@ -310,7 +311,7 @@ mod tests {
         );
 
         let logger = PromptLogger::new(None);
-        let mut tracker = PromptTracker::new(None, logger);
+        let mut tracker = PromptTracker::new(None, true, logger);
         let now = Instant::now();
         tracker.note_activity(now);
 
