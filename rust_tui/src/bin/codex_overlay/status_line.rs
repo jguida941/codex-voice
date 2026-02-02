@@ -116,6 +116,7 @@ const SHORTCUTS: &[(&str, &str)] = &[
     ("Ctrl+R", "rec"),
     ("Ctrl+V", "auto"),
     ("Ctrl+T", "send"),
+    ("Ctrl+O", "settings"),
     ("?", "help"),
     ("Ctrl+Y", "theme"),
 ];
@@ -125,6 +126,7 @@ const SHORTCUTS_COMPACT: &[(&str, &str)] = &[
     ("^R", "rec"),
     ("^V", "auto"),
     ("^T", "send"),
+    ("^O", "settings"),
     ("?", "help"),
     ("^Y", "theme"),
 ];
@@ -270,7 +272,10 @@ fn format_main_row(
     let status_type = StatusType::from_message(&state.message);
     let status_color = status_type.color(colors);
     let message_section = if state.message.is_empty() {
-        " Ready".to_string()
+        format!(
+            " {}{}{}",
+            colors.dim, "Ready | Ctrl+O settings | ? help", colors.reset
+        )
     } else {
         format!(" {}{}{}", status_color, state.message, colors.reset)
     };
@@ -287,22 +292,20 @@ fn format_main_row(
     let truncated_message = truncate_display(&message_section, message_available);
 
     let interior = format!("{content}{truncated_message}");
-    let interior = apply_bg(interior, colors.bg_primary, colors.reset);
     let message_width = display_width(&truncated_message);
 
     // Padding to fill the row
     let padding_needed = inner_width.saturating_sub(content_width + message_width);
     let padding = " ".repeat(padding_needed);
 
+    // No background colors - use transparent backgrounds for terminal compatibility
     format!(
-        "{}{}{}{}{}{}{}{}{}{}",
+        "{}{}{}{}{}{}{}{}",
         colors.border,
         borders.vertical,
         colors.reset,
-        colors.bg_primary,
         interior,
         padding,
-        colors.reset,
         colors.border,
         borders.vertical,
         colors.reset,
@@ -342,25 +345,26 @@ fn format_shortcuts_row(colors: &ThemeColors, borders: &BorderSet, inner_width: 
         .iter()
         .map(|(key, action)| format!("{}{}{} {}", colors.info, key, colors.reset, action))
         .collect();
-    let shortcuts_str = apply_bg(shortcuts.join("  "), colors.bg_secondary, colors.reset);
+    let shortcuts_str = shortcuts.join("  ");
 
     let shortcuts_width = display_width(&shortcuts_str);
     let padding_needed = inner_width.saturating_sub(shortcuts_width + 1);
     let padding = " ".repeat(padding_needed);
 
-    // Don't set background before left border - only between the borders
+    // No background colors - use transparent backgrounds for terminal compatibility
     format!(
-        "{}{}{}{}{}{}{}{}{}",
+        "{}{}{}{}{}{}{}{}{}{}",
         colors.border,
         borders.vertical,
         colors.reset,
-        colors.bg_secondary,
         colors.dim,
         " ",
         shortcuts_str,
         padding,
         colors.reset,
-    ) + &format!("{}{}{}", colors.border, borders.vertical, colors.reset)
+        colors.border,
+        borders.vertical,
+    ) + colors.reset
 }
 
 /// Format the bottom border.
@@ -777,17 +781,6 @@ fn truncate_display(s: &str, max_width: usize) -> String {
     }
 
     result
-}
-
-fn apply_bg(mut text: String, bg: &str, reset: &str) -> String {
-    if bg.is_empty() || reset.is_empty() {
-        return text;
-    }
-    let reset_bg = format!("{reset}{bg}");
-    if text.contains(reset) {
-        text = text.replace(reset, &reset_bg);
-    }
-    text
 }
 
 #[cfg(test)]

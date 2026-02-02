@@ -36,7 +36,7 @@ pub const SHORTCUTS: &[Shortcut] = &[
     },
     Shortcut {
         key: "Ctrl+O",
-        description: "Settings menu",
+        description: "Settings menu (use arrows)",
     },
     Shortcut {
         key: "Ctrl+]",
@@ -63,23 +63,25 @@ pub const SHORTCUTS: &[Shortcut] = &[
 /// Format the help overlay as a string.
 pub fn format_help_overlay(theme: Theme, width: usize) -> String {
     let colors = theme.colors();
+    let borders = &colors.borders;
     let mut lines = Vec::new();
 
     // Calculate box width
     let content_width = width.clamp(30, 50);
 
     // Top border
-    lines.push(format_box_top(&colors, content_width));
+    lines.push(format_box_top(&colors, borders, content_width));
 
     // Title
     lines.push(format_title_line(
         &colors,
+        borders,
         "VoxTerm - Shortcuts",
         content_width,
     ));
 
     // Separator
-    lines.push(format_separator(&colors, content_width));
+    lines.push(format_separator(&colors, borders, content_width));
 
     // Shortcuts
     for shortcut in SHORTCUTS {
@@ -87,65 +89,108 @@ pub fn format_help_overlay(theme: Theme, width: usize) -> String {
     }
 
     // Separator
-    lines.push(format_separator(&colors, content_width));
+    lines.push(format_separator(&colors, borders, content_width));
 
     // Footer
     lines.push(format_title_line(
         &colors,
-        "Press any key to close",
+        borders,
+        "Ctrl+O settings  Esc close",
         content_width,
     ));
 
     // Bottom border
-    lines.push(format_box_bottom(&colors, content_width));
+    lines.push(format_box_bottom(&colors, borders, content_width));
 
     lines.join("\n")
 }
 
-fn format_box_top(colors: &ThemeColors, width: usize) -> String {
-    format!("{}┌{}┐{}", colors.info, "─".repeat(width + 2), colors.reset)
+fn format_box_top(colors: &ThemeColors, borders: &crate::theme::BorderSet, width: usize) -> String {
+    // width is the total box width including corners
+    // Inner horizontal chars = width - 2 (for the two corners)
+    let inner_width = width.saturating_sub(2);
+    let inner: String = std::iter::repeat(borders.horizontal).take(inner_width).collect();
+    format!(
+        "{}{}{}{}{}",
+        colors.border, borders.top_left, inner, borders.top_right, colors.reset
+    )
 }
 
-fn format_box_bottom(colors: &ThemeColors, width: usize) -> String {
-    format!("{}└{}┘{}", colors.info, "─".repeat(width + 2), colors.reset)
+fn format_box_bottom(
+    colors: &ThemeColors,
+    borders: &crate::theme::BorderSet,
+    width: usize,
+) -> String {
+    let inner_width = width.saturating_sub(2);
+    let inner: String = std::iter::repeat(borders.horizontal).take(inner_width).collect();
+    format!(
+        "{}{}{}{}{}",
+        colors.border, borders.bottom_left, inner, borders.bottom_right, colors.reset
+    )
 }
 
-fn format_separator(colors: &ThemeColors, width: usize) -> String {
-    format!("{}├{}┤{}", colors.info, "─".repeat(width + 2), colors.reset)
+fn format_separator(
+    colors: &ThemeColors,
+    borders: &crate::theme::BorderSet,
+    width: usize,
+) -> String {
+    let inner_width = width.saturating_sub(2);
+    let inner: String = std::iter::repeat(borders.horizontal).take(inner_width).collect();
+    format!(
+        "{}{}{}{}{}",
+        colors.border, borders.t_left, inner, borders.t_right, colors.reset
+    )
 }
 
-fn format_title_line(colors: &ThemeColors, title: &str, width: usize) -> String {
-    let padding = width.saturating_sub(title.len());
+fn format_title_line(
+    colors: &ThemeColors,
+    borders: &crate::theme::BorderSet,
+    title: &str,
+    width: usize,
+) -> String {
+    // Content between borders must equal width - 2 (for the two border chars)
+    let inner_width = width.saturating_sub(2);
+    // Use character count, not byte length, for proper Unicode support
+    let title_display_len = title.chars().count();
+    let padding = inner_width.saturating_sub(title_display_len);
     let left_pad = padding / 2;
     let right_pad = padding - left_pad;
     format!(
-        "{}│{} {}{}{} {}│{}",
-        colors.info,
+        "{}{}{}{}{}{}{}{}{}",
+        colors.border,
+        borders.vertical,
         colors.reset,
         " ".repeat(left_pad),
         title,
         " ".repeat(right_pad),
-        colors.info,
+        colors.border,
+        borders.vertical,
         colors.reset
     )
 }
 
 fn format_shortcut_line(colors: &ThemeColors, shortcut: &Shortcut, width: usize) -> String {
+    let borders = &colors.borders;
+    // Content width between vertical borders
+    let inner_width = width.saturating_sub(2);
     let key_width = 10;
-    let desc_width = width.saturating_sub(key_width + 3);
+    // Layout: "  " (2) + key (10) + "  " (2) + desc = 14 + desc_width = inner_width
+    let desc_width = inner_width.saturating_sub(key_width + 4);
     let key_padded = format!("{:>width$}", shortcut.key, width = key_width);
     let desc_truncated: String = shortcut.description.chars().take(desc_width).collect();
     let desc_padded = format!("{:<width$}", desc_truncated, width = desc_width);
 
     format!(
-        "{}│{} {}{}{}   {} {}│{}",
-        colors.info,
+        "{}{}{}  {}{}{}  {}{}{}{}",
+        colors.border,
+        borders.vertical,
         colors.reset,
-        colors.success,
+        colors.info,
         key_padded,
         colors.reset,
         desc_padded,
-        colors.info,
+        colors.border,
+        borders.vertical,
         colors.reset
     )
 }

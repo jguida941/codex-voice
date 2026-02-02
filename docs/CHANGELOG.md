@@ -3,6 +3,14 @@
 All notable changes to this project will be documented here, following the SDLC policy defined in `agents.md`.
 Note: Some historical entries reference internal documents that are not published in this repository.
 
+## [1.0.32] - 2026-02-02
+
+### Bug Fixes
+- Fix overlay border alignment in theme picker, settings, and help overlays.
+- Fix Unicode character width calculations in overlay title lines.
+- Remove background color applications from status line for transparent rendering.
+- Simplify settings footer text to avoid Unicode width issues.
+
 ## [1.0.31] - 2026-02-02
 
 ### Bug Fixes
@@ -27,6 +35,9 @@ Note: Some historical entries reference internal documents that are not publishe
 - Use combined ANSI/DEC cursor save/restore to keep the input cursor stable across overlays.
 - Fill the status banner background across the full row to avoid uneven tinting.
 - Make Nord theme HUD backgrounds transparent to avoid a washed-out look on dark terminals.
+- Automatically disable HUD background fills in Warp terminals to prevent black bars behind text.
+- Restore cursor attributes after HUD draws to keep CLI colors intact.
+- Show settings/help hints in the HUD idle message and overlay footers.
 
 ## [1.0.30] - 2026-02-02
 

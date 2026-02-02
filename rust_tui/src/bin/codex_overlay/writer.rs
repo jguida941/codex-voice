@@ -8,8 +8,8 @@ use crate::status_line::{format_status_banner, StatusBanner, StatusLineState};
 use crate::status_style::StatusType;
 use crate::theme::Theme;
 
-const SAVE_CURSOR: &[u8] = b"\x1b7\x1b[s";
-const RESTORE_CURSOR: &[u8] = b"\x1b8\x1b[u";
+const SAVE_CURSOR: &[u8] = b"\x1b[s\x1b7";
+const RESTORE_CURSOR: &[u8] = b"\x1b[u\x1b8";
 
 #[derive(Debug, Clone)]
 struct OverlayPanel {
@@ -448,10 +448,8 @@ fn clear_status_banner(stdout: &mut dyn Write, rows: u16, height: usize) -> io::
     if rows == 0 || height == 0 {
         return Ok(());
     }
-    // Clear extra rows above the banner to catch ghost lines from scrolling
-    // Use a generous buffer since rapid scrolling can leave ghosts several lines up
-    let extra_rows = 4;
-    let clear_height = (height + extra_rows).min(rows as usize);
+    // Only clear the banner rows to avoid erasing PTY content above the HUD.
+    let clear_height = height.min(rows as usize);
     let start_row = rows.saturating_sub(clear_height as u16).saturating_add(1);
 
     let mut sequence = Vec::new();

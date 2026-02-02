@@ -71,6 +71,7 @@ pub struct SettingsView<'a> {
 }
 
 pub fn settings_overlay_height() -> usize {
+    // Top border + title + separator + items + separator + footer + bottom border
     SETTINGS_ITEMS.len() + 6
 }
 
@@ -94,9 +95,10 @@ pub fn format_settings_overlay(view: &SettingsView<'_>, width: usize) -> String 
     }
 
     lines.push(format_separator(&colors, content_width));
+    // Use simpler ASCII footer to avoid Unicode width issues
     lines.push(format_title_line(
         &colors,
-        "↑↓ move  ←→ adjust  Enter select  Esc close",
+        "arrows move/adjust  Enter select  Esc close",
         content_width,
     ));
     lines.push(format_box_bottom(&colors, content_width));
@@ -209,47 +211,81 @@ fn format_slider(value_db: f32, width: usize) -> String {
 }
 
 fn format_box_top(colors: &ThemeColors, width: usize) -> String {
-    format!("{}┌{}┐{}", colors.info, "─".repeat(width + 2), colors.reset)
+    let borders = &colors.borders;
+    // width is the total box width including corners
+    // Inner horizontal chars = width - 2 (for the two corners)
+    let inner_width = width.saturating_sub(2);
+    let inner: String = std::iter::repeat(borders.horizontal).take(inner_width).collect();
+    format!(
+        "{}{}{}{}{}",
+        colors.border, borders.top_left, inner, borders.top_right, colors.reset
+    )
 }
 
 fn format_box_bottom(colors: &ThemeColors, width: usize) -> String {
-    format!("{}└{}┘{}", colors.info, "─".repeat(width + 2), colors.reset)
+    let borders = &colors.borders;
+    let inner_width = width.saturating_sub(2);
+    let inner: String = std::iter::repeat(borders.horizontal).take(inner_width).collect();
+    format!(
+        "{}{}{}{}{}",
+        colors.border, borders.bottom_left, inner, borders.bottom_right, colors.reset
+    )
 }
 
 fn format_separator(colors: &ThemeColors, width: usize) -> String {
-    format!("{}├{}┤{}", colors.info, "─".repeat(width + 2), colors.reset)
+    let borders = &colors.borders;
+    let inner_width = width.saturating_sub(2);
+    let inner: String = std::iter::repeat(borders.horizontal).take(inner_width).collect();
+    format!(
+        "{}{}{}{}{}",
+        colors.border, borders.t_left, inner, borders.t_right, colors.reset
+    )
 }
 
 fn format_title_line(colors: &ThemeColors, title: &str, width: usize) -> String {
-    let padding = width.saturating_sub(title.len());
+    let borders = &colors.borders;
+    // Content width between vertical borders
+    let inner_width = width.saturating_sub(2);
+    // Use character count, not byte length, for proper Unicode support
+    let title_display_len = title.chars().count();
+    let padding = inner_width.saturating_sub(title_display_len);
     let left_pad = padding / 2;
     let right_pad = padding - left_pad;
     format!(
-        "{}│{} {}{}{} {}│{}",
-        colors.info,
+        "{}{}{}{}{}{}{}{}{}",
+        colors.border,
+        borders.vertical,
         colors.reset,
         " ".repeat(left_pad),
         title,
         " ".repeat(right_pad),
-        colors.info,
+        colors.border,
+        borders.vertical,
         colors.reset
     )
 }
 
 fn format_menu_row(colors: &ThemeColors, width: usize, text: &str, selected: bool) -> String {
-    let truncated: String = text.chars().take(width).collect();
-    let padded = format!("{:<width$}", truncated, width = width);
-    let styled = if selected && (!colors.bg_secondary.is_empty() || !colors.info.is_empty()) {
-        format!(
-            "{}{}{}{}",
-            colors.bg_secondary, colors.info, padded, colors.reset
-        )
+    let borders = &colors.borders;
+    // Content width between vertical borders
+    let inner_width = width.saturating_sub(2);
+    let truncated: String = text.chars().take(inner_width).collect();
+    let padded = format!("{:<width$}", truncated, width = inner_width);
+    // Use foreground color highlight for selected items (no background)
+    let styled = if selected {
+        format!("{}{}{}", colors.info, padded, colors.reset)
     } else {
         padded
     };
 
     format!(
-        "{}│{} {} {}│{}",
-        colors.info, colors.reset, styled, colors.info, colors.reset
+        "{}{}{}{}{}{}{}",
+        colors.border,
+        borders.vertical,
+        colors.reset,
+        styled,
+        colors.border,
+        borders.vertical,
+        colors.reset
     )
 }

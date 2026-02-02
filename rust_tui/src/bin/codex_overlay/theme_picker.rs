@@ -21,24 +21,27 @@ pub fn format_theme_picker(current_theme: Theme, width: usize) -> String {
     let mut lines = Vec::new();
     let content_width = width.clamp(40, 60);
 
-    // Top border using current theme's style
-    let top_inner: String = std::iter::repeat_n(borders.horizontal, content_width + 2).collect();
+    // Inner width is what goes between the left and right border characters
+    // All rows must have exactly this many visible characters between borders
+    let inner_width = content_width;
+
+    // Top border: corner + inner_width horizontal + corner
+    let top_inner: String = std::iter::repeat_n(borders.horizontal, inner_width).collect();
     lines.push(format!(
         "{}{}{}{}{}",
         colors.border, borders.top_left, top_inner, borders.top_right, colors.reset
     ));
 
-    // Title - pass content_width - 2 since format_title_line adds 4 extra spaces (2 each side)
-    // This makes inside = 4 + (content_width - 2) = content_width + 2, matching border width
+    // Title row
     lines.push(format_title_line(
         &colors,
         borders,
         "VoxTerm - Themes",
-        content_width.saturating_sub(2),
+        inner_width,
     ));
 
     // Separator
-    let sep_inner: String = std::iter::repeat_n(borders.horizontal, content_width + 2).collect();
+    let sep_inner: String = std::iter::repeat_n(borders.horizontal, inner_width).collect();
     lines.push(format!(
         "{}{}{}{}{}",
         colors.border, borders.t_left, sep_inner, borders.t_right, colors.reset
@@ -56,7 +59,7 @@ pub fn format_theme_picker(current_theme: Theme, width: usize) -> String {
             name,
             desc,
             is_current,
-            content_width,
+            inner_width,
         ));
     }
 
@@ -66,16 +69,16 @@ pub fn format_theme_picker(current_theme: Theme, width: usize) -> String {
         colors.border, borders.t_left, sep_inner, borders.t_right, colors.reset
     ));
 
-    // Footer - same adjustment as title
+    // Footer
     lines.push(format_title_line(
         &colors,
         borders,
         "1-6 select • Esc close",
-        content_width.saturating_sub(2),
+        inner_width,
     ));
 
     // Bottom border
-    let bottom_inner: String = std::iter::repeat_n(borders.horizontal, content_width + 2).collect();
+    let bottom_inner: String = std::iter::repeat_n(borders.horizontal, inner_width).collect();
     lines.push(format!(
         "{}{}{}{}{}",
         colors.border, borders.bottom_left, bottom_inner, borders.bottom_right, colors.reset
@@ -90,13 +93,16 @@ fn format_title_line(
     colors: &ThemeColors,
     borders: &BorderSet,
     title: &str,
-    width: usize,
+    inner_width: usize,
 ) -> String {
-    let padding = width.saturating_sub(title.len());
+    // Content between borders must be exactly inner_width characters
+    // Use character count, not byte length, for proper Unicode support
+    let title_display_len = title.chars().count();
+    let padding = inner_width.saturating_sub(title_display_len);
     let left_pad = padding / 2;
     let right_pad = padding - left_pad;
     format!(
-        "{}{}{}  {}{}{}  {}{}{}",
+        "{}{}{}{}{}{}{}{}{}",
         colors.border,
         borders.vertical,
         colors.reset,
@@ -118,42 +124,35 @@ fn format_option_line_with_preview(
     name: &str,
     desc: &str,
     is_current: bool,
-    width: usize,
+    inner_width: usize,
 ) -> String {
-    // Build the preview indicator using the theme's own indicator
-    let indicator = format!(
-        "{}{}{}",
-        theme_colors.recording, theme_colors.indicator_rec, colors.reset
-    );
-
     // Current theme marker
     let marker = if is_current { ">" } else { " " };
 
-    // Format: "● > 1. coral       Default red accents"
+    // Label: "1. coral"
     let label = format!("{}. {}", num, name);
-
-    // Calculate widths - use fixed columns for alignment
-    // Format inside borders: space + indicator + space + marker + space + label + space + desc
-    // = 4 spaces + 1 indicator + 1 marker + 14 label + desc = 20 + desc
-    // Inside should equal content_width + 2 (to match border horizontal count)
-    // So desc = content_width - 18
-    let label_col = 14; // "1. catppuccin  " (longest name with "N. " prefix)
-    let desc_col = (width + 2).saturating_sub(6 + label_col); // 6 = 4 spaces + 1 indicator + 1 marker
-
+    let label_col = 14;
     let label_padded = format!("{:<width$}", label, width = label_col);
+
+    // Calculate remaining space for description
+    // Layout: indicator(1) + space(1) + marker(1) + space(1) + label(14) + space(1) = 19 fixed
+    let fixed_visible = 19;
+    let desc_col = inner_width.saturating_sub(fixed_visible);
     let desc_truncated: String = desc.chars().take(desc_col).collect();
     let desc_padded = format!("{:<width$}", desc_truncated, width = desc_col);
 
+    // Build the row: exactly inner_width visible characters between borders
+    // "{indicator} {marker} {label} {desc}" = 1+1+1+1+14+1+desc_col = 19+desc_col = inner_width
     format!(
-        "{}{}{} {} {} {}{}{} {}{}{}{}",
+        "{}{}{}{}{}{} {} {} {}{}{}{}",
         colors.border,
         borders.vertical,
         colors.reset,
-        indicator,
-        marker,
-        colors.info,
-        label_padded,
+        theme_colors.recording,
+        theme_colors.indicator_rec,
         colors.reset,
+        marker,
+        label_padded,
         desc_padded,
         colors.border,
         borders.vertical,

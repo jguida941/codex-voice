@@ -2,6 +2,8 @@
 //!
 //! Provides predefined color palettes that can be selected via CLI flags.
 
+use std::env;
+
 /// Border character set for drawing boxes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BorderSet {
@@ -171,14 +173,19 @@ impl Theme {
 
     /// Get the color palette for this theme.
     pub fn colors(&self) -> ThemeColors {
-        match self {
+        let mut colors = match self {
             Self::Coral => THEME_CORAL,
             Self::Catppuccin => THEME_CATPPUCCIN,
             Self::Dracula => THEME_DRACULA,
             Self::Nord => THEME_NORD,
             Self::Ansi => THEME_ANSI,
             Self::None => THEME_NONE,
+        };
+        if is_warp_terminal() {
+            colors.bg_primary = "";
+            colors.bg_secondary = "";
         }
+        colors
     }
 
     /// List all available theme names.
@@ -202,6 +209,12 @@ impl Theme {
     }
 }
 
+fn is_warp_terminal() -> bool {
+    env::var("TERM_PROGRAM")
+        .map(|value| value.to_lowercase().contains("warp"))
+        .unwrap_or(false)
+}
+
 impl std::fmt::Display for Theme {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -216,6 +229,7 @@ impl std::fmt::Display for Theme {
 }
 
 /// Coral theme - warm red/coral accents (default)
+/// Uses transparent backgrounds for best compatibility across terminals
 pub const THEME_CORAL: ThemeColors = ThemeColors {
     recording: "\x1b[91m",  // Bright red
     processing: "\x1b[93m", // Bright yellow
@@ -224,10 +238,10 @@ pub const THEME_CORAL: ThemeColors = ThemeColors {
     error: "\x1b[91m",      // Bright red
     info: "\x1b[94m",       // Bright blue
     reset: "\x1b[0m",
-    dim: "\x1b[2m",                 // Dim attribute
-    bg_primary: "",                 // No background (transparent)
-    bg_secondary: "\x1b[48;5;236m", // Dark gray background
-    border: "\x1b[91m",             // Coral/red borders
+    dim: "\x1b[2m",     // Dim attribute
+    bg_primary: "",     // Transparent
+    bg_secondary: "",   // Transparent
+    border: "\x1b[91m", // Coral/red borders
     borders: BORDER_SINGLE,
     indicator_rec: "●",
     indicator_auto: "◉",
@@ -237,6 +251,7 @@ pub const THEME_CORAL: ThemeColors = ThemeColors {
 
 /// Catppuccin Mocha theme - pastel colors
 /// https://github.com/catppuccin/catppuccin
+/// Uses transparent backgrounds for best compatibility across terminals
 pub const THEME_CATPPUCCIN: ThemeColors = ThemeColors {
     recording: "\x1b[38;2;243;139;168m",  // Red #f38ba8
     processing: "\x1b[38;2;249;226;175m", // Yellow #f9e2af
@@ -245,10 +260,10 @@ pub const THEME_CATPPUCCIN: ThemeColors = ThemeColors {
     error: "\x1b[38;2;243;139;168m",      // Red #f38ba8
     info: "\x1b[38;2;137;180;250m",       // Blue #89b4fa
     reset: "\x1b[0m",
-    dim: "\x1b[38;2;108;112;134m",       // Overlay0 #6c7086
-    bg_primary: "\x1b[48;2;30;30;46m",   // Base #1e1e2e
-    bg_secondary: "\x1b[48;2;24;24;37m", // Mantle #181825
-    border: "\x1b[38;2;180;190;254m",    // Lavender #b4befe
+    dim: "\x1b[38;2;108;112;134m",    // Overlay0 #6c7086
+    bg_primary: "",                   // Transparent
+    bg_secondary: "",                 // Transparent
+    border: "\x1b[38;2;180;190;254m", // Lavender #b4befe
     borders: BORDER_DOUBLE,
     indicator_rec: "◉",
     indicator_auto: "◈",
@@ -258,6 +273,7 @@ pub const THEME_CATPPUCCIN: ThemeColors = ThemeColors {
 
 /// Dracula theme - high contrast
 /// https://draculatheme.com
+/// Uses transparent backgrounds for best compatibility across terminals
 pub const THEME_DRACULA: ThemeColors = ThemeColors {
     recording: "\x1b[38;2;255;85;85m",    // Red #ff5555
     processing: "\x1b[38;2;241;250;140m", // Yellow #f1fa8c
@@ -266,10 +282,10 @@ pub const THEME_DRACULA: ThemeColors = ThemeColors {
     error: "\x1b[38;2;255;85;85m",        // Red #ff5555
     info: "\x1b[38;2;139;233;253m",       // Cyan #8be9fd
     reset: "\x1b[0m",
-    dim: "\x1b[38;2;98;114;164m",        // Comment #6272a4
-    bg_primary: "\x1b[48;2;40;42;54m",   // Background #282a36
-    bg_secondary: "\x1b[48;2;33;34;44m", // Current Line darker
-    border: "\x1b[38;2;189;147;249m",    // Purple #bd93f9
+    dim: "\x1b[38;2;98;114;164m",     // Comment #6272a4
+    bg_primary: "",                   // Transparent
+    bg_secondary: "",                 // Transparent
+    border: "\x1b[38;2;189;147;249m", // Purple #bd93f9
     borders: BORDER_HEAVY,
     indicator_rec: "⬤",
     indicator_auto: "⏺",
@@ -300,6 +316,7 @@ pub const THEME_NORD: ThemeColors = ThemeColors {
 
 /// ANSI 16-color theme - works on all color terminals
 /// Uses standard ANSI escape codes (30-37, 90-97)
+/// Uses transparent backgrounds for best compatibility across terminals
 pub const THEME_ANSI: ThemeColors = ThemeColors {
     recording: "\x1b[31m",  // Red
     processing: "\x1b[33m", // Yellow
@@ -308,9 +325,9 @@ pub const THEME_ANSI: ThemeColors = ThemeColors {
     error: "\x1b[31m",      // Red
     info: "\x1b[36m",       // Cyan
     reset: "\x1b[0m",
-    dim: "\x1b[2m",         // Dim attribute
-    bg_primary: "\x1b[40m", // Black background
-    bg_secondary: "\x1b[40m",
+    dim: "\x1b[2m",     // Dim attribute
+    bg_primary: "",     // Transparent
+    bg_secondary: "",   // Transparent
     border: "\x1b[37m", // White
     borders: BORDER_SINGLE,
     indicator_rec: "*",
