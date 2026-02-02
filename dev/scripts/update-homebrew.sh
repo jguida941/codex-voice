@@ -41,6 +41,7 @@ resolve_homebrew_repo() {
 
 HOMEBREW_REPO="$(resolve_homebrew_repo)"
 FORMULA="$HOMEBREW_REPO/Formula/voxterm.rb"
+README="$HOMEBREW_REPO/README.md"
 
 echo "=== Updating Homebrew tap for $TAG ==="
 
@@ -73,22 +74,43 @@ sed -i '' "s|url \"https://github.com/jguida941/voxterm/archive/refs/tags/v[0-9.
 sed -i '' "s|version \"[0-9.]*\"|version \"$VERSION\"|" "$FORMULA"
 sed -i '' "s|sha256 \"[a-f0-9]*\"|sha256 \"$SHA256\"|" "$FORMULA"
 
+# Update README version + model path if present
+if [[ -f "$README" ]]; then
+    sed -i '' "s/^Current: v[0-9.]*$/Current: v$VERSION/" "$README"
+    sed -i '' "s|ls \\$(brew --prefix)/opt/voxterm/libexec/models/|ls ~/.local/share/voxterm/models/|g" "$README"
+fi
+
 # Show diff
 echo ""
 echo "Changes:"
-git diff "$FORMULA"
+if [[ -f "$README" ]]; then
+    git diff "$FORMULA" "$README"
+else
+    git diff "$FORMULA"
+fi
 echo ""
 
-if git diff --quiet "$FORMULA"; then
-    echo "No changes needed. Formula is already up to date."
-    exit 0
+if [[ -f "$README" ]]; then
+    git diff --quiet "$FORMULA" "$README" && {
+        echo "No changes needed. Formula is already up to date."
+        exit 0
+    }
+else
+    git diff --quiet "$FORMULA" && {
+        echo "No changes needed. Formula is already up to date."
+        exit 0
+    }
 fi
 
 # Commit and push
 read -p "Commit and push these changes? (y/n) " -n 1 -r
 echo
 if [[ $REPLY =~ ^[Yy]$ ]]; then
-    git add "$FORMULA"
+    if [[ -f "$README" ]]; then
+        git add "$FORMULA" "$README"
+    else
+        git add "$FORMULA"
+    fi
     git commit -m "Update to v$VERSION"
     git push origin main
     echo ""
