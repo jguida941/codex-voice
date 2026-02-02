@@ -12,6 +12,9 @@ Note: Some historical entries reference internal documents that are not publishe
 ### Documentation
 - Document queued transcript behavior in the usage guide and troubleshooting status messages.
 
+### UX
+- Refresh the HUD control row with button-style pills, context-aware labels (auto/send), and a queue badge.
+
 ## [1.0.33] - 2026-02-02
 
 ### Reorganization

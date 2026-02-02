@@ -6,8 +6,9 @@ use voxterm::config::AppConfig;
 use crate::color_mode::ColorMode;
 use crate::theme::Theme;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum, Default)]
 pub(crate) enum VoiceSendMode {
+    #[default]
     Auto,
     Insert,
 }

@@ -6,6 +6,7 @@
 //! Now supports a multi-row banner layout with themed borders.
 
 use crate::audio_meter::format_waveform;
+use crate::config::VoiceSendMode;
 use crate::hud::{HudRegistry, HudState, LatencyModule, MeterModule, Mode as HudMode, QueueModule};
 use crate::status_style::StatusType;
 use crate::theme::{BorderSet, Theme, ThemeColors};
@@ -101,6 +102,8 @@ pub struct StatusLineState {
     pub queue_depth: usize,
     /// Last measured transcription latency in milliseconds
     pub last_latency_ms: Option<u32>,
+    /// Current voice send mode
+    pub send_mode: VoiceSendMode,
 }
 
 impl StatusLineState {
@@ -193,7 +196,7 @@ pub fn format_status_banner(state: &StatusLineState, theme: Theme, width: usize)
     let lines = vec![
         format_top_border(&colors, borders, width),
         format_main_row(state, &colors, borders, theme, inner_width),
-        format_shortcuts_row(&colors, borders, inner_width),
+        format_shortcuts_row(state, &colors, borders, inner_width),
         format_bottom_border(&colors, borders, width),
     ];
 
@@ -338,12 +341,13 @@ fn format_mode_indicator(state: &StatusLineState, colors: &ThemeColors) -> Strin
 }
 
 /// Format the shortcuts row with dimmed styling.
-fn format_shortcuts_row(colors: &ThemeColors, borders: &BorderSet, inner_width: usize) -> String {
-    let shortcuts: Vec<String> = SHORTCUTS_COMPACT
-        .iter()
-        .map(|(key, action)| format!("{}{}{} {}", colors.info, key, colors.reset, action))
-        .collect();
-    let shortcuts_str = shortcuts.join("  ");
+fn format_shortcuts_row(
+    state: &StatusLineState,
+    colors: &ThemeColors,
+    borders: &BorderSet,
+    inner_width: usize,
+) -> String {
+    let shortcuts_str = format_button_row(state, colors, inner_width);
 
     let shortcuts_width = display_width(&shortcuts_str);
     let padding_needed = inner_width.saturating_sub(shortcuts_width + 1);
@@ -351,18 +355,124 @@ fn format_shortcuts_row(colors: &ThemeColors, borders: &BorderSet, inner_width: 
 
     // No background colors - use transparent backgrounds for terminal compatibility
     format!(
-        "{}{}{}{}{}{}{}{}{}{}",
+        "{}{}{} {}{}{}{}{}{}",
         colors.border,
         borders.vertical,
         colors.reset,
-        colors.dim,
-        " ",
         shortcuts_str,
         padding,
         colors.reset,
         colors.border,
         borders.vertical,
-    ) + colors.reset
+        colors.reset,
+    )
+}
+
+fn format_button_row(state: &StatusLineState, colors: &ThemeColors, inner_width: usize) -> String {
+    let (rec_label, rec_accent) = match state.recording_state {
+        RecordingState::Recording => ("REC", Some(colors.recording)),
+        RecordingState::Processing => ("REC", Some(colors.processing)),
+        RecordingState::Idle => ("REC", None),
+    };
+
+    let auto_label = if state.auto_voice_enabled {
+        "AUTO ON"
+    } else {
+        "AUTO"
+    };
+    let auto_accent = if state.auto_voice_enabled {
+        Some(colors.info)
+    } else {
+        None
+    };
+
+    let (send_label, send_accent) = match state.send_mode {
+        VoiceSendMode::Auto => ("SEND AUTO", Some(colors.success)),
+        VoiceSendMode::Insert => ("SEND INSERT", Some(colors.warning)),
+    };
+
+    let mut buttons = Vec::new();
+    buttons.push(format_button(colors, "Ctrl+R", rec_label, rec_accent));
+    buttons.push(format_button(colors, "Ctrl+V", auto_label, auto_accent));
+    buttons.push(format_button(colors, "Ctrl+T", send_label, send_accent));
+    buttons.push(format_button(colors, "Ctrl+O", "SETTINGS", None));
+    buttons.push(format_button(colors, "?", "HELP", None));
+    buttons.push(format_button(colors, "Ctrl+Y", "THEME", None));
+
+    if state.queue_depth > 0 {
+        buttons.push(format_tag(
+            colors,
+            &format!("QUEUE {}", state.queue_depth),
+            Some(colors.warning),
+        ));
+    }
+
+    let full_row = buttons.join(" ");
+    if display_width(&full_row) <= inner_width {
+        return full_row;
+    }
+
+    let mut compact_buttons = Vec::new();
+    let (send_compact, send_compact_accent) = match state.send_mode {
+        VoiceSendMode::Auto => ("SEND A", Some(colors.success)),
+        VoiceSendMode::Insert => ("SEND I", Some(colors.warning)),
+    };
+
+    compact_buttons.push(format_button(colors, "^R", "REC", rec_accent));
+    compact_buttons.push(format_button(colors, "^V", "AUTO", auto_accent));
+    compact_buttons.push(format_button(
+        colors,
+        "^T",
+        send_compact,
+        send_compact_accent,
+    ));
+    compact_buttons.push(format_button(colors, "^O", "SET", None));
+    compact_buttons.push(format_button(colors, "?", "HELP", None));
+    compact_buttons.push(format_button(colors, "^Y", "THEME", None));
+
+    if state.queue_depth > 0 {
+        compact_buttons.push(format_tag(
+            colors,
+            &format!("Q {}", state.queue_depth),
+            Some(colors.warning),
+        ));
+    }
+
+    let compact_row = compact_buttons.join(" ");
+    if display_width(&compact_row) <= inner_width {
+        compact_row
+    } else {
+        truncate_display(&compact_row, inner_width)
+    }
+}
+
+fn format_button(
+    colors: &ThemeColors,
+    key: &str,
+    label: &str,
+    accent: Option<&'static str>,
+) -> String {
+    let label_color = accent.unwrap_or(colors.reset);
+    format!(
+        "{}[{}{}{} {}{}{}{}]{}",
+        colors.dim,
+        colors.info,
+        key,
+        colors.reset,
+        label_color,
+        label,
+        colors.reset,
+        colors.dim,
+        colors.reset
+    )
+}
+
+fn format_tag(colors: &ThemeColors, label: &str, accent: Option<&'static str>) -> String {
+    let label_color = accent.unwrap_or(colors.reset);
+    format!(
+        "{}[{}{}{}]{}",
+        colors.dim, label_color, label, colors.dim, colors.reset
+    )
 }
 
 /// Format the bottom border.

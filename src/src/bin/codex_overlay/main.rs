@@ -240,6 +240,7 @@ fn main() -> Result<()> {
     let mut status_state = StatusLineState::new();
     status_state.sensitivity_db = config.app.voice_vad_threshold_db;
     status_state.auto_voice_enabled = auto_voice_enabled;
+    status_state.send_mode = config.voice_send_mode;
     status_state.voice_mode = if auto_voice_enabled {
         VoiceMode::Auto
     } else {
@@ -1300,6 +1301,7 @@ fn toggle_send_mode(
         VoiceSendMode::Auto => VoiceSendMode::Insert,
         VoiceSendMode::Insert => VoiceSendMode::Auto,
     };
+    status_state.send_mode = config.voice_send_mode;
     let msg = match config.voice_send_mode {
         VoiceSendMode::Auto => "Send mode: auto (sends Enter)",
         VoiceSendMode::Insert => "Send mode: insert (press Enter to send)",
