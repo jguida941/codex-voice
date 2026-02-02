@@ -1,12 +1,13 @@
 # VoxTerm
 
-![Rust](https://img.shields.io/badge/Rust-000000?logo=rust&logoColor=white)
-![Whisper STT](https://img.shields.io/badge/Whisper-Local%20STT-74aa9c)
-![macOS | Linux](https://img.shields.io/badge/macOS%20%7C%20Linux-blue)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+![Rust](https://img.shields.io/badge/Rust-000000?style=for-the-badge&logo=rust&logoColor=white)
+![Whisper STT](https://img.shields.io/badge/Whisper-Local%20STT-74aa9c?style=for-the-badge)
+![macOS](https://img.shields.io/badge/macOS-000000?style=for-the-badge&logo=apple&logoColor=white)
+![Linux](https://img.shields.io/badge/Linux-FCC624?style=for-the-badge&logo=linux&logoColor=black)
+[![License](https://img.shields.io/github/license/jguida941/voxterm?style=for-the-badge)](LICENSE)
 
-[![Rust TUI CI](https://github.com/jguida941/voxterm/actions/workflows/rust_tui.yml/badge.svg)](https://github.com/jguida941/voxterm/actions/workflows/rust_tui.yml)
-[![Mutation Testing](https://github.com/jguida941/voxterm/actions/workflows/mutation-testing.yml/badge.svg)](https://github.com/jguida941/voxterm/actions/workflows/mutation-testing.yml)
+[![Rust TUI CI](https://img.shields.io/github/actions/workflow/status/jguida941/voxterm/rust_tui.yml?branch=master&style=for-the-badge)](https://github.com/jguida941/voxterm/actions/workflows/rust_tui.yml)
+[![Mutation Testing](https://img.shields.io/github/actions/workflow/status/jguida941/voxterm/mutation-testing.yml?branch=master&style=for-the-badge)](https://github.com/jguida941/voxterm/actions/workflows/mutation-testing.yml)
 
 Voice input for the Codex CLI by default, with optional backend selection for other AI CLIs. Written in Rust for speed. Talk instead of type and boost your productivity. Runs Whisper locally through Rust with ~250ms latency. No cloud, no API keys.
 

@@ -11,8 +11,8 @@ Note: Some historical entries reference internal documents that are not publishe
 
 ### Branding (Breaking)
 - Rename the project to VoxTerm across the CLI, docs, and UI strings.
-- New primary command: `voxterm` (replaces `codex-voice`).
-- New env var prefix: `VOXTERM_*` (replaces `CODEX_VOICE_*`).
+- New primary command: `voxterm`.
+- New env var prefix: `VOXTERM_*`.
 - New config path: `~/.config/voxterm/`.
 - New model path: `~/.local/share/voxterm/models`.
 - New log files: `voxterm_tui.log` and `voxterm_crash.log`.
