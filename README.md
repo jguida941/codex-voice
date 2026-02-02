@@ -11,7 +11,7 @@
 
 Voice input for the Codex CLI by default, with optional backend selection for other AI CLIs. Written in Rust for speed. Talk instead of type and boost your productivity. Runs Whisper locally through Rust with ~250ms latency. No cloud, no API keys.
 
-![VoxTerm Startup](img/startup.png?v=1.0.32)
+![VoxTerm Startup](https://raw.githubusercontent.com/jguida941/voxterm/master/img/startup.png)
 
 ## What VoxTerm Does
 

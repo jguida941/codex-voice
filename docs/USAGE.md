@@ -3,7 +3,7 @@
 This guide explains how to use VoxTerm for hands-free coding with the Codex CLI
 (or another AI CLI via `--backend`).
 
-![Overlay Running](../img/startup.png?v=1.0.32)
+![Overlay Running](https://raw.githubusercontent.com/jguida941/voxterm/master/img/startup.png)
 
 ## Contents
 
