@@ -79,6 +79,11 @@ echo "Changes:"
 git diff "$FORMULA"
 echo ""
 
+if git diff --quiet "$FORMULA"; then
+    echo "No changes needed. Formula is already up to date."
+    exit 0
+fi
+
 # Commit and push
 read -p "Commit and push these changes? (y/n) " -n 1 -r
 echo
