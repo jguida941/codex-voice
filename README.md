@@ -33,7 +33,7 @@ First run downloads the Whisper model (~1.5 GB).
 ## How It Works
 
 ```mermaid
-graph LR
+graph TD
     A["🎤 Microphone"] --> B["Whisper STT"]
     B --> C["Transcript"]
     C --> D["PTY"]
