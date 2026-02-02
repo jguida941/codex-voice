@@ -60,7 +60,6 @@ VoxTerm wraps your AI CLI in a PTY and adds voice input. You talk → Whisper tr
 ### Theme Picker (Ctrl+Y)
 
 ![Theme Picker](https://raw.githubusercontent.com/jguida941/voxterm/master/img/theme-picker.png)
-_Note: screenshot needs refresh to show the 9-option theme picker._
 
 ### Settings Menu (Ctrl+O)
 

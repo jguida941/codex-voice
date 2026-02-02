@@ -85,6 +85,15 @@ fn pipeline_tag_short(pipeline: Pipeline) -> &'static str {
 /// Maximum number of meter level samples to keep for waveform display.
 pub const METER_HISTORY_MAX: usize = 24;
 
+const MAIN_ROW_DURATION_PLACEHOLDER: &str = "--.-s";
+const MAIN_ROW_WAVEFORM_WIDTH_FULL: usize = 10;
+const MAIN_ROW_WAVEFORM_WIDTH_MEDIUM: usize = 8;
+const MAIN_ROW_WAVEFORM_WIDTH_COMPACT: usize = 5;
+const MAIN_ROW_WAVEFORM_MIN_WIDTH: usize = 3;
+const RIGHT_PANEL_LABEL: &str = "VU";
+const RIGHT_PANEL_MAX_WAVEFORM_WIDTH: usize = 12;
+const RIGHT_PANEL_MIN_CONTENT_WIDTH: usize = 4;
+
 /// State for the enhanced status line.
 #[derive(Debug, Clone, Default)]
 pub struct StatusLineState {
@@ -359,6 +368,97 @@ fn format_brand_label(colors: &ThemeColors) -> String {
     )
 }
 
+fn format_sensitivity_section(state: &StatusLineState, colors: &ThemeColors) -> String {
+    let text = format!("{:>3.0}dB", state.sensitivity_db);
+    if state.recording_state == RecordingState::Recording {
+        format!(" {}{}{} ", colors.dim, text, colors.reset)
+    } else {
+        format!(" {text} ")
+    }
+}
+
+fn format_duration_section(state: &StatusLineState, colors: &ThemeColors) -> String {
+    if state.recording_state == RecordingState::Recording {
+        if let Some(dur) = state.recording_duration {
+            format!(" {:.1}s ", dur)
+        } else {
+            format!(
+                " {}{}{} ",
+                colors.dim, MAIN_ROW_DURATION_PLACEHOLDER, colors.reset
+            )
+        }
+    } else {
+        format!(
+            " {}{}{} ",
+            colors.dim, MAIN_ROW_DURATION_PLACEHOLDER, colors.reset
+        )
+    }
+}
+
+fn main_row_waveform_width(inner_width: usize) -> usize {
+    let width = inner_width.saturating_add(2);
+    if width >= breakpoints::FULL {
+        MAIN_ROW_WAVEFORM_WIDTH_FULL
+    } else if width >= breakpoints::MEDIUM {
+        MAIN_ROW_WAVEFORM_WIDTH_MEDIUM
+    } else {
+        MAIN_ROW_WAVEFORM_WIDTH_COMPACT
+    }
+}
+
+fn dim_waveform_placeholder(width: usize, colors: &ThemeColors) -> String {
+    let mut result = String::with_capacity(width + colors.dim.len() + colors.reset.len());
+    result.push_str(colors.dim);
+    for _ in 0..width {
+        result.push('▁');
+    }
+    result.push_str(colors.reset);
+    result
+}
+
+fn dim_panel_placeholder(width: usize, colors: &ThemeColors) -> String {
+    if width == 0 {
+        return String::new();
+    }
+    let mut result = String::with_capacity(width + colors.dim.len() + colors.reset.len());
+    result.push_str(colors.dim);
+    for _ in 0..width {
+        result.push('·');
+    }
+    result.push_str(colors.reset);
+    result
+}
+
+fn format_meter_section(
+    state: &StatusLineState,
+    colors: &ThemeColors,
+    theme: Theme,
+    waveform_width: usize,
+) -> String {
+    let waveform_width = waveform_width.max(MAIN_ROW_WAVEFORM_MIN_WIDTH);
+    let recording_active = state.recording_state == RecordingState::Recording;
+    let waveform = if recording_active && !state.meter_levels.is_empty() {
+        format_waveform(&state.meter_levels, waveform_width, theme)
+    } else {
+        dim_waveform_placeholder(waveform_width, colors)
+    };
+    let db_text = if recording_active {
+        if let Some(db) = state.meter_db {
+            format!("{:>4.0}dB", db)
+        } else {
+            format!("{:>4}dB", "--")
+        }
+    } else {
+        format!("{:>4}dB", "--")
+    };
+    let db_color = if recording_active {
+        colors.info
+    } else {
+        colors.dim
+    };
+    format!(" {} {}{}{} ", waveform, db_color, db_text, colors.reset)
+}
+
 /// Format the main status row with mode, sensitivity, meter, and message.
 fn format_main_row(
     state: &StatusLineState,
@@ -369,36 +469,10 @@ fn format_main_row(
 ) -> String {
     // Build content sections
     let mode_section = format_mode_indicator(state, colors);
-    let show_sensitivity =
-        !(state.recording_state == RecordingState::Recording && !state.meter_levels.is_empty());
-    let sensitivity_section = if show_sensitivity {
-        format!(" {:>3.0}dB ", state.sensitivity_db)
-    } else {
-        String::new()
-    };
-
-    // Duration (if recording)
-    let duration_section = if let Some(dur) = state.recording_duration {
-        format!(" {:.1}s ", dur)
-    } else {
-        String::new()
-    };
-
-    // Waveform and meter (if recording)
-    let meter_section =
-        if state.recording_state == RecordingState::Recording && !state.meter_levels.is_empty() {
-            let waveform = format_waveform(&state.meter_levels, 8, theme);
-            if let Some(db) = state.meter_db {
-                format!(
-                    " {} {}{:>4.0}dB{} ",
-                    waveform, colors.info, db, colors.reset
-                )
-            } else {
-                format!(" {} ", waveform)
-            }
-        } else {
-            String::new()
-        };
+    let sensitivity_section = format_sensitivity_section(state, colors);
+    let duration_section = format_duration_section(state, colors);
+    let waveform_width = main_row_waveform_width(inner_width);
+    let meter_section = format_meter_section(state, colors, theme, waveform_width);
 
     // Status message with color
     let status_type = StatusType::from_message(&state.message);
@@ -411,18 +485,13 @@ fn format_main_row(
 
     // Combine all sections
     let sep = format!("{}│{}", colors.dim, colors.reset);
-    let mut sections = Vec::new();
-    sections.push(mode_section);
-    if !sensitivity_section.is_empty() {
-        sections.push(sensitivity_section);
-    }
-    if !duration_section.is_empty() {
-        sections.push(duration_section);
-    }
-    if !meter_section.is_empty() {
-        sections.push(meter_section);
-    }
-    let content = sections.join(&sep);
+    let content = vec![
+        mode_section,
+        sensitivity_section,
+        duration_section,
+        meter_section,
+    ]
+    .join(&sep);
 
     let content_width = display_width(&content);
     let right_panel = format_right_panel(
@@ -463,7 +532,7 @@ fn format_right_panel(
     theme: Theme,
     max_width: usize,
 ) -> String {
-    if max_width < 4 {
+    if max_width == 0 {
         return String::new();
     }
 
@@ -472,38 +541,60 @@ fn format_right_panel(
         return String::new();
     }
 
+    let content_width = max_width.saturating_sub(1);
+    if content_width < RIGHT_PANEL_MIN_CONTENT_WIDTH {
+        return " ".repeat(max_width);
+    }
+
     let recording_active = state.recording_state == RecordingState::Recording;
     let processing_active = state.recording_state == RecordingState::Processing;
     let allow_idle = !state.hud_right_panel_recording_only;
+    let show_live = recording_active || (allow_idle && !state.meter_levels.is_empty());
+
+    let mut label = String::new();
+    let mut label_width = 0;
+    let mut label_sep = "";
+    if matches!(mode, HudRightPanel::Ribbon | HudRightPanel::Dots) {
+        let required = RIGHT_PANEL_LABEL.len() + 1 + RIGHT_PANEL_MIN_CONTENT_WIDTH;
+        if content_width >= required {
+            label = format!("{}{}{}", colors.dim, RIGHT_PANEL_LABEL, colors.reset);
+            label_width = RIGHT_PANEL_LABEL.len();
+            label_sep = " ";
+        }
+    }
+    let panel_width = content_width.saturating_sub(label_width + label_sep.len());
 
     let panel = match mode {
         HudRightPanel::Ribbon => {
-            if !recording_active && !allow_idle {
-                String::new()
+            let reserved = 2; // brackets
+            let available = panel_width.saturating_sub(reserved);
+            let wave_width = available
+                .min(RIGHT_PANEL_MAX_WAVEFORM_WIDTH)
+                .max(MAIN_ROW_WAVEFORM_MIN_WIDTH);
+            let waveform = if show_live {
+                format_waveform(&state.meter_levels, wave_width, theme)
             } else {
-                let width = 8.min(max_width.saturating_sub(3));
-                let waveform = if recording_active && !state.meter_levels.is_empty() {
-                    format_waveform(&state.meter_levels, width.max(3), theme)
-                } else {
-                    " ".repeat(width.max(3))
-                };
-                format!("{}[{}{}]{}", colors.dim, waveform, colors.dim, colors.reset)
-            }
+                dim_waveform_placeholder(wave_width, colors)
+            };
+            format!("{}[{}{}]{}", colors.dim, waveform, colors.dim, colors.reset)
         }
         HudRightPanel::Dots => {
-            if !recording_active && !allow_idle {
-                String::new()
+            let active = if recording_active {
+                state.meter_db.unwrap_or(-60.0)
+            } else if allow_idle {
+                state.meter_db.unwrap_or(-60.0)
             } else {
-                let active = if recording_active {
-                    state.meter_db.unwrap_or(-60.0)
-                } else {
-                    -60.0
-                };
-                format_pulse_dots(active, colors)
-            }
+                -60.0
+            };
+            truncate_display(&format_pulse_dots(active, colors), panel_width)
         }
         HudRightPanel::Chips => {
-            format_state_chips(state, colors, recording_active, processing_active)
+            let chips = format_state_chips(state, colors, recording_active, processing_active);
+            if chips.is_empty() {
+                dim_panel_placeholder(panel_width, colors)
+            } else {
+                truncate_display(&chips, panel_width)
+            }
         }
         HudRightPanel::Off => String::new(),
     };
@@ -512,8 +603,14 @@ fn format_right_panel(
         return String::new();
     }
 
+    let panel = if label.is_empty() {
+        panel
+    } else {
+        format!("{label}{label_sep}{panel}")
+    };
     let with_pad = format!(" {}", panel);
-    truncate_display(&with_pad, max_width)
+    let truncated = truncate_display(&with_pad, max_width);
+    pad_display(&truncated, max_width)
 }
 
 #[inline]
@@ -1156,6 +1253,17 @@ fn truncate_display(s: &str, max_width: usize) -> String {
         result.push_str("\x1b[0m");
     }
 
+    result
+}
+
+fn pad_display(s: &str, width: usize) -> String {
+    let current = display_width(s);
+    if current >= width {
+        return truncate_display(s, width);
+    }
+    let mut result = String::with_capacity(s.len() + width.saturating_sub(current));
+    result.push_str(s);
+    result.push_str(&" ".repeat(width.saturating_sub(current)));
     result
 }
 

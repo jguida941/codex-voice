@@ -14,6 +14,14 @@ Note: Some historical entries reference internal documents that are not publishe
 - Simplify backend docs to Codex + Claude, mark Gemini as in works, and remove references to other AI backends.
 - Clarify Whisper model selection in install/quick start docs and call out the optional `--codex` flag.
 
+## [1.0.36] - 2026-02-02
+
+### UX
+- Stabilize the full HUD main-row layout by reserving sensitivity/duration/meter slots with dim placeholders and widening the right-side panel with a VU label to prevent flicker.
+
+### Documentation
+- Refresh hero, theme picker, settings, and recording screenshots, and add a minimal HUD screenshot.
+
 ## [1.0.35] - 2026-02-02
 
 ### Features

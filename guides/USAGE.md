@@ -185,7 +185,6 @@ When recording/processing, the mode label includes a pipeline tag (e.g., `REC R`
 Press `Ctrl+Y` to open the theme picker:
 
 ![Theme Picker](https://raw.githubusercontent.com/jguida941/voxterm/master/img/theme-picker.png)
-_Note: screenshot needs refresh to show the 9-option theme picker._
 
 Available themes: **chatgpt**, **claude**, **codex**, **coral**, **catppuccin**, **dracula**, **nord**, **ansi** (16-color), **none**.
 
@@ -202,6 +201,10 @@ For users who prefer less UI clutter, VoxTerm offers three HUD styles:
 | **Full** | (default) | 4-row banner with borders, shortcuts, and detailed info |
 | **Minimal** | `--hud-style minimal` or `--minimal-hud` | Single-line strip (e.g., `◉ AUTO · Ready`, `● REC · -55dB`) |
 | **Hidden** | `--hud-style hidden` | Blank row when idle; shows `REC` while recording |
+
+Minimal HUD (recording example):
+
+![Minimal HUD](https://raw.githubusercontent.com/jguida941/voxterm/master/img/minimal-hud.png)
 
 ```bash
 # Minimal HUD - just a colored mode indicator
