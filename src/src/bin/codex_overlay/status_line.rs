@@ -369,110 +369,71 @@ fn format_shortcuts_row(
 }
 
 fn format_button_row(state: &StatusLineState, colors: &ThemeColors, inner_width: usize) -> String {
-    let (rec_label, rec_accent) = match state.recording_state {
-        RecordingState::Recording => ("REC", Some(colors.recording)),
-        RecordingState::Processing => ("REC", Some(colors.processing)),
-        RecordingState::Idle => ("REC", None),
-    };
+    // Build shortcuts with state indicators
+    let mut items = Vec::new();
 
-    let auto_label = if state.auto_voice_enabled {
-        "AUTO ON"
-    } else {
-        "AUTO"
+    // ^R rec (highlight if recording)
+    let rec_color = match state.recording_state {
+        RecordingState::Recording => colors.recording,
+        RecordingState::Processing => colors.processing,
+        RecordingState::Idle => "",
     };
-    let auto_accent = if state.auto_voice_enabled {
-        Some(colors.info)
-    } else {
-        None
+    items.push(format_shortcut(colors, "^R", "rec", rec_color));
+
+    // ^V auto/manual (highlight if auto enabled)
+    let auto_color = if state.auto_voice_enabled { colors.info } else { "" };
+    let auto_label = if state.auto_voice_enabled { "auto" } else { "manual" };
+    items.push(format_shortcut(colors, "^V", auto_label, auto_color));
+
+    // ^T send mode indicator
+    let (send_label, send_color) = match state.send_mode {
+        VoiceSendMode::Auto => ("auto", colors.success),
+        VoiceSendMode::Insert => ("insert", colors.warning),
     };
+    items.push(format_shortcut(colors, "^T", send_label, send_color));
 
-    let (send_label, send_accent) = match state.send_mode {
-        VoiceSendMode::Auto => ("SEND AUTO", Some(colors.success)),
-        VoiceSendMode::Insert => ("SEND INSERT", Some(colors.warning)),
-    };
+    // Static shortcuts
+    items.push(format_shortcut(colors, "^O", "settings", ""));
+    items.push(format_shortcut(colors, "?", "help", ""));
+    items.push(format_shortcut(colors, "^Y", "theme", ""));
 
-    let mut buttons = Vec::new();
-    buttons.push(format_button(colors, "Ctrl+R", rec_label, rec_accent));
-    buttons.push(format_button(colors, "Ctrl+V", auto_label, auto_accent));
-    buttons.push(format_button(colors, "Ctrl+T", send_label, send_accent));
-    buttons.push(format_button(colors, "Ctrl+O", "SETTINGS", None));
-    buttons.push(format_button(colors, "?", "HELP", None));
-    buttons.push(format_button(colors, "Ctrl+Y", "THEME", None));
-
+    // Queue indicator if needed
     if state.queue_depth > 0 {
-        buttons.push(format_tag(
-            colors,
-            &format!("QUEUE {}", state.queue_depth),
-            Some(colors.warning),
+        items.push(format!(
+            "{}[Q:{}]{}",
+            colors.warning, state.queue_depth, colors.reset
         ));
     }
 
-    let full_row = buttons.join(" ");
-    if display_width(&full_row) <= inner_width {
-        return full_row;
+    let row = items.join("  ");
+    if display_width(&row) <= inner_width {
+        return row;
     }
 
-    let mut compact_buttons = Vec::new();
-    let (send_compact, send_compact_accent) = match state.send_mode {
-        VoiceSendMode::Auto => ("SEND A", Some(colors.success)),
-        VoiceSendMode::Insert => ("SEND I", Some(colors.warning)),
-    };
-
-    compact_buttons.push(format_button(colors, "^R", "REC", rec_accent));
-    compact_buttons.push(format_button(colors, "^V", "AUTO", auto_accent));
-    compact_buttons.push(format_button(
-        colors,
-        "^T",
-        send_compact,
-        send_compact_accent,
-    ));
-    compact_buttons.push(format_button(colors, "^O", "SET", None));
-    compact_buttons.push(format_button(colors, "?", "HELP", None));
-    compact_buttons.push(format_button(colors, "^Y", "THEME", None));
+    // Compact version for narrow terminals
+    let mut compact = Vec::new();
+    compact.push(format_shortcut(colors, "^R", "rec", rec_color));
+    let auto_compact = if state.auto_voice_enabled { "auto" } else { "man" };
+    compact.push(format_shortcut(colors, "^V", auto_compact, auto_color));
+    compact.push(format_shortcut(colors, "^T", if state.send_mode == VoiceSendMode::Auto { "A" } else { "I" }, send_color));
+    compact.push(format_shortcut(colors, "^O", "set", ""));
+    compact.push(format_shortcut(colors, "?", "help", ""));
 
     if state.queue_depth > 0 {
-        compact_buttons.push(format_tag(
-            colors,
-            &format!("Q {}", state.queue_depth),
-            Some(colors.warning),
-        ));
+        compact.push(format!("{}Q:{}{}",colors.warning, state.queue_depth, colors.reset));
     }
 
-    let compact_row = compact_buttons.join(" ");
-    if display_width(&compact_row) <= inner_width {
-        compact_row
+    let compact_row = compact.join(" ");
+    truncate_display(&compact_row, inner_width)
+}
+
+/// Format a single shortcut as "^K label" with optional highlight color.
+fn format_shortcut(colors: &ThemeColors, key: &str, label: &str, highlight: &str) -> String {
+    if highlight.is_empty() {
+        format!("{}{}{} {}", colors.info, key, colors.reset, label)
     } else {
-        truncate_display(&compact_row, inner_width)
+        format!("{}{}{} {}{}{}", colors.info, key, colors.reset, highlight, label, colors.reset)
     }
-}
-
-fn format_button(
-    colors: &ThemeColors,
-    key: &str,
-    label: &str,
-    accent: Option<&'static str>,
-) -> String {
-    let label_color = accent.unwrap_or(colors.reset);
-    format!(
-        "{}[{}{}{} {}{}{}{}]{}",
-        colors.dim,
-        colors.info,
-        key,
-        colors.reset,
-        label_color,
-        label,
-        colors.reset,
-        colors.dim,
-        colors.reset
-    )
-}
-
-fn format_tag(colors: &ThemeColors, label: &str, accent: Option<&'static str>) -> String {
-    let label_color = accent.unwrap_or(colors.reset);
-    format!(
-        "{}[{}{}{}]{}",
-        colors.dim, label_color, label, colors.dim, colors.reset
-    )
 }
 
 /// Format the bottom border.
