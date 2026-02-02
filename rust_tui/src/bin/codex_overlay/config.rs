@@ -50,16 +50,27 @@ pub(crate) struct OverlayConfig {
     #[arg(long = "no-color", default_value_t = false)]
     pub(crate) no_color: bool,
 
-    /// Backend CLI to run (codex, claude, gemini, aider, opencode, or custom command)
+    /// Backend CLI to run (codex, claude, gemini, or custom command)
     ///
     /// Use a preset name or provide a custom command string.
     /// Examples:
     ///   --backend codex
     ///   --backend claude
-    ///   --backend gemini
     ///   --backend "my-tool --flag"
     #[arg(long = "backend", default_value = "codex")]
     pub(crate) backend: String,
+
+    /// Shorthand for --backend codex
+    #[arg(long = "codex", default_value_t = false)]
+    pub(crate) codex: bool,
+
+    /// Shorthand for --backend claude
+    #[arg(long = "claude", default_value_t = false)]
+    pub(crate) claude: bool,
+
+    /// Shorthand for --backend gemini
+    #[arg(long = "gemini", default_value_t = false)]
+    pub(crate) gemini: bool,
 }
 
 pub(crate) struct ResolvedBackend {
@@ -101,7 +112,16 @@ impl OverlayConfig {
 
     /// Resolve the backend command, arguments, and prompt patterns.
     pub(crate) fn resolve_backend(&self) -> ResolvedBackend {
-        let backend_raw = self.backend.trim();
+        // Check shorthand flags first
+        let backend_raw = if self.claude {
+            "claude"
+        } else if self.gemini {
+            "gemini"
+        } else if self.codex {
+            "codex"
+        } else {
+            self.backend.trim()
+        };
         let (primary, extra_args) = split_backend_command(backend_raw);
         let primary_label = extract_binary_label(&primary);
 
@@ -212,6 +232,9 @@ mod tests {
             theme_name: None,
             no_color: false,
             backend: backend.to_string(),
+            codex: false,
+            claude: false,
+            gemini: false,
         }
     }
 

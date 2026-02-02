@@ -270,8 +270,8 @@ Full list: [Whisper supported languages](https://github.com/openai/whisper#avail
 | Backend | Install | Run | Status |
 |---------|---------|-----|--------|
 | Codex | `npm install -g @openai/codex` | `voxterm` | Tested |
-| Claude Code | `curl -fsSL https://claude.ai/install.sh \| bash` | `voxterm --backend claude` | Tested |
-| Gemini CLI | `npm install -g @google/gemini-cli` | `voxterm --backend gemini` | Should work |
+| Claude Code | `curl -fsSL https://claude.ai/install.sh \| bash` | `voxterm --claude` | Tested |
+| Gemini CLI | `npm install -g @google/gemini-cli` | `voxterm --gemini` | Should work |
 | Custom | - | `voxterm --backend "cmd"` | Any CLI |
 
 ### Which Whisper model should I use?

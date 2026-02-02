@@ -8,7 +8,7 @@ Get voice input for your AI CLI in under 2 minutes. Works on macOS and Linux (Wi
 npm install -g @openai/codex
 ```
 
-Or use another AI CLI with `--backend` (Claude, Gemini, Aider, etc.).
+Or use another AI CLI: `voxterm --claude` or `voxterm --gemini`.
 
 ## 2) Install VoxTerm
 

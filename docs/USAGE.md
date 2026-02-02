@@ -26,9 +26,10 @@ This guide explains how to use VoxTerm for hands-free coding with the Codex CLI
 
 That's it! Read on for more control over how voice input works.
 
-**Backend note:** By default, `voxterm` launches the Codex CLI. To target another AI CLI,
-pass `--backend` (for example `--backend claude` or `--backend gemini`). You can also pass a
-custom command string.
+**Backend note:** By default, `voxterm` launches the Codex CLI. To use another AI CLI:
+- `voxterm --claude` for Claude Code
+- `voxterm --gemini` for Gemini CLI
+- `voxterm --backend "custom-cli"` for any other CLI
 
 ---
 
@@ -195,8 +196,11 @@ Preview tips:
 Common startup configurations:
 
 ```bash
-# Use a different AI CLI backend
-voxterm --backend claude
+# Use Claude Code
+voxterm --claude
+
+# Use Gemini CLI
+voxterm --gemini
 
 # Fully hands-free (auto-voice + auto-send)
 voxterm --auto-voice

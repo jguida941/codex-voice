@@ -129,7 +129,7 @@ voxterm
 
 ```bash
 curl -fsSL https://claude.ai/install.sh | bash
-voxterm --backend claude
+voxterm --claude
 ```
 
 ![Claude Backend](https://raw.githubusercontent.com/jguida941/voxterm/master/img/claude-backend.png)
@@ -138,7 +138,7 @@ voxterm --backend claude
 
 ```bash
 npm install -g @google/gemini-cli
-voxterm --backend gemini
+voxterm --gemini
 ```
 
 ### Other CLIs

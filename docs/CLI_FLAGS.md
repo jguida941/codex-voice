@@ -22,8 +22,9 @@ All flags for the `voxterm` command. Run `voxterm --help` for the live output.
 Most common flags:
 
 ```bash
+voxterm --claude                  # Use Claude Code
+voxterm --gemini                  # Use Gemini CLI
 voxterm --auto-voice              # Hands-free mode
-voxterm --backend claude          # Use Claude instead of Codex
 voxterm --theme dracula           # Change theme
 voxterm --voice-vad-threshold-db -50  # Adjust mic sensitivity
 voxterm --mic-meter               # Calibrate mic threshold
@@ -47,13 +48,21 @@ voxterm --logs                    # Enable debug logging
 
 | Flag | Purpose | Default |
 |------|---------|---------|
-| `--backend <NAME\|CMD>` | AI CLI to use: `codex`, `claude`, `gemini`, `aider`, `opencode`, or custom command | codex |
+| `--codex` | Use Codex CLI (shorthand) | - |
+| `--claude` | Use Claude Code (shorthand) | - |
+| `--gemini` | Use Gemini CLI (shorthand) | - |
+| `--backend <NAME\|CMD>` | AI CLI: preset name or custom command | codex |
 | `--prompt-regex <REGEX>` | Override prompt detection pattern | auto-learned |
 | `--prompt-log <PATH>` | Log detected prompts to file (debugging) | disabled |
 | `--codex-cmd <PATH>` | Path to Codex binary | codex |
 | `--codex-arg <ARG>` | Extra args passed to Codex (repeatable) | - |
 
-**Tip:** For custom commands with spaces, use quotes: `--backend "my-cli --flag"`
+**Examples:**
+```bash
+voxterm --claude              # Use Claude Code
+voxterm --gemini              # Use Gemini CLI
+voxterm --backend "my-cli"    # Custom CLI
+```
 
 ---
 
