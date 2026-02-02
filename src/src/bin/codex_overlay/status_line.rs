@@ -177,7 +177,7 @@ pub fn status_banner_height(width: usize) -> usize {
 /// Layout (4 rows):
 /// ```text
 /// ╭──────────────────────────────────────────────────── VoxTerm ─╮
-/// │ ● AUTO │ Rust │ -40dB  ▁▂▃▅▆▇█▅  -51dB  Status message here  │
+/// │ ● AUTO │ Rust │ ▁▂▃▅▆▇█▅  -51dB  Status message here          │
 /// │ ^R rec  ^V auto  ^T send  ? help  ^Y theme                   │
 /// ╰──────────────────────────────────────────────────────────────╯
 /// ```
@@ -247,7 +247,13 @@ fn format_main_row(
 ) -> String {
     // Build content sections
     let mode_section = format_mode_indicator(state, colors);
-    let sensitivity_section = format!(" {:>3.0}dB ", state.sensitivity_db);
+    let show_sensitivity =
+        !(state.recording_state == RecordingState::Recording && !state.meter_levels.is_empty());
+    let sensitivity_section = if show_sensitivity {
+        format!(" {:>3.0}dB ", state.sensitivity_db)
+    } else {
+        String::new()
+    };
 
     // Duration (if recording)
     let duration_section = if let Some(dur) = state.recording_duration {
@@ -283,10 +289,18 @@ fn format_main_row(
 
     // Combine all sections
     let sep = format!("{}│{}", colors.dim, colors.reset);
-    let content = format!(
-        "{}{}{}{}{}",
-        mode_section, sep, sensitivity_section, duration_section, meter_section,
-    );
+    let mut sections = Vec::new();
+    sections.push(mode_section);
+    if !sensitivity_section.is_empty() {
+        sections.push(sensitivity_section);
+    }
+    if !duration_section.is_empty() {
+        sections.push(duration_section);
+    }
+    if !meter_section.is_empty() {
+        sections.push(meter_section);
+    }
+    let content = sections.join(&sep);
 
     let content_width = display_width(&content);
     let message_available = inner_width.saturating_sub(content_width + 1);
@@ -349,19 +363,20 @@ fn format_shortcuts_row(
 ) -> String {
     let shortcuts_str = format_button_row(state, colors, inner_width);
 
-    let shortcuts_width = display_width(&shortcuts_str);
-    let padding_needed = inner_width.saturating_sub(shortcuts_width + 1);
+    // Add leading space to match main row's left margin
+    let interior = format!(" {}", shortcuts_str);
+    let interior_width = display_width(&interior);
+    let padding_needed = inner_width.saturating_sub(interior_width);
     let padding = " ".repeat(padding_needed);
 
-    // No background colors - use transparent backgrounds for terminal compatibility
+    // Match main row format: border + interior + padding + border
     format!(
-        "{}{}{} {}{}{}{}{}{}",
+        "{}{}{}{}{}{}{}{}",
         colors.border,
         borders.vertical,
         colors.reset,
-        shortcuts_str,
+        interior,
         padding,
-        colors.reset,
         colors.border,
         borders.vertical,
         colors.reset,
@@ -371,7 +386,7 @@ fn format_shortcuts_row(
 fn format_button_row(state: &StatusLineState, colors: &ThemeColors, inner_width: usize) -> String {
     let mut items = Vec::new();
 
-    // [^R] rec - highlight if recording
+    // [^R rec] - highlight if recording
     let rec_color = match state.recording_state {
         RecordingState::Recording => colors.recording,
         RecordingState::Processing => colors.processing,
@@ -379,16 +394,20 @@ fn format_button_row(state: &StatusLineState, colors: &ThemeColors, inner_width:
     };
     items.push(format_shortcut(colors, "^R", "rec", rec_color));
 
-    // [^V] auto - highlight if enabled
-    let auto_color = if state.auto_voice_enabled { colors.info } else { "" };
-    items.push(format_shortcut(colors, "^V", "auto", auto_color));
-
-    // [^T] send - show current mode
-    let send_color = match state.send_mode {
-        VoiceSendMode::Auto => colors.success,
-        VoiceSendMode::Insert => colors.warning,
+    // [^V on/off] - show auto-voice state
+    let (voice_label, voice_color) = if state.auto_voice_enabled {
+        ("on", colors.info)
+    } else {
+        ("off", "")
     };
-    items.push(format_shortcut(colors, "^T", "send", send_color));
+    items.push(format_shortcut(colors, "^V", voice_label, voice_color));
+
+    // [^T auto/ins] - show current send mode
+    let (send_label, send_color) = match state.send_mode {
+        VoiceSendMode::Auto => ("auto", colors.success),
+        VoiceSendMode::Insert => ("ins", colors.warning),
+    };
+    items.push(format_shortcut(colors, "^T", send_label, send_color));
 
     // Static shortcuts
     items.push(format_shortcut(colors, "^O", "set", ""));
@@ -397,7 +416,10 @@ fn format_button_row(state: &StatusLineState, colors: &ThemeColors, inner_width:
 
     // Queue indicator
     if state.queue_depth > 0 {
-        items.push(format!("{}[Q:{}]{}", colors.warning, state.queue_depth, colors.reset));
+        items.push(format!(
+            "{}[Q:{}]{}",
+            colors.warning, state.queue_depth, colors.reset
+        ));
     }
 
     let row = items.join(" ");
@@ -408,7 +430,10 @@ fn format_button_row(state: &StatusLineState, colors: &ThemeColors, inner_width:
     // Compact: remove theme
     let mut compact: Vec<String> = items[..5].to_vec();
     if state.queue_depth > 0 {
-        compact.push(format!("{}Q:{}{}", colors.warning, state.queue_depth, colors.reset));
+        compact.push(format!(
+            "{}Q:{}{}",
+            colors.warning, state.queue_depth, colors.reset
+        ));
     }
     truncate_display(&compact.join(" "), inner_width)
 }

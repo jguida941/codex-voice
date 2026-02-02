@@ -15,6 +15,7 @@ Note: Some historical entries reference internal documents that are not publishe
 ### UX
 - Refresh the HUD control row with button-style pills, context-aware labels (auto/send), and a queue badge.
 - Auto-voice toggle now labels auto vs manual state directly in the HUD.
+- Hide mic threshold dB during recording to avoid duplicate dB readouts next to the live meter.
 
 ## [1.0.33] - 2026-02-02
 
