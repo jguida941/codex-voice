@@ -11,7 +11,7 @@
 
 Voice input for AI CLIs. Talk instead of type. Runs Whisper locally with ~250ms latency. No cloud, no API keys.
 
-![VoxTerm Startup](https://raw.githubusercontent.com/jguida941/voxterm/master/img/startup.png)
+![VoxTerm](https://raw.githubusercontent.com/jguida941/voxterm/master/img/hero.png)
 
 ## Quick Start
 
