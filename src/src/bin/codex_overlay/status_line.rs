@@ -214,7 +214,7 @@ fn format_top_border(colors: &ThemeColors, borders: &BorderSet, width: usize) ->
     let right_segment: String = std::iter::repeat_n(borders.horizontal, right_border_len).collect();
 
     format!(
-        "{}{}{}{}{}{}{}{}{}",
+        "{}{}{}{}{}{}{}",
         colors.border,
         borders.top_left,
         left_segment,
