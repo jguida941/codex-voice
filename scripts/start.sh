@@ -201,7 +201,7 @@ fi
 MODEL_PATH_ABS="$MODEL_PATH"
 
 if [ -z "$OVERLAY_BIN" ]; then
-    echo -e "${RED}Overlay binary not found. Please run ./install.sh or build src.${NC}"
+    echo -e "${RED}Overlay binary not found. Please run ./scripts/install.sh or build src.${NC}"
     exit 1
 fi
 EXTRA_ARGS=()

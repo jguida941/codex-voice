@@ -14,7 +14,7 @@ Or use another AI CLI: `voxterm --claude` or `voxterm --gemini`.
 
 **Homebrew (recommended):**
 ```bash
-brew tap jguida941/homebrew-voxterm
+brew tap jguida941/voxterm
 brew install voxterm
 ```
 

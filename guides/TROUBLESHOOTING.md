@@ -207,7 +207,7 @@ Check for duplicate installs:
 which -a voxterm
 ```
 
-Remove or rename the old one (often `~/.local/bin/voxterm` from `./install.sh`):
+Remove or rename the old one (often `~/.local/bin/voxterm` from `./scripts/install.sh`):
 ```bash
 mv ~/.local/bin/voxterm ~/.local/bin/voxterm.bak
 hash -r
@@ -307,7 +307,7 @@ brew update && brew upgrade voxterm
 
 **From source:**
 ```bash
-cd voxterm && git pull && ./install.sh
+cd voxterm && git pull && ./scripts/install.sh
 ```
 
 ---

@@ -20,7 +20,7 @@ Voice input for AI CLIs. Talk instead of type. Runs Whisper locally with ~250ms 
 npm install -g @openai/codex
 
 # Install VoxTerm via Homebrew
-brew tap jguida941/homebrew-voxterm
+brew tap jguida941/voxterm
 brew install voxterm
 
 # Run it
@@ -89,7 +89,7 @@ VoxTerm wraps your AI CLI in a PTY and adds voice input. You talk → Whisper tr
 <summary><strong>Homebrew (recommended)</strong></summary>
 
 ```bash
-brew tap jguida941/homebrew-voxterm
+brew tap jguida941/voxterm
 brew install voxterm
 ```
 </details>

@@ -89,7 +89,7 @@ Install Homebrew (if needed):
 Tap and install:
 
 ```bash
-brew tap jguida941/homebrew-voxterm
+brew tap jguida941/voxterm
 brew install voxterm
 ```
 
@@ -121,7 +121,7 @@ If Homebrew still shows an older version (stale tap cache), force refresh:
 ```bash
 brew untap jguida941/voxterm 2>/dev/null || true
 brew untap jguida941/homebrew-voxterm 2>/dev/null || true
-brew tap jguida941/homebrew-voxterm
+brew tap jguida941/voxterm
 brew update
 brew info voxterm
 ```
