@@ -114,21 +114,39 @@ Double-click `VoxTerm.app`, pick a folder, it opens Terminal with VoxTerm runnin
 
 **Requirements:** macOS or Linux (Windows needs WSL2) • Microphone access • ~1.5 GB disk for Whisper model
 
-## Using Other AI CLIs
+## Supported AI CLIs
+
+VoxTerm works with any terminal-based AI CLI. Install your preferred CLI, then run VoxTerm with `--backend`.
+
+### Codex (default)
 
 ```bash
-# Claude Code
+npm install -g @openai/codex
+voxterm
+```
+
+### Claude Code
+
+```bash
+curl -fsSL https://claude.ai/install.sh | bash
 voxterm --backend claude
+```
 
-# Gemini CLI
+### Gemini CLI
+
+```bash
+npm install -g @google/gemini-cli
 voxterm --backend gemini
+```
 
-# Aider
-voxterm --backend aider
+### Other CLIs
 
-# Custom command
+```bash
+# Any CLI that accepts text input
 voxterm --backend "my-cli --flag"
 ```
+
+**Note:** VoxTerm should work with most terminal-based AI CLIs - just pass the command via `--backend`.
 
 ## Documentation
 

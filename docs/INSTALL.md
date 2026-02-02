@@ -15,11 +15,18 @@ This doc covers all install and run options, plus model setup.
 
 ## Prerequisites
 
-- Codex CLI (default backend): `npm install -g @openai/codex`
-- Optional: another AI CLI if you plan to use `--backend` (Claude, Gemini, Aider, OpenCode, etc.)
+**AI CLI (choose one):**
+
+| CLI | Install Command |
+|-----|-----------------|
+| Codex (default) | `npm install -g @openai/codex` |
+| Claude Code | `curl -fsSL https://claude.ai/install.sh \| bash` |
+| Gemini CLI | `npm install -g @google/gemini-cli` |
+
+**Other requirements:**
 - Rust toolchain (stable) for building from source: https://rustup.rs
-- Whisper model (GGML format). The install and start scripts can download one automatically.
-- Optional (Python fallback): `python3`, `ffmpeg`, and the `whisper` CLI on PATH.
+- Whisper model (GGML format) - downloaded automatically on first run
+- Optional (Python fallback): `python3`, `ffmpeg`, and the `whisper` CLI on PATH
 
 ## Option A: Install from source (recommended)
 

@@ -267,14 +267,12 @@ Full list: [Whisper supported languages](https://github.com/openai/whisper#avail
 
 ### Which AI CLI backends work?
 
-| Backend | Command | Status |
-|---------|---------|--------|
-| Codex | `voxterm` (default) | Tested |
-| Claude Code | `voxterm --backend claude` | Should work (untested) |
-| Gemini CLI | `voxterm --backend gemini` | Should work (untested) |
-| Aider | `voxterm --backend aider` | Should work (untested) |
-| OpenCode | `voxterm --backend opencode` | Should work (untested) |
-| Custom | `voxterm --backend "cmd"` | Any CLI that accepts text input |
+| Backend | Install | Run | Status |
+|---------|---------|-----|--------|
+| Codex | `npm install -g @openai/codex` | `voxterm` | Tested |
+| Claude Code | `curl -fsSL https://claude.ai/install.sh \| bash` | `voxterm --backend claude` | Tested |
+| Gemini CLI | `npm install -g @google/gemini-cli` | `voxterm --backend gemini` | Should work |
+| Custom | - | `voxterm --backend "cmd"` | Any CLI |
 
 ### Which Whisper model should I use?
 
