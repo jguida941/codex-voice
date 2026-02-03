@@ -97,6 +97,7 @@ const METER_UPDATE_MS: u64 = 80;
 const PREVIEW_CLEAR_MS: u64 = 3000;
 const TRANSCRIPT_PREVIEW_MAX: usize = 60;
 const EVENT_LOOP_IDLE_MS: u64 = 50;
+const THEME_PICKER_NUMERIC_TIMEOUT_MS: u64 = 350;
 const RECORDING_DURATION_UPDATE_MS: u64 = 200;
 const PROCESSING_SPINNER_TICK_MS: u64 = 120;
 
@@ -284,6 +285,9 @@ fn main() -> Result<()> {
     status_state.pipeline = Pipeline::Rust;
     status_state.mouse_enabled = true; // Mouse enabled by default for clickable buttons
     let _ = writer_tx.send(WriterMessage::EnableMouse);
+    let mut theme_picker_selected = theme_index_from_theme(theme);
+    let mut theme_picker_digits = String::new();
+    let mut theme_picker_digit_deadline: Option<Instant> = None;
     let mut last_auto_trigger_at: Option<Instant> = None;
     let mut last_enter_at: Option<Instant> = None;
     let mut pending_transcripts: VecDeque<PendingTranscript> = VecDeque::new();
@@ -418,12 +422,15 @@ fn main() -> Result<()> {
                                         status_state.hud_style,
                                     );
                                     let cols = resolved_cols(terminal_cols);
-                                    let content = format_theme_picker(theme, cols as usize);
-                                    let height = theme_picker_height();
-                                    let _ = writer_tx.send(WriterMessage::ShowOverlay {
-                                        content,
-                                        height,
-                                    });
+                                    theme_picker_selected = theme_index_from_theme(theme);
+                                    theme_picker_digits.clear();
+                                    theme_picker_digit_deadline = None;
+                                    show_theme_picker_overlay(
+                                        &writer_tx,
+                                        theme,
+                                        theme_picker_selected,
+                                        cols,
+                                    );
                                 }
                                 (OverlayMode::Settings, InputEvent::EnterKey) => {
                                     let mut should_redraw = false;
@@ -831,10 +838,15 @@ fn main() -> Result<()> {
                                         status_state.hud_style,
                                     );
                                     let cols = resolved_cols(terminal_cols);
-                                    let content = format_theme_picker(theme, cols as usize);
-                                    let height = theme_picker_height();
-                                    let _ =
-                                        writer_tx.send(WriterMessage::ShowOverlay { content, height });
+                                    theme_picker_selected = theme_index_from_theme(theme);
+                                    theme_picker_digits.clear();
+                                    theme_picker_digit_deadline = None;
+                                    show_theme_picker_overlay(
+                                        &writer_tx,
+                                        theme,
+                                        theme_picker_selected,
+                                        cols,
+                                    );
                                 }
                                 (OverlayMode::ThemePicker, InputEvent::HelpToggle) => {
                                     overlay_mode = OverlayMode::Help;
@@ -881,20 +893,30 @@ fn main() -> Result<()> {
                                         overlay_mode,
                                         status_state.hud_style,
                                     );
+                                    theme_picker_digits.clear();
+                                    theme_picker_digit_deadline = None;
                                 }
                                 (OverlayMode::ThemePicker, InputEvent::EnterKey) => {
-                                    overlay_mode = OverlayMode::None;
-                                    let _ = writer_tx.send(WriterMessage::ClearOverlay);
-                                    update_pty_winsize(
+                                    if apply_theme_picker_index(
+                                        theme_picker_selected,
+                                        &mut theme,
+                                        &mut config,
+                                        &writer_tx,
+                                        &mut status_clear_deadline,
+                                        &mut current_status,
+                                        &mut status_state,
                                         &mut session,
                                         &mut terminal_rows,
                                         &mut terminal_cols,
-                                        overlay_mode,
-                                        status_state.hud_style,
-                                    );
+                                        &mut overlay_mode,
+                                    ) {
+                                        theme_picker_selected = theme_index_from_theme(theme);
+                                    }
+                                    theme_picker_digits.clear();
+                                    theme_picker_digit_deadline = None;
                                 }
                                 (OverlayMode::ThemePicker, InputEvent::Bytes(bytes)) => {
-                                    if bytes.contains(&0x1b) {
+                                    if bytes == [0x1b] {
                                         overlay_mode = OverlayMode::None;
                                         let _ = writer_tx.send(WriterMessage::ClearOverlay);
                                         update_pty_winsize(
@@ -904,28 +926,77 @@ fn main() -> Result<()> {
                                             overlay_mode,
                                             status_state.hud_style,
                                         );
-                                    } else if let Some(idx) =
-                                        bytes.iter().find_map(|b| theme_index_from_byte(*b))
-                                    {
-                                        if let Some((_, name, _)) = THEME_OPTIONS.get(idx) {
-                                            if let Some(requested) = Theme::from_name(name) {
-                                                theme = apply_theme_selection(
-                                                    &mut config,
-                                                    requested,
-                                                    &writer_tx,
-                                                    &mut status_clear_deadline,
-                                                    &mut current_status,
-                                                    &mut status_state,
-                                                );
-                                                overlay_mode = OverlayMode::None;
-                                                let _ = writer_tx.send(WriterMessage::ClearOverlay);
-                                                update_pty_winsize(
-                                                    &mut session,
-                                                    &mut terminal_rows,
-                                                    &mut terminal_cols,
-                                                    overlay_mode,
-                                                    status_state.hud_style,
-                                                );
+                                        theme_picker_digits.clear();
+                                        theme_picker_digit_deadline = None;
+                                    } else if let Some(keys) = parse_arrow_keys_only(&bytes) {
+                                        let mut moved = false;
+                                        let total = THEME_OPTIONS.len();
+                                        for key in keys {
+                                            let direction = match key {
+                                                ArrowKey::Up | ArrowKey::Left => -1,
+                                                ArrowKey::Down | ArrowKey::Right => 1,
+                                            };
+                                            if direction != 0 && total > 0 {
+                                                let next = (theme_picker_selected as i32 + direction)
+                                                    .rem_euclid(total as i32) as usize;
+                                                if next != theme_picker_selected {
+                                                    theme_picker_selected = next;
+                                                    moved = true;
+                                                }
+                                            }
+                                        }
+                                        if moved {
+                                            let cols = resolved_cols(terminal_cols);
+                                            show_theme_picker_overlay(
+                                                &writer_tx,
+                                                theme,
+                                                theme_picker_selected,
+                                                cols,
+                                            );
+                                        }
+                                        theme_picker_digits.clear();
+                                        theme_picker_digit_deadline = None;
+                                    } else {
+                                        let digits: String = bytes
+                                            .iter()
+                                            .filter(|b| b.is_ascii_digit())
+                                            .map(|b| *b as char)
+                                            .collect();
+                                        if !digits.is_empty() {
+                                            theme_picker_digits.push_str(&digits);
+                                            if theme_picker_digits.len() > 3 {
+                                                theme_picker_digits.clear();
+                                            }
+                                            let now = Instant::now();
+                                            theme_picker_digit_deadline = Some(
+                                                now + Duration::from_millis(THEME_PICKER_NUMERIC_TIMEOUT_MS),
+                                            );
+                                            if let Some(idx) = theme_picker_parse_index(
+                                                &theme_picker_digits,
+                                                THEME_OPTIONS.len(),
+                                            ) {
+                                                if !theme_picker_has_longer_match(
+                                                    &theme_picker_digits,
+                                                    THEME_OPTIONS.len(),
+                                                ) {
+                                                    if apply_theme_picker_index(
+                                                        idx,
+                                                        &mut theme,
+                                                        &mut config,
+                                                        &writer_tx,
+                                                        &mut status_clear_deadline,
+                                                        &mut current_status,
+                                                        &mut status_state,
+                                                        &mut session,
+                                                        &mut terminal_rows,
+                                                        &mut terminal_cols,
+                                                        &mut overlay_mode,
+                                                    ) {
+                                                        theme_picker_selected = theme_index_from_theme(theme);
+                                                    }
+                                                    theme_picker_digits.clear();
+                                                    theme_picker_digit_deadline = None;
+                                                }
                                             }
                                         }
                                     }
@@ -981,10 +1052,15 @@ fn main() -> Result<()> {
                                     status_state.hud_style,
                                 );
                                 let cols = resolved_cols(terminal_cols);
-                                let content = format_theme_picker(theme, cols as usize);
-                                let height = theme_picker_height();
-                                let _ =
-                                    writer_tx.send(WriterMessage::ShowOverlay { content, height });
+                                theme_picker_selected = theme_index_from_theme(theme);
+                                theme_picker_digits.clear();
+                                theme_picker_digit_deadline = None;
+                                show_theme_picker_overlay(
+                                    &writer_tx,
+                                    theme,
+                                    theme_picker_selected,
+                                    cols,
+                                );
                             }
                             InputEvent::SettingsToggle => {
                                 status_state.hud_button_focus = None;
@@ -1167,6 +1243,11 @@ fn main() -> Result<()> {
                                 if status_state.mouse_enabled {
                                     if let Some(action) = status_state.hud_button_focus {
                                         status_state.hud_button_focus = None;
+                                        if action == ButtonAction::ThemePicker {
+                                            theme_picker_selected = theme_index_from_theme(theme);
+                                            theme_picker_digits.clear();
+                                            theme_picker_digit_deadline = None;
+                                        }
                                         handle_button_action(
                                             action,
                                             &mut overlay_mode,
@@ -1370,6 +1451,11 @@ fn main() -> Result<()> {
                                 }
 
                                 if let Some(action) = button_registry.find_at(x, y, terminal_rows) {
+                                    if action == ButtonAction::ThemePicker {
+                                        theme_picker_selected = theme_index_from_theme(theme);
+                                        theme_picker_digits.clear();
+                                        theme_picker_digit_deadline = None;
+                                    }
                                     handle_button_action(
                                         action,
                                         &mut overlay_mode,
@@ -1478,9 +1564,12 @@ fn main() -> Result<()> {
                                 let _ = writer_tx.send(WriterMessage::ShowOverlay { content, height });
                             }
                             OverlayMode::ThemePicker => {
-                                let content = format_theme_picker(theme, cols as usize);
-                                let height = theme_picker_height();
-                                let _ = writer_tx.send(WriterMessage::ShowOverlay { content, height });
+                                show_theme_picker_overlay(
+                                    &writer_tx,
+                                    theme,
+                                    theme_picker_selected,
+                                    cols,
+                                );
                             }
                             OverlayMode::Settings => {
                                 show_settings_overlay(
@@ -1499,6 +1588,36 @@ fn main() -> Result<()> {
                 }
 
                 let now = Instant::now();
+                if overlay_mode != OverlayMode::ThemePicker {
+                    theme_picker_digits.clear();
+                    theme_picker_digit_deadline = None;
+                } else if let Some(deadline) = theme_picker_digit_deadline {
+                    if now >= deadline {
+                        if let Some(idx) = theme_picker_parse_index(
+                            &theme_picker_digits,
+                            THEME_OPTIONS.len(),
+                        ) {
+                            if apply_theme_picker_index(
+                                idx,
+                                &mut theme,
+                                &mut config,
+                                &writer_tx,
+                                &mut status_clear_deadline,
+                                &mut current_status,
+                                &mut status_state,
+                                &mut session,
+                                &mut terminal_rows,
+                                &mut terminal_cols,
+                                &mut overlay_mode,
+                            ) {
+                                theme_picker_selected = theme_index_from_theme(theme);
+                            }
+                        }
+                        theme_picker_digits.clear();
+                        theme_picker_digit_deadline = None;
+                    }
+                }
+
                 if status_state.recording_state == RecordingState::Recording {
                     if let Some(start) = recording_started_at {
                         if now.duration_since(last_recording_update)
@@ -1781,6 +1900,17 @@ fn show_settings_overlay(
     };
     let content = format_settings_overlay(&view, cols as usize);
     let height = settings_overlay_height();
+    let _ = writer_tx.send(WriterMessage::ShowOverlay { content, height });
+}
+
+fn show_theme_picker_overlay(
+    writer_tx: &Sender<WriterMessage>,
+    theme: Theme,
+    selected_idx: usize,
+    cols: u16,
+) {
+    let content = format_theme_picker(theme, selected_idx, cols as usize);
+    let height = theme_picker_height();
     let _ = writer_tx.send(WriterMessage::ShowOverlay { content, height });
 }
 
@@ -2328,9 +2458,12 @@ fn handle_button_action(
                 status_state.hud_style,
             );
             let cols = resolved_cols(*terminal_cols);
-            let content = format_theme_picker(theme, cols as usize);
-            let height = theme_picker_height();
-            let _ = writer_tx.send(WriterMessage::ShowOverlay { content, height });
+            show_theme_picker_overlay(
+                writer_tx,
+                theme,
+                theme_index_from_theme(theme),
+                cols,
+            );
         }
     }
 
@@ -2560,6 +2693,13 @@ fn cycle_theme(current: Theme, direction: i32) -> Theme {
     THEME_OPTIONS[next].0
 }
 
+fn theme_index_from_theme(theme: Theme) -> usize {
+    THEME_OPTIONS
+        .iter()
+        .position(|(candidate, _, _)| *candidate == theme)
+        .unwrap_or(0)
+}
+
 fn apply_theme_selection(
     config: &mut OverlayConfig,
     requested: Theme,
@@ -2590,13 +2730,65 @@ fn apply_theme_selection(
     resolved
 }
 
-fn theme_index_from_byte(byte: u8) -> Option<usize> {
-    match byte {
-        b'1'..=b'9' => Some((byte - b'1') as usize),
-        b'0' => Some(9),  // 0 selects theme 10
-        b'-' => Some(10), // - selects theme 11
-        _ => None,
+fn theme_picker_parse_index(digits: &str, total: usize) -> Option<usize> {
+    if digits.is_empty() {
+        return None;
     }
+    let value: usize = digits.parse().ok()?;
+    if value == 0 || value > total {
+        return None;
+    }
+    Some(value - 1)
+}
+
+fn theme_picker_has_longer_match(prefix: &str, total: usize) -> bool {
+    if prefix.is_empty() {
+        return false;
+    }
+    (1..=total).any(|idx| {
+        let label = idx.to_string();
+        label.len() > prefix.len() && label.starts_with(prefix)
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+fn apply_theme_picker_index(
+    idx: usize,
+    theme: &mut Theme,
+    config: &mut OverlayConfig,
+    writer_tx: &Sender<WriterMessage>,
+    status_clear_deadline: &mut Option<Instant>,
+    current_status: &mut Option<String>,
+    status_state: &mut StatusLineState,
+    session: &mut PtyOverlaySession,
+    terminal_rows: &mut u16,
+    terminal_cols: &mut u16,
+    overlay_mode: &mut OverlayMode,
+) -> bool {
+    let Some((_, name, _)) = THEME_OPTIONS.get(idx) else {
+        return false;
+    };
+    let Some(requested) = Theme::from_name(name) else {
+        return false;
+    };
+    *theme = apply_theme_selection(
+        config,
+        requested,
+        writer_tx,
+        status_clear_deadline,
+        current_status,
+        status_state,
+    );
+    *overlay_mode = OverlayMode::None;
+    let _ = writer_tx.send(WriterMessage::ClearOverlay);
+    update_pty_winsize(
+        session,
+        terminal_rows,
+        terminal_cols,
+        *overlay_mode,
+        status_state.hud_style,
+    );
+    true
 }
 
 fn resolve_theme_choice(config: &OverlayConfig, requested: Theme) -> (Theme, Option<&'static str>) {

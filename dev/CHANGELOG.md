@@ -8,6 +8,9 @@ Note: Some historical entries reference internal documents that are not publishe
 ### Documentation
 - Refresh the Claude backend screenshot.
 
+### UX
+- Theme picker now supports arrow-key navigation, Enter to select, and multi-digit theme numbers.
+
 ## [1.0.37] - 2026-02-03
 
 ### UX

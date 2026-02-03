@@ -20,7 +20,7 @@ pub const THEME_OPTIONS: &[(Theme, &str, &str)] = &[
     (Theme::None, "none", "No color styling"),
 ];
 
-pub const THEME_PICKER_FOOTER: &str = "[×] close · 1-9,0,- select";
+pub const THEME_PICKER_FOOTER: &str = "[×] close · ↑/↓ move · Enter select";
 pub const THEME_PICKER_OPTION_START_ROW: usize = 4;
 
 pub fn theme_picker_inner_width_for_terminal(width: usize) -> usize {
@@ -31,7 +31,7 @@ pub fn theme_picker_total_width_for_terminal(width: usize) -> usize {
     theme_picker_inner_width_for_terminal(width).saturating_add(2)
 }
 
-pub fn format_theme_picker(current_theme: Theme, width: usize) -> String {
+pub fn format_theme_picker(current_theme: Theme, selected_idx: usize, width: usize) -> String {
     let colors = current_theme.colors();
     let borders = &colors.borders;
     let mut lines = Vec::new();
@@ -65,6 +65,8 @@ pub fn format_theme_picker(current_theme: Theme, width: usize) -> String {
     for (idx, (theme, name, desc)) in THEME_OPTIONS.iter().enumerate() {
         let theme_colors = theme.colors();
         let is_current = *theme == current_theme;
+        let is_selected = idx == selected_idx;
+        let marker = if is_selected { ">" } else if is_current { "*" } else { " " };
         lines.push(format_option_line_with_preview(
             &colors,
             borders,
@@ -72,7 +74,7 @@ pub fn format_theme_picker(current_theme: Theme, width: usize) -> String {
             idx + 1,
             name,
             desc,
-            is_current,
+            marker,
             inner_width,
         ));
     }
@@ -137,12 +139,9 @@ fn format_option_line_with_preview(
     num: usize,
     name: &str,
     desc: &str,
-    is_current: bool,
+    marker: &str,
     inner_width: usize,
 ) -> String {
-    // Current theme marker
-    let marker = if is_current { ">" } else { " " };
-
     // Label: "1. coral"
     let label = format!("{}. {}", num, name);
     let label_col = 14;
@@ -185,14 +184,14 @@ mod tests {
 
     #[test]
     fn theme_picker_contains_options() {
-        let output = format_theme_picker(Theme::Coral, 60);
+        let output = format_theme_picker(Theme::Coral, 0, 60);
         assert!(output.contains("1. chatgpt"));
         assert!(output.contains("11. none")); // 11 themes total now
     }
 
     #[test]
     fn theme_picker_has_borders() {
-        let output = format_theme_picker(Theme::Coral, 60);
+        let output = format_theme_picker(Theme::Coral, 0, 60);
         // Uses theme-specific borders
         let colors = Theme::Coral.colors();
         assert!(output.contains(colors.borders.top_left));
@@ -202,7 +201,7 @@ mod tests {
 
     #[test]
     fn theme_picker_shows_current_theme() {
-        let output = format_theme_picker(Theme::Dracula, 60);
+        let output = format_theme_picker(Theme::Dracula, 5, 60);
         // Should have marker for current theme (Dracula = option 6)
         assert!(output.contains(">"));
         assert!(output.contains("6. dracula"));

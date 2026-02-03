@@ -187,6 +187,7 @@ Press `Ctrl+Y` to open the theme picker:
 
 ![Theme Picker](https://raw.githubusercontent.com/jguida941/voxterm/master/img/theme-picker.png)
 
+Use ↑/↓ to move and Enter to select, or type the theme number.
 With Mouse enabled (on by default), click a theme row to select it and click [×] close to exit.
 
 Note: Theme picker screenshot needs refresh to show all 11 themes (tokyonight, gruvbox).
