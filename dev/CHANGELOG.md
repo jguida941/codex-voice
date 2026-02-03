@@ -5,6 +5,12 @@ Note: Some historical entries reference internal documents that are not publishe
 
 ## [Unreleased]
 
+## [1.0.40] - 2026-02-03
+
+### UX
+- Center the ASCII art logo and add a tagline with version and keyboard shortcuts underneath.
+- Show the ASCII banner with tagline instead of the separate config line for wide terminals.
+
 ## [1.0.39] - 2026-02-03
 
 ### UX

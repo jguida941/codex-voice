@@ -208,21 +208,24 @@ fn main() -> Result<()> {
     let no_startup_banner = env::var("VOXTERM_NO_STARTUP_BANNER").is_ok();
     let skip_banner = should_skip_banner(is_wrapper, no_startup_banner);
     if !skip_banner {
-        // Show ASCII art logo if terminal is wide enough (logo is 65 chars wide)
         let use_color = theme != Theme::None;
-        if let Ok((cols, _)) = terminal_size() {
-            if cols >= 66 {
-                print!("{}", format_ascii_banner(use_color));
+        match terminal_size() {
+            Ok((cols, _)) if cols >= 66 => {
+                // Wide terminal: show centered ASCII art with tagline
+                print!("{}", format_ascii_banner(use_color, cols));
+                let _ = io::stdout().flush();
+            }
+            Ok((cols, _)) if use_minimal_banner(cols) => {
+                // Narrow terminal: minimal one-line banner
+                print!("{}", format_minimal_banner(theme));
+                let _ = io::stdout().flush();
+            }
+            _ => {
+                // Medium terminal: show config banner
+                print!("{}", format_startup_banner(&banner_config, theme));
                 let _ = io::stdout().flush();
             }
         }
-
-        let banner = match terminal_size() {
-            Ok((cols, _)) if use_minimal_banner(cols) => format_minimal_banner(theme),
-            _ => format_startup_banner(&banner_config, theme),
-        };
-        print!("{banner}");
-        let _ = io::stdout().flush();
     }
 
     let mut session = PtyOverlaySession::new(

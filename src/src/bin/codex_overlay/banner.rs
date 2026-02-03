@@ -7,15 +7,18 @@ use crate::theme::Theme;
 /// Version from Cargo.toml
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-/// ASCII art logo for VoxTerm - displayed on startup
+/// ASCII art logo for VoxTerm - displayed on startup (52 chars wide)
 const ASCII_LOGO: &[&str] = &[
-    " ██╗   ██╗ ██████╗ ██╗  ██╗████████╗███████╗██████╗ ███╗   ███╗",
-    " ██║   ██║██╔═══██╗╚██╗██╔╝╚══██╔══╝██╔════╝██╔══██╗████╗ ████║",
-    " ██║   ██║██║   ██║ ╚███╔╝    ██║   █████╗  ██████╔╝██╔████╔██║",
-    " ╚██╗ ██╔╝██║   ██║ ██╔██╗    ██║   ██╔══╝  ██╔══██╗██║╚██╔╝██║",
-    "  ╚████╔╝ ╚██████╔╝██╔╝ ██╗   ██║   ███████╗██║  ██║██║ ╚═╝ ██║",
-    "   ╚═══╝   ╚═════╝ ╚═╝  ╚═╝   ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝",
+    "██╗   ██╗ ██████╗ ██╗  ██╗████████╗███████╗██████╗ ███╗   ███╗",
+    "██║   ██║██╔═══██╗╚██╗██╔╝╚══██╔══╝██╔════╝██╔══██╗████╗ ████║",
+    "██║   ██║██║   ██║ ╚███╔╝    ██║   █████╗  ██████╔╝██╔████╔██║",
+    "╚██╗ ██╔╝██║   ██║ ██╔██╗    ██║   ██╔══╝  ██╔══██╗██║╚██╔╝██║",
+    " ╚████╔╝ ╚██████╔╝██╔╝ ██╗   ██║   ███████╗██║  ██║██║ ╚═╝ ██║",
+    "  ╚═══╝   ╚═════╝ ╚═╝  ╚═╝   ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝",
 ];
+
+/// Logo width in display columns
+const LOGO_WIDTH: usize = 64;
 
 /// Purple gradient colors for shiny effect (light to deep purple)
 const PURPLE_GRADIENT: &[(u8, u8, u8)] = &[
@@ -32,13 +35,23 @@ fn rgb_fg(r: u8, g: u8, b: u8) -> String {
     format!("\x1b[38;2;{};{};{}m", r, g, b)
 }
 
-/// Format the shiny purple ASCII art banner
-pub fn format_ascii_banner(use_color: bool) -> String {
+/// Format the shiny purple ASCII art banner with tagline
+pub fn format_ascii_banner(use_color: bool, terminal_width: u16) -> String {
     let reset = "\x1b[0m";
+    let dim = "\x1b[90m";
     let mut output = String::new();
     output.push('\n');
 
+    // Calculate padding to center the logo
+    let padding = if (terminal_width as usize) > LOGO_WIDTH {
+        (terminal_width as usize - LOGO_WIDTH) / 2
+    } else {
+        0
+    };
+    let pad_str: String = " ".repeat(padding);
+
     for (i, line) in ASCII_LOGO.iter().enumerate() {
+        output.push_str(&pad_str);
         if use_color {
             let (r, g, b) = PURPLE_GRADIENT[i % PURPLE_GRADIENT.len()];
             output.push_str(&rgb_fg(r, g, b));
@@ -50,7 +63,28 @@ pub fn format_ascii_banner(use_color: bool) -> String {
         output.push('\n');
     }
 
+    // Add tagline with version and shortcuts
+    let tagline = format!(
+        "v{} │ Ctrl+R record │ Ctrl+V auto-voice │ Ctrl+Q quit",
+        VERSION
+    );
+    let tagline_padding = if (terminal_width as usize) > tagline.len() {
+        (terminal_width as usize - tagline.len()) / 2
+    } else {
+        0
+    };
+
     output.push('\n');
+    output.push_str(&" ".repeat(tagline_padding));
+    if use_color {
+        output.push_str(dim);
+        output.push_str(&tagline);
+        output.push_str(reset);
+    } else {
+        output.push_str(&tagline);
+    }
+    output.push_str("\n\n");
+
     output
 }
 
@@ -164,14 +198,14 @@ mod tests {
 
     #[test]
     fn ascii_banner_contains_logo() {
-        let banner = format_ascii_banner(false);
+        let banner = format_ascii_banner(false, 80);
         assert!(banner.contains("██╗"));
         assert!(banner.contains("╚═╝"));
     }
 
     #[test]
     fn ascii_banner_with_color_has_ansi_codes() {
-        let banner = format_ascii_banner(true);
+        let banner = format_ascii_banner(true, 80);
         // Should contain truecolor ANSI codes
         assert!(banner.contains("\x1b[38;2;"));
         // Should contain reset codes
@@ -180,9 +214,28 @@ mod tests {
 
     #[test]
     fn ascii_banner_no_color_is_plain() {
-        let banner = format_ascii_banner(false);
+        let banner = format_ascii_banner(false, 80);
         // Should NOT contain any ANSI codes
         assert!(!banner.contains("\x1b["));
+    }
+
+    #[test]
+    fn ascii_banner_contains_tagline() {
+        let banner = format_ascii_banner(false, 80);
+        assert!(banner.contains("Ctrl+R record"));
+        assert!(banner.contains("Ctrl+V auto-voice"));
+        assert!(banner.contains("Ctrl+Q quit"));
+        assert!(banner.contains(VERSION));
+    }
+
+    #[test]
+    fn ascii_banner_centers_with_wide_terminal() {
+        let banner = format_ascii_banner(false, 120);
+        // With 120 cols, there should be some leading spaces for centering
+        let lines: Vec<&str> = banner.lines().collect();
+        // Find a line with the logo (not empty)
+        let logo_line = lines.iter().find(|l| l.contains("██")).unwrap();
+        assert!(logo_line.starts_with(" ")); // Should have padding
     }
 
     #[test]
