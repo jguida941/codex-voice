@@ -24,7 +24,6 @@ Most common flags:
 ```bash
 voxterm --codex                   # Use Codex (default)
 voxterm --claude                  # Use Claude Code
-voxterm --gemini                  # Gemini CLI (in works; not yet supported)
 voxterm --auto-voice              # Hands-free mode
 voxterm --theme dracula           # Change theme
 voxterm --voice-vad-threshold-db -50  # Adjust mic sensitivity
@@ -51,8 +50,7 @@ voxterm --logs                    # Enable debug logging
 |------|---------|---------|
 | `--codex` | Use Codex CLI (shorthand) | - |
 | `--claude` | Use Claude Code (shorthand) | - |
-| `--gemini` | Gemini CLI (in works; not yet supported) | - |
-| `--backend <NAME>` | Backend preset: `codex` or `claude` (Gemini in works) | codex |
+| `--backend <NAME>` | Backend preset: `codex` or `claude` | codex |
 | `--prompt-regex <REGEX>` | Override prompt detection pattern | auto-learned |
 | `--prompt-log <PATH>` | Log detected prompts to file (debugging) | disabled |
 | `--codex-cmd <PATH>` | Path to Codex binary | codex |
@@ -62,10 +60,7 @@ voxterm --logs                    # Enable debug logging
 ```bash
 voxterm --codex               # Use Codex (default)
 voxterm --claude              # Use Claude Code
-voxterm --gemini              # Gemini CLI (in works; not yet supported)
 ```
-
-**Note:** Gemini CLI support is in works and not yet supported.
 
 ---
 
@@ -118,7 +113,7 @@ voxterm --gemini              # Gemini CLI (in works; not yet supported)
 
 | Flag | Purpose | Default |
 |------|---------|---------|
-| `--theme <NAME>` | Theme: `chatgpt`, `claude`, `codex`, `coral`, `catppuccin`, `dracula`, `nord`, `tokyonight`, `gruvbox`, `ansi`, `none` | backend default |
+| `--theme <NAME>` | Theme name | backend default |
 | `--no-color` | Disable all colors | off |
 | `--hud-style <MODE>` | HUD display style: `full`, `minimal`, `hidden` | full |
 | `--minimal-hud` | Shorthand for `--hud-style minimal` | off |
@@ -126,12 +121,18 @@ voxterm --gemini              # Gemini CLI (in works; not yet supported)
 | `--hud-right-panel-recording-only` | Only animate right panel while recording | on |
 | `--term <TERM>` | TERM value for the CLI | inherited |
 
+**Themes:** `chatgpt`, `claude`, `codex`, `coral`, `catppuccin`, `dracula`,
+`nord`, `tokyonight`, `gruvbox`, `ansi`, `none`.
+
 **HUD styles:**
 - `full`: 4-row banner with borders, mode indicator, dB meter, and shortcuts
-- `minimal`: Single-line strip (e.g., `◉ AUTO · Ready`, `● REC · -55dB`) - unobtrusive
+- `minimal`: Single-line strip
 - `hidden`: No HUD content when idle (keeps a blank row); shows "REC" indicator only while recording
 
-**Theme defaults:** If `--theme` is not provided, VoxTerm selects a backend-appropriate default (Claude → `claude`, Codex → `codex`, others → `coral`).
+Examples of the Minimal strip: `◉ AUTO · Ready`, `● REC · -55dB`.
+
+**Theme defaults:** If `--theme` is not provided, VoxTerm selects a backend-
+appropriate default. Claude → `claude`, Codex → `codex`, others → `coral`.
 
 ---
 
@@ -144,7 +145,8 @@ voxterm --gemini              # Gemini CLI (in works; not yet supported)
 | `--log-content` | Include transcript snippets in logs | off |
 | `--log-timings` | Verbose timing information | off |
 
-**Log location:** `$TMPDIR/voxterm_tui.log` (macOS) or `/tmp/voxterm_tui.log` (Linux)
+**Log location:** `$TMPDIR/voxterm_tui.log` (macOS) or
+`/tmp/voxterm_tui.log` (Linux)
 
 ---
 

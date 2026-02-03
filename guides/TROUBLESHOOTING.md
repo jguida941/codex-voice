@@ -8,7 +8,7 @@
 | Voice not recording | See [Audio Setup → Check microphone permissions](#check-microphone-permissions) |
 | Codex not responding | See [Codex Issues → Codex not responding](#codex-not-responding) |
 | Auto-voice not triggering | See [Codex Issues → Auto-voice not triggering](#auto-voice-not-triggering) |
-| Wrong version after update | See [Install Issues → Wrong version after update](#wrong-version-after-update) |
+| Wrong version after update | [Install Issues → Wrong version after update](#wrong-version-after-update) |
 
 Other sections: [Status Messages](#status-messages) · [Audio Setup](#audio-setup) ·
 [Mic Sensitivity](#mic-sensitivity) · [Codex Issues](#codex-issues) ·
@@ -58,7 +58,9 @@ Transcription is taking too long.
 
 ### Transcript queued (N)
 
-The CLI is still streaming output, so VoxTerm queued your transcript and will send it when the next prompt appears (or after output is idle for the transcript timeout).
+The CLI is still streaming output, so VoxTerm queued your transcript.
+It will send when the next prompt appears (or after output is idle for the
+transcript timeout).
 
 **Fixes:**
 1. Wait for the CLI to finish and return to a prompt
@@ -68,17 +70,20 @@ The CLI is still streaming output, so VoxTerm queued your transcript and will se
 
 You spoke 5+ times while Codex was busy. Oldest transcript was discarded.
 
-**Fix:** Wait for Codex to finish before speaking again. Queue flushing is unreliable and tracked in the [master plan](../dev/active/MASTER_PLAN.md).
+**Fix:** Wait for Codex to finish before speaking again.
+Queue flushing is unreliable and tracked in the
+[master plan](../dev/active/MASTER_PLAN.md).
 
 ### Voice capture already running
 
 You pressed `Ctrl+R` while already recording.
 
-**Fix:** Wait for the current recording to finish, or enable auto-voice (`Ctrl+V`) so you don't need to press `Ctrl+R`.
+**Fix:** Wait for the current recording to finish, or enable auto-voice
+(`Ctrl+V`) so you don't need to press `Ctrl+R`.
 
 ### Python pipeline
 
-Native Whisper isn't available, using slower Python fallback. 
+Native Whisper isn't available, using slower Python fallback.
 
 **Fixes:**
 1. Verify model exists: `ls whisper_models/ggml-*.bin`
@@ -91,7 +96,8 @@ Native Whisper isn't available, using slower Python fallback.
 
 ### Check microphone permissions
 
-**macOS:** System Settings → Privacy & Security → Microphone → Enable for your terminal app (Terminal, iTerm2, etc.)
+**macOS:** System Settings → Privacy & Security → Microphone → Enable for your
+terminal app (Terminal, iTerm2, etc.)
 
 **Linux:** Ensure your user has access to PulseAudio/PipeWire. Check with `pactl list sources`.
 
@@ -127,7 +133,8 @@ Restart `voxterm` after plugging in a new mic. Devices are detected at startup.
 
 ### Too sensitive (picks up background noise)
 
-Press `Ctrl+]` to raise the threshold (less sensitive). Repeat until background noise stops triggering recordings.
+Press `Ctrl+]` to raise the threshold (less sensitive).
+Repeat until background noise stops triggering recordings.
 
 Or set it at startup:
 ```bash
@@ -178,7 +185,8 @@ If you're using Claude Code, substitute `claude` wherever you see `codex` below.
 
 ### Auto-voice not triggering
 
-Auto-voice waits for the CLI to show a prompt before listening. If detection fails (especially on Claude with a custom prompt):
+Auto-voice waits for the CLI to show a prompt before listening.
+If detection fails (especially on Claude with a custom prompt):
 
 #### Override prompt detection
 
@@ -210,7 +218,28 @@ brew link --overwrite voxterm
 
 ### Wrong version after update
 
-Check for duplicate installs:
+Start with a normal update:
+```bash
+brew update
+brew upgrade voxterm
+```
+
+If Homebrew still shows the old version, force a tap refresh:
+```bash
+brew untap jguida941/voxterm 2>/dev/null || true
+brew untap jguida941/homebrew-voxterm 2>/dev/null || true
+brew tap jguida941/voxterm
+brew update
+brew info voxterm
+```
+
+If it still will not update, clear the cache and reinstall:
+```bash
+rm -f "$(brew --cache)"/voxterm--*
+brew reinstall voxterm
+```
+
+If `voxterm --version` still looks old, check for duplicate installs earlier in PATH:
 ```bash
 which -a voxterm
 ```
@@ -221,7 +250,21 @@ mv ~/.local/bin/voxterm ~/.local/bin/voxterm.bak
 hash -r
 ```
 
-See [INSTALL.md](INSTALL.md) for full PATH cleanup steps.
+If you used a local install previously, also check for:
+```bash
+ls -l ~/voxterm/bin/voxterm 2>/dev/null
+```
+
+Relink Homebrew and clear shell caches:
+```bash
+brew unlink voxterm && brew link --overwrite voxterm
+hash -r
+```
+
+Verify the Homebrew binary directly (bypasses the wrapper):
+```bash
+$(brew --prefix)/opt/voxterm/libexec/src/target/release/voxterm --version
+```
 
 ---
 
@@ -243,9 +286,12 @@ voxterm --logs --log-content
 
 ### Log file location
 
-Debug log: system temp dir (for example `${TMPDIR}/voxterm_tui.log` on macOS or `/tmp/voxterm_tui.log` on Linux)
+Debug log: system temp dir (for example `${TMPDIR}/voxterm_tui.log` on macOS or
+`/tmp/voxterm_tui.log` on Linux)
 
-Crash log (panic only, written when `--logs` is enabled; metadata unless `--log-content`): system temp dir (for example `${TMPDIR}/voxterm_crash.log` on macOS or `/tmp/voxterm_crash.log` on Linux)
+Crash log (panic only, written when `--logs` is enabled; metadata unless
+`--log-content`): system temp dir (for example `${TMPDIR}/voxterm_crash.log`
+on macOS or `/tmp/voxterm_crash.log` on Linux)
 
 ### Disable all logging
 
@@ -269,7 +315,8 @@ voxterm --no-logs
 
 Whisper supports 99 languages. VoxTerm has been tested with English (`en`).
 
-Other languages should work but are untested. Use `--lang auto` for automatic detection, or specify a language code: `voxterm --lang es`
+Other languages should work but are untested. Use `--lang auto` for automatic
+detection, or specify a language code: `voxterm --lang es`
 
 Full list: [Whisper supported languages](https://github.com/openai/whisper#available-models-and-languages)
 
@@ -279,9 +326,6 @@ Full list: [Whisper supported languages](https://github.com/openai/whisper#avail
 |---------|---------|-----|--------|
 | Codex | `npm install -g @openai/codex` | `voxterm` | Tested |
 | Claude Code | `curl -fsSL https://claude.ai/install.sh \| bash` | `voxterm --claude` | Tested |
-| Gemini CLI | `npm install -g @google/gemini-cli` | `voxterm --gemini` | In works (not yet supported) |
-
-**Gemini CLI:** Not currently supported due to UI conflicts and a different spawn model. It's in the backlog.
 
 ### Which Whisper model should I use?
 

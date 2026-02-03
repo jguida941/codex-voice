@@ -47,7 +47,7 @@ use voxterm::{
     VoiceJobMessage,
 };
 
-use crate::banner::{format_minimal_banner, format_startup_banner, BannerConfig};
+use crate::banner::{format_ascii_banner, format_minimal_banner, format_startup_banner, BannerConfig};
 use crate::buttons::{ButtonAction, ButtonRegistry};
 use crate::config::{HudRightPanel, HudStyle, OverlayConfig, VoiceSendMode};
 use crate::help::{
@@ -208,6 +208,15 @@ fn main() -> Result<()> {
     let no_startup_banner = env::var("VOXTERM_NO_STARTUP_BANNER").is_ok();
     let skip_banner = should_skip_banner(is_wrapper, no_startup_banner);
     if !skip_banner {
+        // Show ASCII art logo if terminal is wide enough (logo is 65 chars wide)
+        let use_color = theme != Theme::None;
+        if let Ok((cols, _)) = terminal_size() {
+            if cols >= 66 {
+                print!("{}", format_ascii_banner(use_color));
+                let _ = io::stdout().flush();
+            }
+        }
+
         let banner = match terminal_size() {
             Ok((cols, _)) if use_minimal_banner(cols) => format_minimal_banner(theme),
             _ => format_startup_banner(&banner_config, theme),

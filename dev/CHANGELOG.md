@@ -5,6 +5,18 @@ Note: Some historical entries reference internal documents that are not publishe
 
 ## [Unreleased]
 
+## [1.0.39] - 2026-02-03
+
+### UX
+- Add shiny purple ASCII art logo banner on startup (displays when terminal is ≥66 columns wide).
+
+### Documentation
+- Reformat README Whisper model setup/requirements for readability and remove the roadmap section.
+- Rewrite the install guide to recommend Homebrew and clarify the install paths.
+- Move Homebrew update troubleshooting steps into the troubleshooting guide and link from install.
+- Remove Gemini references from user-facing docs (README, Quick Start, Usage, CLI Flags, Install, Troubleshooting).
+- Reflow user guides for readability (Quick Start, Usage, CLI Flags, Troubleshooting, Whisper).
+
 ## [1.0.38] - 2026-02-03
 
 ### UX

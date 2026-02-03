@@ -1,6 +1,7 @@
 # Whisper Speech-to-Text
 
-VoxTerm uses [Whisper](https://github.com/openai/whisper) for local speech-to-text. All transcription happens on your machine - no audio is sent to the cloud.
+VoxTerm uses [Whisper](https://github.com/openai/whisper) for local speech-to-text.
+All transcription happens on your machine - no audio is sent to the cloud.
 
 ## Contents
 
@@ -94,7 +95,8 @@ curl -L https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin 
 | English | Tested | Works great with `.en` models |
 | Others | Should work | Use multilingual models, `--lang <code>` |
 
-Full language list: [Whisper supported languages](https://github.com/openai/whisper#available-models-and-languages)
+Full language list:
+[Whisper supported languages](https://github.com/openai/whisper#available-models-and-languages)
 
 ## Model Download
 

@@ -1,6 +1,7 @@
 # VoxTerm Quick Start
 
-Get voice input for your AI CLI in under 2 minutes. Works on macOS and Linux (Windows needs WSL2).
+Get voice input for your AI CLI in under 2 minutes.
+Works on macOS and Linux (Windows needs WSL2).
 
 ## 1) Install Codex CLI (default backend)
 
@@ -8,7 +9,7 @@ Get voice input for your AI CLI in under 2 minutes. Works on macOS and Linux (Wi
 npm install -g @openai/codex
 ```
 
-Or use another AI CLI: `voxterm --claude`. (Gemini support is in works and not yet supported.)
+Or use another AI CLI: `voxterm --claude`.
 
 ## 2) Install VoxTerm
 
@@ -36,8 +37,9 @@ cd ~/my-project
 voxterm
 ```
 
-First run downloads a Whisper model if missing. To pick a size, use
-`./scripts/install.sh --small` or `./scripts/setup.sh models --medium`.
+First run downloads a Whisper model if missing.
+To pick a size, use `./scripts/install.sh --small` or
+`./scripts/setup.sh models --medium`.
 
 Codex is the default backend; `voxterm --codex` is optional if you want to be explicit.
 

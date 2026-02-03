@@ -7,6 +7,53 @@ use crate::theme::Theme;
 /// Version from Cargo.toml
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
+/// ASCII art logo for VoxTerm - displayed on startup
+const ASCII_LOGO: &[&str] = &[
+    " ██╗   ██╗ ██████╗ ██╗  ██╗████████╗███████╗██████╗ ███╗   ███╗",
+    " ██║   ██║██╔═══██╗╚██╗██╔╝╚══██╔══╝██╔════╝██╔══██╗████╗ ████║",
+    " ██║   ██║██║   ██║ ╚███╔╝    ██║   █████╗  ██████╔╝██╔████╔██║",
+    " ╚██╗ ██╔╝██║   ██║ ██╔██╗    ██║   ██╔══╝  ██╔══██╗██║╚██╔╝██║",
+    "  ╚████╔╝ ╚██████╔╝██╔╝ ██╗   ██║   ███████╗██║  ██║██║ ╚═╝ ██║",
+    "   ╚═══╝   ╚═════╝ ╚═╝  ╚═╝   ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝",
+];
+
+/// Purple gradient colors for shiny effect (light to deep purple)
+const PURPLE_GRADIENT: &[(u8, u8, u8)] = &[
+    (224, 176, 255), // Light lavender
+    (200, 162, 255), // Soft purple
+    (187, 154, 247), // Bright purple (TokyoNight)
+    (157, 124, 216), // Medium purple
+    (138, 106, 196), // Deep purple
+    (118, 88, 176),  // Rich purple
+];
+
+/// Format RGB color as ANSI truecolor foreground code
+fn rgb_fg(r: u8, g: u8, b: u8) -> String {
+    format!("\x1b[38;2;{};{};{}m", r, g, b)
+}
+
+/// Format the shiny purple ASCII art banner
+pub fn format_ascii_banner(use_color: bool) -> String {
+    let reset = "\x1b[0m";
+    let mut output = String::new();
+    output.push('\n');
+
+    for (i, line) in ASCII_LOGO.iter().enumerate() {
+        if use_color {
+            let (r, g, b) = PURPLE_GRADIENT[i % PURPLE_GRADIENT.len()];
+            output.push_str(&rgb_fg(r, g, b));
+            output.push_str(line);
+            output.push_str(reset);
+        } else {
+            output.push_str(line);
+        }
+        output.push('\n');
+    }
+
+    output.push('\n');
+    output
+}
+
 /// Configuration to display in banner.
 pub struct BannerConfig {
     /// Whether auto-voice is enabled
@@ -113,5 +160,33 @@ mod tests {
         assert!(banner.contains("VoxTerm"));
         // No color codes
         assert!(!banner.contains("\x1b[9"));
+    }
+
+    #[test]
+    fn ascii_banner_contains_logo() {
+        let banner = format_ascii_banner(false);
+        assert!(banner.contains("██╗"));
+        assert!(banner.contains("╚═╝"));
+    }
+
+    #[test]
+    fn ascii_banner_with_color_has_ansi_codes() {
+        let banner = format_ascii_banner(true);
+        // Should contain truecolor ANSI codes
+        assert!(banner.contains("\x1b[38;2;"));
+        // Should contain reset codes
+        assert!(banner.contains("\x1b[0m"));
+    }
+
+    #[test]
+    fn ascii_banner_no_color_is_plain() {
+        let banner = format_ascii_banner(false);
+        // Should NOT contain any ANSI codes
+        assert!(!banner.contains("\x1b["));
+    }
+
+    #[test]
+    fn purple_gradient_has_six_colors() {
+        assert_eq!(PURPLE_GRADIENT.len(), 6);
     }
 }

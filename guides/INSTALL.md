@@ -1,21 +1,22 @@
 # Installation
 
-This doc covers all install and run options, plus model setup.
+This doc covers install options and model setup.
+Recommended: Homebrew on macOS/Linux for a global `voxterm` command.
 
 ## Platform Support
 
 | Platform | Status | Install Method |
 |----------|--------|----------------|
-| **macOS** (Intel/Apple Silicon) | ✅ Supported | All methods |
-| **Linux** (x86_64/arm64) | ✅ Supported | Source, Homebrew |
+| **macOS** (Intel/Apple Silicon) | ✅ Supported | Homebrew (recommended), App, Source |
+| **Linux** (x86_64/arm64) | ✅ Supported | Homebrew (recommended), Source |
 | **Windows** | ⚠️ WSL2 only | Use Linux instructions in WSL2 |
 
 ## Contents
 
 - [Prerequisites](#prerequisites)
-- [Option A: Install from source (recommended)](#option-a-install-from-source-recommended)
-- [Option B: macOS App (folder picker)](#option-b-macos-app-folder-picker)
-- [Option C: Homebrew (optional, global command)](#option-c-homebrew-optional-global-command)
+- [Option A: Homebrew (recommended)](#option-a-homebrew-recommended)
+- [Option B: Install from source](#option-b-install-from-source)
+- [Option C: macOS App (folder picker)](#option-c-macos-app-folder-picker)
 - [Option D: Manual run (no install)](#option-d-manual-run-no-install)
 - [Using with your own projects](#using-with-your-own-projects)
 - [Windows](#windows)
@@ -28,66 +29,16 @@ This doc covers all install and run options, plus model setup.
 | CLI | Install Command |
 |-----|-----------------|
 | Codex (default) | `npm install -g @openai/codex` |
-| Claude Code | `curl -fsSL https://claude.ai/install.sh \| bash` |
-| Gemini CLI | `npm install -g @google/gemini-cli` |
-
-**Gemini status:** Gemini CLI support is in works and not yet supported.
+| Claude Code | `curl -fsSL https://claude.ai/install.sh | bash` |
 
 **Other requirements:**
-- Rust toolchain (stable) for building from source: https://rustup.rs
-- Whisper model (GGML format) - downloaded automatically on first run
+- Microphone access
+- Whisper model (GGML) downloaded on first run
+- Disk space for models: `base.en` ~142 MB, `small.en` ~466 MB, `medium.en` ~1.5 GB
+- Rust toolchain (stable) only if you build from source: https://rustup.rs
 - Optional (Python fallback): `python3`, `ffmpeg`, and the `whisper` CLI on PATH
 
-## Option A: Install from source (recommended)
-
-```bash
-git clone https://github.com/jguida941/voxterm.git
-cd voxterm
-./scripts/install.sh
-```
-
-The installer builds the overlay, installs the `voxterm` wrapper, and downloads a Whisper
-model to the correct path for the CLI.
-
-To choose a model size during install:
-```bash
-./scripts/install.sh --tiny
-./scripts/install.sh --small
-./scripts/install.sh --medium
-```
-
-Run from any project:
-
-```bash
-cd ~/my-project
-voxterm
-```
-
-To target Claude instead of Codex:
-
-```bash
-voxterm --claude
-```
-
-### PATH notes
-
-If `voxterm` is not found, the installer used the first writable directory in this order:
-`/opt/homebrew/bin`, `/usr/local/bin`, `~/.local/bin`, or `/path/to/voxterm/bin`.
-Add that directory to PATH or set `VOXTERM_INSTALL_DIR` before running `./scripts/install.sh`.
-If a `voxterm` command already exists in `/opt/homebrew/bin` or `/usr/local/bin`, the
-installer skips that location to avoid clobbering system/Homebrew installs. In `~/.local/bin`
-or the repo `bin/` directory it will overwrite. Remove the conflicting binary or set
-`VOXTERM_INSTALL_DIR` to override.
-
-## Option B: macOS App (folder picker)
-
-1. Double-click **app/macos/VoxTerm.app**.
-2. Pick your project folder.
-3. A Terminal window opens and runs the overlay inside that folder.
-
-![Folder Picker](../img/folder-picker.png)
-
-## Option C: Homebrew (optional, global command)
+## Option A: Homebrew (recommended)
 
 Install Homebrew (if needed):
 
@@ -109,8 +60,9 @@ cd ~/my-project
 voxterm
 ```
 
-Model storage defaults to `~/.local/share/voxterm/models` for Homebrew installs (or when the
-repo directory is not writable). Override with `VOXTERM_MODEL_DIR` for a custom path.
+Model storage defaults to `~/.local/share/voxterm/models` for Homebrew installs
+(or when the repo directory is not writable). Override with
+`VOXTERM_MODEL_DIR` for a custom path.
 
 Optional pre-download:
 
@@ -125,51 +77,52 @@ brew update
 brew upgrade voxterm
 ```
 
-If Homebrew still shows an older version (stale tap cache), force refresh:
+If Homebrew still shows an older version or `voxterm` runs an older binary, see
+[Troubleshooting: Wrong version after update](TROUBLESHOOTING.md#wrong-version-after-update).
+
+## Option B: Install from source
+
+Recommended if you want a local build or plan to hack on VoxTerm.
 
 ```bash
-brew untap jguida941/voxterm 2>/dev/null || true
-brew untap jguida941/homebrew-voxterm 2>/dev/null || true
-brew tap jguida941/voxterm
-brew update
-brew info voxterm
+git clone https://github.com/jguida941/voxterm.git
+cd voxterm
+./scripts/install.sh
 ```
 
-If it still will not update:
+The installer builds the overlay, installs the `voxterm` wrapper, and downloads
+a Whisper model to the correct path for the CLI.
+
+To choose a model size during install:
 
 ```bash
-rm -f "$(brew --cache)"/voxterm--*
-brew reinstall voxterm
+./scripts/install.sh --tiny
+./scripts/install.sh --small
+./scripts/install.sh --medium
 ```
 
-If you still see an older version when running `voxterm`, you likely have another
-install earlier in PATH (commonly `~/.local/bin/voxterm` from `./scripts/install.sh`). Check and
-remove/rename the old one:
+### PATH notes
 
-```bash
-which -a voxterm
-mv ~/.local/bin/voxterm ~/.local/bin/voxterm.bak  # or delete it
-hash -r
-```
+If `voxterm` is not found, the installer used the first writable directory in
+this order: `/opt/homebrew/bin`, `/usr/local/bin`, `~/.local/bin`, or
+`/path/to/voxterm/bin`.
 
-If you used a local install previously, also check for:
+Add that directory to PATH or set `VOXTERM_INSTALL_DIR` before running
+`./scripts/install.sh`.
 
-```bash
-ls -l ~/voxterm/bin/voxterm 2>/dev/null
-```
+If a `voxterm` command already exists in `/opt/homebrew/bin` or
+`/usr/local/bin`, the installer skips that location to avoid clobbering
+system/Homebrew installs. In `~/.local/bin` or the repo `bin/` directory it
+will overwrite. Remove the conflicting binary or set `VOXTERM_INSTALL_DIR`
+to override.
 
-Then relink Homebrew and clear shell caches:
+## Option C: macOS App (folder picker)
 
-```bash
-brew unlink voxterm && brew link --overwrite voxterm
-hash -r
-```
+1. Double-click **app/macos/VoxTerm.app**.
+2. Pick your project folder.
+3. A Terminal window opens and runs the overlay inside that folder.
 
-To verify the Homebrew binary directly (bypasses the wrapper):
-
-```bash
-$(brew --prefix)/opt/voxterm/libexec/src/target/release/voxterm --version
-```
+![Folder Picker](../img/folder-picker.png)
 
 ## Option D: Manual run (no install)
 
@@ -183,13 +136,24 @@ VOXTERM_CWD="$(pwd)" /path/to/voxterm/scripts/start.sh
 
 ## Using with your own projects
 
-VoxTerm works with any codebase. Run from your project directory or set `VOXTERM_CWD` to
-force the working directory.
+VoxTerm works with any codebase. Run from your project directory or set
+`VOXTERM_CWD` to force the working directory.
+
+```bash
+cd ~/my-project
+voxterm
+```
+
+To target Claude instead of Codex:
+
+```bash
+voxterm --claude
+```
 
 ## Windows
 
-Windows native is not supported yet (the overlay uses a Unix PTY). Use WSL2 or a macOS/Linux
-machine.
+Windows native is not supported yet (the overlay uses a Unix PTY). Use WSL2 or
+a macOS/Linux machine.
 
 ## See Also
 

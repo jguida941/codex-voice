@@ -9,7 +9,8 @@
 [![Rust CI](https://img.shields.io/github/actions/workflow/status/jguida941/voxterm/rust_ci.yml?branch=master&style=for-the-badge)](https://github.com/jguida941/voxterm/actions/workflows/rust_ci.yml)
 [![Mutation Testing](https://img.shields.io/github/actions/workflow/status/jguida941/voxterm/mutation-testing.yml?branch=master&style=for-the-badge)](https://github.com/jguida941/voxterm/actions/workflows/mutation-testing.yml)
 
-Voice input for AI CLIs. Talk instead of type. Runs Whisper locally with ~250ms latency. No cloud, no API keys.
+Voice input for AI CLIs. Talk instead of type.
+Runs Whisper locally with ~250ms latency. No cloud, no API keys.
 
 ![VoxTerm](https://raw.githubusercontent.com/jguida941/voxterm/master/img/hero.png)
 
@@ -28,9 +29,11 @@ cd ~/your-project
 voxterm
 ```
 
-First run downloads a Whisper model (~142 MB for base). Choose a different size with
-`./scripts/install.sh --small` or `./scripts/setup.sh models --medium`, or pass
-`--whisper-model-path` directly. See [Whisper docs](guides/WHISPER.md) for details.
+First run downloads a Whisper model (~142 MB for `base`). To choose a different size:
+- `./scripts/install.sh --small`
+- `./scripts/setup.sh models --medium`
+- Or pass `--whisper-model-path` directly
+See [Whisper docs](guides/WHISPER.md) for details.
 
 ## How It Works
 
@@ -43,7 +46,9 @@ graph TD
     E --> F["Terminal Output"]
 ```
 
-VoxTerm wraps your AI CLI in a PTY and adds voice input. You talk → Whisper transcribes locally → text gets typed into the CLI. All CLI output passes through unchanged.
+VoxTerm wraps your AI CLI in a PTY and adds voice input.
+You talk → Whisper transcribes locally → text gets typed into the CLI.
+All CLI output passes through unchanged.
 
 ## Features
 
@@ -54,20 +59,22 @@ VoxTerm wraps your AI CLI in a PTY and adds voice input. You talk → Whisper tr
 | **PTY passthrough** | CLI UI stays unchanged |
 | **Auto-voice** | Hands-free mode - no typing needed |
 | **Transcript queue** | Speak while CLI is busy, sends when ready |
-| **Multiple backends** | Codex + Claude supported; Gemini in works |
+| **Backends** | Codex + Claude supported |
 | **Themes** | 11 built-in themes including ChatGPT, Catppuccin, Dracula, Nord, Tokyo Night, Gruvbox |
 
 ### Theme Picker (Ctrl+Y)
 
 ![Theme Picker](https://raw.githubusercontent.com/jguida941/voxterm/master/img/theme-picker.png)
-Note: Theme picker screenshot needs refresh to show all 11 themes (tokyonight, gruvbox).
+Note: Theme picker screenshot is outdated (missing tokyonight, gruvbox).
 Use ↑/↓ to move and Enter to select, or type the theme number.
 
 ### Settings Menu (Ctrl+O)
 
 ![Settings](https://raw.githubusercontent.com/jguida941/voxterm/master/img/settings.png)
 
-Mouse control is on by default (toggle it off in Settings). You can click HUD buttons or use ←/→ to focus and Enter to activate. See the [Usage Guide](guides/USAGE.md) for details.
+Mouse control is on by default (toggle it off in Settings).
+You can click HUD buttons or use ←/→ to focus and Enter to activate.
+See the [Usage Guide](guides/USAGE.md) for details.
 
 ### Voice Recording
 
@@ -118,11 +125,14 @@ Double-click `app/macos/VoxTerm.app`, pick a folder, it opens Terminal with VoxT
 ![Folder Picker](https://raw.githubusercontent.com/jguida941/voxterm/master/img/folder-picker.png)
 </details>
 
-**Requirements:** macOS or Linux (Windows needs WSL2) • Microphone access • ~1.5 GB disk for Whisper model
+**Requirements:**
+- macOS or Linux (Windows needs WSL2)
+- Microphone access
+- ~1.5 GB disk for Whisper model
 
 ## Supported AI CLIs
 
-VoxTerm is optimized for Codex and Claude Code. Gemini support is in the backlog.
+VoxTerm is optimized for Codex and Claude Code.
 
 ### Codex (default)
 
@@ -140,22 +150,6 @@ voxterm --claude
 ```
 
 ![Claude Backend](https://raw.githubusercontent.com/jguida941/voxterm/master/img/claude-backend.png)
-
-### Gemini CLI (in works - not yet supported)
-
-```bash
-npm install -g @google/gemini-cli
-voxterm --gemini
-```
-
-**Note:** Gemini CLI is not currently supported due to UI conflicts and a different spawn model.
-It is tracked as backlog work.
-
-## Roadmap (High Level)
-
-Planned work (not yet supported):
-- Gemini CLI support (requires a different spawn model)
-- Windows native support (WSL2 for now)
 
 ## Documentation
 

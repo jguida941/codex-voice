@@ -21,15 +21,14 @@ or Claude Code.
 **Already installed?** Here's how to start talking to the CLI:
 
 1. **Launch**: Run `voxterm` in your project folder
-2. **Speak**: Press `Ctrl+R`, say your request, then pause, it sends automatically
+2. **Speak**: Press `Ctrl+R`, say your request, then pause. It sends automatically.
 3. **Done**: Your words appear as text and the CLI responds
 
 That's it! Read on for more control over how voice input works.
 
-**Backend note:** By default, `voxterm` launches the Codex CLI. To use Claude Code:
+**Backend note:** By default, `voxterm` launches the Codex CLI.
+To use Claude Code:
 - `voxterm --claude`
-
-**Gemini status:** Gemini CLI support is in works and not yet supported.
 
 ---
 
@@ -71,23 +70,30 @@ All shortcuts in one place:
 
 ## Settings Menu
 
-Press `Ctrl+O` to open the settings overlay. Navigate with **↑/↓**, adjust values with **←/→**, and press **Enter** to toggle or activate the selected row. `Esc` closes the menu.
+Press `Ctrl+O` to open the settings overlay.
+Navigate with **↑/↓**, adjust values with **←/→**, and press **Enter** to toggle
+or activate the selected row. `Esc` closes the menu.
 
 ![Settings Menu](https://raw.githubusercontent.com/jguida941/voxterm/master/img/settings.png)
 
-The menu surfaces the most common controls (auto-voice, send mode, mic sensitivity, theme) along with backend/pipeline info.
+The menu surfaces the most common controls (auto-voice, send mode, mic sensitivity,
+theme) plus backend and pipeline info.
+
 It also lets you configure:
-- **HUD style**: Full (default banner), Minimal (single word), or Hidden (no HUD unless recording)
-- **Right-side panel**: Off / Ribbon / Dots / Heartbeat
-- **Anim only**: Whether the right panel animates only while recording
-- **Mouse**: Toggle HUD button clicks (on by default); when enabled you can click HUD buttons and overlay controls (close buttons, theme rows). Left/Right selects a HUD button and Enter activates it
+- **HUD style**: Full, Minimal, or Hidden
+- **Right-side panel**: Off, Ribbon, Dots, Heartbeat
+- **Anim only**: Animate the right panel only while recording
+- **Mouse**: Toggle HUD button clicks (on by default)
+
+When Mouse is enabled, you can click HUD buttons and overlay controls.
+Left/Right selects a HUD button and Enter activates it.
 
 ---
 
 ## Voice Modes Explained
 
-Two toggles control how voice works. Use `Ctrl+V` for auto-voice, `Ctrl+T` for send mode.
-If auto-voice is off, press `Ctrl+R` to start recording.
+Two toggles control how voice works. Use `Ctrl+V` for auto-voice, `Ctrl+T` for
+send mode. If auto-voice is off, press `Ctrl+R` to start recording.
 
 ### Mode chart (all combinations)
 
@@ -95,20 +101,28 @@ If auto-voice is off, press `Ctrl+R` to start recording.
 |-----------------------|----------------------|---------------|------------------------|----------|
 | Off | Auto | Press `Ctrl+R` | Transcribes and sends immediately | Quick commands, precise timing |
 | Off | Insert | Press `Ctrl+R` | Transcribes, waits - press `Enter` to send | Edit before sending |
-| On | Auto | Just speak (auto starts after prompt/idle) | Transcribes and sends immediately | Fully hands-free |
-| On | Insert | Just speak (auto starts after prompt/idle) | Transcribes, waits - press `Enter` to send | Hands-free + review / long dictation |
+| On | Auto | Just speak | Transcribes and sends immediately | Fully hands-free |
+| On | Insert | Just speak | Transcribes, waits for `Enter` | Hands-free + review |
 
 **Notes**
-- **Insert mode Enter**: press `Enter` while recording to stop early, then press `Enter` again to send.
-- **Auto-voice status**: "Auto-voice enabled" means it is waiting to listen; the mic is not recording yet.
-- **Prompt detection fallback**: if auto-voice does not start after the CLI finishes, it will fall back to an idle timer; set `--prompt-regex` if your prompt is unusual (especially with Claude).
-- **When the CLI is busy**: transcripts queue (manual or auto) and send when the next prompt appears (status shows the queued count). If a prompt is not detected, the queue will auto-send after output has been idle for the transcript idle timeout.
-- **Python fallback**: if the Python pipeline is active, pressing `Enter` while recording cancels the capture instead of stopping early.
+- **Insert mode Enter**: press `Enter` while recording to stop early. Press
+  `Enter` again to send.
+- **Auto-voice status**: "Auto-voice enabled" means it is waiting to listen; the
+  mic is not recording yet.
+- **Prompt detection fallback**: if auto-voice does not start after the CLI
+  finishes, it falls back to an idle timer. Set `--prompt-regex` if your prompt
+  is unusual (especially with Claude).
+- **When the CLI is busy**: transcripts queue and send when the next prompt
+  appears (status shows the queued count). If a prompt is not detected, the
+  queue auto-sends after output has been idle for the transcript idle timeout.
+- **Python fallback**: if the Python pipeline is active, pressing `Enter` while
+  recording cancels the capture instead of stopping early.
 
 ### Long dictation (auto-voice + insert)
 
-Each recording chunk is 30 seconds by default (max 60s via `--voice-max-capture-ms`). With auto-voice
-and insert mode, you can speak continuously:
+Each recording chunk is 30 seconds by default (max 60s via
+`--voice-max-capture-ms`). With auto-voice and insert mode, you can speak
+continuously:
 
 1. Turn on auto-voice (`Ctrl+V`) and set send mode to insert (`Ctrl+T`).
 2. Start speaking. After 30 seconds, the chunk is transcribed and appears on screen.
@@ -167,7 +181,8 @@ Sections (left to right):
 - Shortcut hints (on wide terminals)
 - Optional right-side panel (Ribbon / Dots / Heartbeat) if enabled in Settings
 
-When recording/processing, the mode label includes a pipeline tag (e.g., `REC R` or `… PY`).
+When recording or processing, the mode label includes a pipeline tag
+(e.g., `REC R` or `… PY`).
 
 | Status | Meaning |
 |--------|---------|
@@ -188,14 +203,28 @@ Press `Ctrl+Y` to open the theme picker:
 ![Theme Picker](https://raw.githubusercontent.com/jguida941/voxterm/master/img/theme-picker.png)
 
 Use ↑/↓ to move and Enter to select, or type the theme number.
-With Mouse enabled (on by default), click a theme row to select it and click [×] close to exit.
+With Mouse enabled (on by default), click a theme row to select it and click [×]
+close to exit.
 
-Note: Theme picker screenshot needs refresh to show all 11 themes (tokyonight, gruvbox).
+Note: Theme picker screenshot is outdated (missing tokyonight, gruvbox).
 
-Available themes: **chatgpt**, **claude**, **codex**, **coral**, **catppuccin**, **dracula**, **nord**, **tokyonight**, **gruvbox**, **ansi** (16-color), **none**.
+Available themes:
+- `chatgpt`
+- `claude`
+- `codex`
+- `coral`
+- `catppuccin`
+- `dracula`
+- `nord`
+- `tokyonight`
+- `gruvbox`
+- `ansi` (16-color)
+- `none`
 
+Theme tips:
 - `voxterm --theme catppuccin` to start with a specific theme.
-- If `--theme` is not set, VoxTerm picks a backend default (Claude → `claude`, Codex → `codex`, others → `coral`).
+- If `--theme` is not set, VoxTerm picks a backend default (Claude → `claude`,
+  Codex → `codex`, others → `coral`).
 - `voxterm --no-color` or `NO_COLOR=1` to disable colors entirely.
 
 ### HUD Styles
@@ -205,10 +234,13 @@ For users who prefer less UI clutter, VoxTerm offers three HUD styles:
 | Style | Flag | Description |
 |-------|------|-------------|
 | **Full** | (default) | 4-row banner with borders, shortcuts, and detailed info |
-| **Minimal** | `--hud-style minimal` or `--minimal-hud` | Single-line strip (e.g., `◉ AUTO · Ready`, `● REC · -55dB`) |
+| **Minimal** | `--hud-style minimal` or `--minimal-hud` | Single-line strip |
 | **Hidden** | `--hud-style hidden` | Blank row when idle; shows `REC` while recording |
 
-When Mouse is enabled, Minimal HUD shows a [back] button on the right to return to Full.
+Examples of the Minimal strip: `◉ AUTO · Ready`, `● REC · -55dB`.
+
+When Mouse is enabled, Minimal HUD shows a [back] button on the right to return
+to Full.
 
 Minimal HUD (recording example):
 
