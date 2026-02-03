@@ -166,7 +166,10 @@ impl WriterState {
             }
             WriterMessage::SetTheme(new_theme) => {
                 self.theme = new_theme;
-                if self.status.is_some() || self.enhanced_status.is_some() || self.overlay_panel.is_some() {
+                if self.status.is_some()
+                    || self.enhanced_status.is_some()
+                    || self.overlay_panel.is_some()
+                {
                     self.needs_redraw = true;
                 }
             }
@@ -281,7 +284,9 @@ pub(crate) enum WriterMessage {
     PtyOutput(Vec<u8>),
     /// Simple status message (legacy format with auto-styled prefix)
     #[allow(dead_code)]
-    Status { text: String },
+    Status {
+        text: String,
+    },
     /// Enhanced status line with full state
     EnhancedStatus(StatusLineState),
     /// Overlay panel content (multi-line box)

@@ -227,12 +227,20 @@ pub struct StatusBanner {
 impl StatusBanner {
     pub fn new(lines: Vec<String>) -> Self {
         let height = lines.len();
-        Self { lines, height, buttons: Vec::new() }
+        Self {
+            lines,
+            height,
+            buttons: Vec::new(),
+        }
     }
 
     pub fn with_buttons(lines: Vec<String>, buttons: Vec<ButtonPosition>) -> Self {
         let height = lines.len();
-        Self { lines, height, buttons }
+        Self {
+            lines,
+            height,
+            buttons,
+        }
     }
 }
 
@@ -267,7 +275,11 @@ pub fn status_banner_height(width: usize, hud_style: HudStyle) -> usize {
 /// Get clickable button positions for the current state.
 /// Returns button positions for full HUD mode (row 2 from bottom) and minimal mode (row 1).
 /// Hidden mode returns empty vec (no clickable buttons).
-pub fn get_button_positions(state: &StatusLineState, theme: Theme, width: usize) -> Vec<ButtonPosition> {
+pub fn get_button_positions(
+    state: &StatusLineState,
+    theme: Theme,
+    width: usize,
+) -> Vec<ButtonPosition> {
     match state.hud_style {
         HudStyle::Full => {
             if width < breakpoints::COMPACT {
@@ -294,9 +306,9 @@ fn minimal_strip_text(state: &StatusLineState, colors: &ThemeColors) -> String {
         RecordingState::Recording => (get_recording_indicator(), "REC", colors.recording),
         RecordingState::Processing => (get_processing_spinner(), "processing", colors.processing),
         RecordingState::Idle => match state.voice_mode {
-            VoiceMode::Auto => ("◉", "AUTO", colors.info),      // Blue filled - auto mode active
-            VoiceMode::Manual => ("●", "PTT", colors.border),   // Theme accent - push-to-talk ready
-            VoiceMode::Idle => ("○", "IDLE", colors.dim),       // Dim - inactive
+            VoiceMode::Auto => ("◉", "AUTO", colors.info), // Blue filled - auto mode active
+            VoiceMode::Manual => ("●", "PTT", colors.border), // Theme accent - push-to-talk ready
+            VoiceMode::Idle => ("○", "IDLE", colors.dim),  // Dim - inactive
         },
     };
 
@@ -532,7 +544,8 @@ fn dim_waveform_placeholder(width: usize, colors: &ThemeColors) -> String {
 /// Style: `[label]` with dim (or focused) brackets.
 fn format_shortcut_pill(content: &str, colors: &ThemeColors, focused: bool) -> String {
     let bracket_color = if focused { colors.info } else { colors.dim };
-    let mut result = String::with_capacity(content.len() + bracket_color.len() * 2 + colors.reset.len() * 2 + 2);
+    let mut result =
+        String::with_capacity(content.len() + bracket_color.len() * 2 + colors.reset.len() * 2 + 2);
     result.push_str(bracket_color);
     result.push('[');
     result.push_str(colors.reset);
@@ -546,7 +559,8 @@ fn format_shortcut_pill(content: &str, colors: &ThemeColors, focused: bool) -> S
 /// Legacy bracket style for backwards compatibility.
 #[allow(dead_code)]
 fn format_panel_brackets(content: &str, colors: &ThemeColors) -> String {
-    let mut result = String::with_capacity(content.len() + colors.dim.len() * 2 + colors.reset.len() * 2 + 2);
+    let mut result =
+        String::with_capacity(content.len() + colors.dim.len() * 2 + colors.reset.len() * 2 + 2);
     result.push_str(colors.dim);
     result.push('[');
     result.push_str(colors.reset);
@@ -596,12 +610,7 @@ fn format_main_row(
 
     // Combine all sections
     let sep = format!("{}│{}", colors.dim, colors.reset);
-    let content = vec![
-        mode_section,
-        duration_section,
-        meter_section,
-    ]
-    .join(&sep);
+    let content = [mode_section, duration_section, meter_section].join(&sep);
 
     let content_width = display_width(&content);
     let right_panel = format_right_panel(
@@ -742,14 +751,15 @@ fn format_heartbeat_panel(state: &StatusLineState, colors: &ThemeColors) -> Stri
     let recording_active = state.recording_state == RecordingState::Recording;
     let animate = !state.hud_right_panel_recording_only || recording_active;
     let frame_idx = if animate { heartbeat_frame_index() } else { 0 };
-    let glyph = HEARTBEAT_FRAMES
-        .get(frame_idx)
-        .copied()
-        .unwrap_or('·');
+    let glyph = HEARTBEAT_FRAMES.get(frame_idx).copied().unwrap_or('·');
 
     let mut content = String::with_capacity(16);
     let is_peak = frame_idx == 2;
-    let color = if animate && is_peak { colors.info } else { colors.dim };
+    let color = if animate && is_peak {
+        colors.info
+    } else {
+        colors.dim
+    };
     content.push_str(color);
     content.push(glyph);
     content.push_str(colors.reset);
@@ -885,20 +895,45 @@ struct ButtonDef {
 
 /// Build buttons with their labels and actions based on current state.
 fn get_button_defs(state: &StatusLineState) -> Vec<ButtonDef> {
-    let voice_label = if state.auto_voice_enabled { "auto" } else { "ptt" };
+    let voice_label = if state.auto_voice_enabled {
+        "auto"
+    } else {
+        "ptt"
+    };
     let send_label = match state.send_mode {
         VoiceSendMode::Auto => "send",
         VoiceSendMode::Insert => "edit",
     };
 
     vec![
-        ButtonDef { label: "rec", action: ButtonAction::VoiceTrigger },
-        ButtonDef { label: voice_label, action: ButtonAction::ToggleAutoVoice },
-        ButtonDef { label: send_label, action: ButtonAction::ToggleSendMode },
-        ButtonDef { label: "set", action: ButtonAction::SettingsToggle },
-        ButtonDef { label: "hud", action: ButtonAction::ToggleHudStyle },
-        ButtonDef { label: "help", action: ButtonAction::HelpToggle },
-        ButtonDef { label: "theme", action: ButtonAction::ThemePicker },
+        ButtonDef {
+            label: "rec",
+            action: ButtonAction::VoiceTrigger,
+        },
+        ButtonDef {
+            label: voice_label,
+            action: ButtonAction::ToggleAutoVoice,
+        },
+        ButtonDef {
+            label: send_label,
+            action: ButtonAction::ToggleSendMode,
+        },
+        ButtonDef {
+            label: "set",
+            action: ButtonAction::SettingsToggle,
+        },
+        ButtonDef {
+            label: "hud",
+            action: ButtonAction::ToggleHudStyle,
+        },
+        ButtonDef {
+            label: "help",
+            action: ButtonAction::HelpToggle,
+        },
+        ButtonDef {
+            label: "theme",
+            action: ButtonAction::ThemePicker,
+        },
     ]
 }
 
@@ -927,7 +962,11 @@ fn format_button_row_with_positions(
                 RecordingState::Idle => colors.border, // Accent color when idle
             },
             ButtonAction::ToggleAutoVoice => {
-                if state.auto_voice_enabled { colors.info } else { colors.border }
+                if state.auto_voice_enabled {
+                    colors.info
+                } else {
+                    colors.border
+                }
             }
             ButtonAction::ToggleSendMode => match state.send_mode {
                 VoiceSendMode::Auto => colors.success,
@@ -979,10 +1018,7 @@ fn format_button_row_with_positions(
         } else {
             colors.error
         };
-        items.push(format!(
-            "{}{}ms{}",
-            latency_color, latency, colors.reset
-        ));
+        items.push(format!("{}{}ms{}", latency_color, latency, colors.reset));
     }
 
     // Modern separator: dim dot
@@ -1008,7 +1044,11 @@ fn format_button_row_with_positions(
                 RecordingState::Idle => colors.border,
             },
             ButtonAction::ToggleAutoVoice => {
-                if state.auto_voice_enabled { colors.info } else { colors.border }
+                if state.auto_voice_enabled {
+                    colors.info
+                } else {
+                    colors.border
+                }
             }
             ButtonAction::ToggleSendMode => match state.send_mode {
                 VoiceSendMode::Auto => colors.success,
@@ -1056,7 +1096,11 @@ fn format_button_row(state: &StatusLineState, colors: &ThemeColors, inner_width:
 }
 
 #[allow(dead_code)]
-fn format_button_row_legacy(state: &StatusLineState, colors: &ThemeColors, inner_width: usize) -> String {
+fn format_button_row_legacy(
+    state: &StatusLineState,
+    colors: &ThemeColors,
+    inner_width: usize,
+) -> String {
     let mut items = Vec::new();
 
     // rec - RED when recording, yellow when processing, dim when idle
@@ -1105,10 +1149,7 @@ fn format_button_row_legacy(state: &StatusLineState, colors: &ThemeColors, inner
         } else {
             colors.error
         };
-        items.push(format!(
-            "{}{}ms{}",
-            latency_color, latency, colors.reset
-        ));
+        items.push(format!("{}{}ms{}", latency_color, latency, colors.reset));
     }
 
     // Modern separator: dim dot
@@ -1119,12 +1160,13 @@ fn format_button_row_legacy(state: &StatusLineState, colors: &ThemeColors, inner
     }
 
     // Compact: keep essentials (rec/auto/send/settings/help)
-    let mut compact = Vec::new();
-    compact.push(items[0].clone());
-    compact.push(items[1].clone());
-    compact.push(items[2].clone());
-    compact.push(items[3].clone());
-    compact.push(items[5].clone());
+    let mut compact = vec![
+        items[0].clone(),
+        items[1].clone(),
+        items[2].clone(),
+        items[3].clone(),
+        items[5].clone(),
+    ];
     if state.queue_depth > 0 {
         compact.push(format!(
             "{}Q:{}{}",
@@ -1137,12 +1179,7 @@ fn format_button_row_legacy(state: &StatusLineState, colors: &ThemeColors, inner
 /// Format a clickable button - colored label when active, dim otherwise.
 /// Style: `[label]` - brackets for clickable appearance, no shortcut prefix.
 #[inline]
-fn format_button(
-    colors: &ThemeColors,
-    label: &str,
-    highlight: &str,
-    focused: bool,
-) -> String {
+fn format_button(colors: &ThemeColors, label: &str, highlight: &str, focused: bool) -> String {
     // Pre-allocate capacity for typical button string
     let mut content = String::with_capacity(32);
     // Label color: highlight if active, dim otherwise
@@ -1272,7 +1309,10 @@ struct CompactModeParts<'a> {
     color: &'a str,
 }
 
-fn compact_mode_parts<'a>(state: &'a StatusLineState, colors: &'a ThemeColors) -> CompactModeParts<'a> {
+fn compact_mode_parts<'a>(
+    state: &'a StatusLineState,
+    colors: &'a ThemeColors,
+) -> CompactModeParts<'a> {
     let pipeline_tag = pipeline_tag_short(state.pipeline);
     match state.recording_state {
         RecordingState::Recording => CompactModeParts {
@@ -1314,7 +1354,10 @@ fn format_compact_mode(parts: &CompactModeParts<'_>, colors: &ThemeColors) -> St
     } else if parts.color.is_empty() {
         format!("{} {}", parts.indicator, parts.label)
     } else {
-        format!("{}{} {}{}", parts.color, parts.indicator, parts.label, colors.reset)
+        format!(
+            "{}{} {}{}",
+            parts.color, parts.indicator, parts.label, colors.reset
+        )
     }
 }
 
@@ -1818,7 +1861,8 @@ mod tests {
         state.voice_mode = VoiceMode::Auto;
         state.auto_voice_enabled = true;
         state.recording_state = RecordingState::Recording;
-        state.meter_levels
+        state
+            .meter_levels
             .extend_from_slice(&[-60.0, -45.0, -30.0, -15.0]);
         state.meter_db = Some(-30.0);
         state.message = "Recording...".to_string();

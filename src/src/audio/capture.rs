@@ -264,6 +264,7 @@ impl<'a> CaptureState<'a> {
 
     /// Test-only helper to model a manual stop.
     #[cfg(any(test, feature = "mutants"))]
+    #[allow(dead_code)]
     pub(super) fn manual_stop(&self) -> StopReason {
         StopReason::ManualStop
     }

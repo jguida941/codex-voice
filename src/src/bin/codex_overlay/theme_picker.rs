@@ -66,7 +66,13 @@ pub fn format_theme_picker(current_theme: Theme, selected_idx: usize, width: usi
         let theme_colors = theme.colors();
         let is_current = *theme == current_theme;
         let is_selected = idx == selected_idx;
-        let marker = if is_selected { ">" } else if is_current { "*" } else { " " };
+        let marker = if is_selected {
+            ">"
+        } else if is_current {
+            "*"
+        } else {
+            " "
+        };
         lines.push(format_option_line_with_preview(
             &colors,
             borders,

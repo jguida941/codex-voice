@@ -435,10 +435,10 @@ pub const THEME_TOKYONIGHT: ThemeColors = ThemeColors {
     error: "\x1b[38;2;247;118;142m",      // Red #f7768e
     info: "\x1b[38;2;122;162;247m",       // Blue #7aa2f7
     reset: "\x1b[0m",
-    dim: "\x1b[38;2;86;95;137m",       // Comment #565f89
-    bg_primary: "",                    // Transparent
-    bg_secondary: "",                  // Transparent
-    border: "\x1b[38;2;187;154;247m",  // Purple #bb9af7
+    dim: "\x1b[38;2;86;95;137m",      // Comment #565f89
+    bg_primary: "",                   // Transparent
+    bg_secondary: "",                 // Transparent
+    border: "\x1b[38;2;187;154;247m", // Purple #bb9af7
     borders: BORDER_HEAVY,
     indicator_rec: "★",
     indicator_auto: "☆",
@@ -449,17 +449,17 @@ pub const THEME_TOKYONIGHT: ThemeColors = ThemeColors {
 /// Gruvbox theme - warm retro earthy colors
 /// https://github.com/morhetz/gruvbox
 pub const THEME_GRUVBOX: ThemeColors = ThemeColors {
-    recording: "\x1b[38;2;251;73;52m",    // Red #fb4934
-    processing: "\x1b[38;2;250;189;47m",  // Yellow #fabd2f
-    success: "\x1b[38;2;184;187;38m",     // Green #b8bb26
-    warning: "\x1b[38;2;254;128;25m",     // Orange #fe8019
-    error: "\x1b[38;2;251;73;52m",        // Red #fb4934
-    info: "\x1b[38;2;131;165;152m",       // Aqua #83a598
+    recording: "\x1b[38;2;251;73;52m",   // Red #fb4934
+    processing: "\x1b[38;2;250;189;47m", // Yellow #fabd2f
+    success: "\x1b[38;2;184;187;38m",    // Green #b8bb26
+    warning: "\x1b[38;2;254;128;25m",    // Orange #fe8019
+    error: "\x1b[38;2;251;73;52m",       // Red #fb4934
+    info: "\x1b[38;2;131;165;152m",      // Aqua #83a598
     reset: "\x1b[0m",
-    dim: "\x1b[38;2;146;131;116m",     // Gray #928374
-    bg_primary: "",                    // Transparent
-    bg_secondary: "",                  // Transparent
-    border: "\x1b[38;2;250;189;47m",   // Yellow #fabd2f
+    dim: "\x1b[38;2;146;131;116m",   // Gray #928374
+    bg_primary: "",                  // Transparent
+    bg_secondary: "",                // Transparent
+    border: "\x1b[38;2;250;189;47m", // Yellow #fabd2f
     borders: BORDER_SINGLE,
     indicator_rec: "▣",
     indicator_auto: "▢",
@@ -583,14 +583,14 @@ mod tests {
     #[test]
     fn theme_has_expected_borders() {
         // Spot-check representative border styles for a few themes.
-        assert_eq!(Theme::Coral.colors().borders.horizontal, '─');       // Single
-        assert_eq!(Theme::Catppuccin.colors().borders.horizontal, '═');  // Double
-        assert_eq!(Theme::Codex.colors().borders.horizontal, '═');       // Double
-        assert_eq!(Theme::Dracula.colors().borders.horizontal, '━');     // Heavy
-        assert_eq!(Theme::TokyoNight.colors().borders.horizontal, '━');  // Heavy
-        assert_eq!(Theme::Nord.colors().borders.top_left, '╭');          // Rounded
-        assert_eq!(Theme::Claude.colors().borders.top_left, '╭');        // Rounded
-        assert_eq!(Theme::ChatGpt.colors().borders.top_left, '╭');       // Rounded
+        assert_eq!(Theme::Coral.colors().borders.horizontal, '─'); // Single
+        assert_eq!(Theme::Catppuccin.colors().borders.horizontal, '═'); // Double
+        assert_eq!(Theme::Codex.colors().borders.horizontal, '═'); // Double
+        assert_eq!(Theme::Dracula.colors().borders.horizontal, '━'); // Heavy
+        assert_eq!(Theme::TokyoNight.colors().borders.horizontal, '━'); // Heavy
+        assert_eq!(Theme::Nord.colors().borders.top_left, '╭'); // Rounded
+        assert_eq!(Theme::Claude.colors().borders.top_left, '╭'); // Rounded
+        assert_eq!(Theme::ChatGpt.colors().borders.top_left, '╭'); // Rounded
     }
 
     #[test]

@@ -47,7 +47,9 @@ use voxterm::{
     VoiceJobMessage,
 };
 
-use crate::banner::{format_ascii_banner, format_minimal_banner, format_startup_banner, BannerConfig};
+use crate::banner::{
+    format_ascii_banner, format_minimal_banner, format_startup_banner, BannerConfig,
+};
 use crate::buttons::{ButtonAction, ButtonRegistry};
 use crate::config::{HudRightPanel, HudStyle, OverlayConfig, VoiceSendMode};
 use crate::help::{
@@ -1644,29 +1646,28 @@ fn main() -> Result<()> {
                     }
                 }
 
-                if status_state.recording_state == RecordingState::Recording {
-                    if now.duration_since(last_meter_update) >= Duration::from_millis(meter_update_ms)
-                    {
-                        let level = live_meter.level_db();
-                        meter_levels.push_back(level);
-                        if meter_levels.len() > METER_HISTORY_MAX {
-                            meter_levels.pop_front();
-                        }
-                        status_state.meter_db = Some(level);
-                        status_state.meter_levels.clear();
-                        status_state
-                            .meter_levels
-                            .extend(meter_levels.iter().copied());
-                        last_meter_update = now;
-                        send_enhanced_status_with_buttons(
-                            &writer_tx,
-                            &button_registry,
-                            &status_state,
-                            overlay_mode,
-                            terminal_cols,
-                            theme,
-                        );
+                if status_state.recording_state == RecordingState::Recording
+                    && now.duration_since(last_meter_update) >= Duration::from_millis(meter_update_ms)
+                {
+                    let level = live_meter.level_db();
+                    meter_levels.push_back(level);
+                    if meter_levels.len() > METER_HISTORY_MAX {
+                        meter_levels.pop_front();
                     }
+                    status_state.meter_db = Some(level);
+                    status_state.meter_levels.clear();
+                    status_state
+                        .meter_levels
+                        .extend(meter_levels.iter().copied());
+                    last_meter_update = now;
+                    send_enhanced_status_with_buttons(
+                        &writer_tx,
+                        &button_registry,
+                        &status_state,
+                        overlay_mode,
+                        terminal_cols,
+                        theme,
+                    );
                 }
 
                 if status_state.recording_state == RecordingState::Processing
@@ -1841,11 +1842,7 @@ fn resolved_rows(cached: u16) -> u16 {
     }
 }
 
-fn reserved_rows_for_mode(
-    mode: OverlayMode,
-    cols: u16,
-    hud_style: HudStyle,
-) -> usize {
+fn reserved_rows_for_mode(mode: OverlayMode, cols: u16, hud_style: HudStyle) -> usize {
     match mode {
         OverlayMode::None => status_banner_height(cols as usize, hud_style),
         OverlayMode::Help => help_overlay_height(),
@@ -1932,7 +1929,7 @@ enum ArrowKey {
 fn parse_arrow_keys(bytes: &[u8]) -> Vec<ArrowKey> {
     let mut keys = Vec::new();
     let mut idx: usize = 0;
-    while idx.checked_add(2).map_or(false, |next| next < bytes.len()) {
+    while idx.checked_add(2).is_some_and(|next| next < bytes.len()) {
         if bytes[idx] == 0x1b && (bytes[idx + 1] == b'[' || bytes[idx + 1] == b'O') {
             match bytes[idx + 2] {
                 b'A' => keys.push(ArrowKey::Up),
@@ -1955,7 +1952,7 @@ fn parse_arrow_keys_only(bytes: &[u8]) -> Option<Vec<ArrowKey>> {
     }
     let mut keys = Vec::new();
     let mut idx: usize = 0;
-    while idx.checked_add(2).map_or(false, |next| next < bytes.len()) {
+    while idx.checked_add(2).is_some_and(|next| next < bytes.len()) {
         if bytes[idx] == 0x1b && (bytes[idx + 1] == b'[' || bytes[idx + 1] == b'O') {
             let key = match bytes[idx + 2] {
                 b'A' => ArrowKey::Up,
@@ -2212,6 +2209,7 @@ fn toggle_hud_panel_recording_only(
     );
 }
 
+#[allow(clippy::too_many_arguments)]
 fn toggle_mouse(
     status_state: &mut StatusLineState,
     writer_tx: &Sender<WriterMessage>,
@@ -2226,7 +2224,13 @@ fn toggle_mouse(
     if status_state.mouse_enabled {
         // Enable mouse mode and update button positions
         let _ = writer_tx.send(WriterMessage::EnableMouse);
-        update_button_registry(button_registry, status_state, overlay_mode, terminal_cols, theme);
+        update_button_registry(
+            button_registry,
+            status_state,
+            overlay_mode,
+            terminal_cols,
+            theme,
+        );
         set_status(
             writer_tx,
             status_clear_deadline,
@@ -2302,11 +2306,15 @@ fn advance_hud_button_focus(
     }
 
     let current = status_state.hud_button_focus;
-    let mut idx = current
-        .and_then(|action| actions.iter().position(|candidate| *candidate == action));
+    let mut idx =
+        current.and_then(|action| actions.iter().position(|candidate| *candidate == action));
 
     if idx.is_none() {
-        idx = if direction >= 0 { Some(0) } else { Some(actions.len().saturating_sub(1)) };
+        idx = if direction >= 0 {
+            Some(0)
+        } else {
+            Some(actions.len().saturating_sub(1))
+        };
     } else {
         let len = actions.len() as i32;
         let next = (idx.unwrap() as i32 + direction).rem_euclid(len) as usize;
@@ -2331,7 +2339,13 @@ fn send_enhanced_status_with_buttons(
 ) {
     send_enhanced_status(writer_tx, status_state);
     if status_state.mouse_enabled {
-        update_button_registry(button_registry, status_state, overlay_mode, terminal_cols, theme);
+        update_button_registry(
+            button_registry,
+            status_state,
+            overlay_mode,
+            terminal_cols,
+            theme,
+        );
     }
 }
 
@@ -2485,17 +2499,18 @@ fn handle_button_action(
                 status_state.hud_style,
             );
             let cols = resolved_cols(*terminal_cols);
-            show_theme_picker_overlay(
-                writer_tx,
-                theme,
-                theme_index_from_theme(theme),
-                cols,
-            );
+            show_theme_picker_overlay(writer_tx, theme, theme_index_from_theme(theme), cols);
         }
     }
 
     if status_state.mouse_enabled {
-        update_button_registry(button_registry, status_state, *overlay_mode, *terminal_cols, theme);
+        update_button_registry(
+            button_registry,
+            status_state,
+            *overlay_mode,
+            *terminal_cols,
+            theme,
+        );
     }
 }
 
@@ -2674,10 +2689,7 @@ fn drain_voice_messages<S: TranscriptSession>(
                 session_stats,
                 auto_voice_enabled,
             };
-            handle_voice_message(
-                VoiceJobMessage::Empty { source, metrics },
-                &mut ctx,
-            );
+            handle_voice_message(VoiceJobMessage::Empty { source, metrics }, &mut ctx);
         }
         other => {
             if sound_on_error && matches!(other, VoiceJobMessage::Error(_)) {
@@ -2693,10 +2705,7 @@ fn drain_voice_messages<S: TranscriptSession>(
                 session_stats,
                 auto_voice_enabled,
             };
-            handle_voice_message(
-                other,
-                &mut ctx,
-            );
+            handle_voice_message(other, &mut ctx);
         }
     }
     if auto_voice_enabled && rearm_auto {
@@ -2852,8 +2861,12 @@ fn update_last_latency(
     metrics: Option<&voxterm::audio::CaptureMetrics>,
     now: Instant,
 ) {
-    let Some(started_at) = recording_started_at else { return; };
-    let Some(elapsed) = now.checked_duration_since(started_at) else { return; };
+    let Some(started_at) = recording_started_at else {
+        return;
+    };
+    let Some(elapsed) = now.checked_duration_since(started_at) else {
+        return;
+    };
     let elapsed_ms = elapsed.as_millis().min(u128::from(u32::MAX)) as u32;
     let latency_ms = match metrics {
         Some(metrics) if metrics.transcribe_ms > 0 => {
@@ -3035,24 +3048,17 @@ mod tests {
     #[test]
     fn parse_arrow_keys_reads_sequences() {
         let bytes = [
-            0x1b,
-            b'[',
-            b'A',
-            0x1b,
-            b'[',
-            b'B',
-            b'x',
-            0x1b,
-            b'O',
-            b'C',
-            0x1b,
-            b'[',
-            b'D',
+            0x1b, b'[', b'A', 0x1b, b'[', b'B', b'x', 0x1b, b'O', b'C', 0x1b, b'[', b'D',
         ];
         let keys = parse_arrow_keys(&bytes);
         assert_eq!(
             keys,
-            vec![ArrowKey::Up, ArrowKey::Down, ArrowKey::Right, ArrowKey::Left]
+            vec![
+                ArrowKey::Up,
+                ArrowKey::Down,
+                ArrowKey::Right,
+                ArrowKey::Left
+            ]
         );
         assert!(parse_arrow_keys(&[0x1b, b'[']).is_empty());
     }
@@ -3074,7 +3080,10 @@ mod tests {
         );
         assert_eq!(config.voice_send_mode, VoiceSendMode::Insert);
         assert_eq!(status_state.send_mode, VoiceSendMode::Insert);
-        match writer_rx.recv_timeout(Duration::from_millis(200)).expect("status message") {
+        match writer_rx
+            .recv_timeout(Duration::from_millis(200))
+            .expect("status message")
+        {
             WriterMessage::EnhancedStatus(state) => {
                 assert!(state.message.contains("insert"));
             }
@@ -3090,7 +3099,10 @@ mod tests {
         );
         assert_eq!(config.voice_send_mode, VoiceSendMode::Auto);
         assert_eq!(status_state.send_mode, VoiceSendMode::Auto);
-        match writer_rx.recv_timeout(Duration::from_millis(200)).expect("status message") {
+        match writer_rx
+            .recv_timeout(Duration::from_millis(200))
+            .expect("status message")
+        {
             WriterMessage::EnhancedStatus(state) => {
                 assert!(state.message.contains("auto"));
             }
@@ -3116,7 +3128,10 @@ mod tests {
             &mut status_state,
         );
         let up_threshold = status_state.sensitivity_db;
-        match writer_rx.recv_timeout(Duration::from_millis(200)).expect("status message") {
+        match writer_rx
+            .recv_timeout(Duration::from_millis(200))
+            .expect("status message")
+        {
             WriterMessage::EnhancedStatus(state) => {
                 assert!(state.message.contains("less sensitive"));
             }
@@ -3132,7 +3147,10 @@ mod tests {
             &mut status_state,
         );
         assert!(status_state.sensitivity_db < up_threshold);
-        match writer_rx.recv_timeout(Duration::from_millis(200)).expect("status message") {
+        match writer_rx
+            .recv_timeout(Duration::from_millis(200))
+            .expect("status message")
+        {
             WriterMessage::EnhancedStatus(state) => {
                 assert!(state.message.contains("more sensitive"));
             }
@@ -3174,7 +3192,10 @@ mod tests {
         );
         assert_eq!(config.hud_right_panel, HudRightPanel::Dots);
         assert_eq!(status_state.hud_right_panel, HudRightPanel::Dots);
-        match writer_rx.recv_timeout(Duration::from_millis(200)).expect("status message") {
+        match writer_rx
+            .recv_timeout(Duration::from_millis(200))
+            .expect("status message")
+        {
             WriterMessage::EnhancedStatus(state) => {
                 assert!(state.message.contains("HUD right panel"));
             }
@@ -3204,7 +3225,10 @@ mod tests {
             1,
         );
         assert_eq!(status_state.hud_style, HudStyle::Minimal);
-        match writer_rx.recv_timeout(Duration::from_millis(200)).expect("status message") {
+        match writer_rx
+            .recv_timeout(Duration::from_millis(200))
+            .expect("status message")
+        {
             WriterMessage::EnhancedStatus(state) => {
                 assert!(state.message.contains("HUD style"));
             }
@@ -3228,7 +3252,10 @@ mod tests {
             &status_state,
             "codex",
         );
-        match writer_rx.recv_timeout(Duration::from_millis(200)).expect("overlay message") {
+        match writer_rx
+            .recv_timeout(Duration::from_millis(200))
+            .expect("overlay message")
+        {
             WriterMessage::ShowOverlay { height, .. } => {
                 assert_eq!(height, settings_overlay_height());
             }
@@ -3265,7 +3292,10 @@ mod tests {
         );
         assert!(auto_voice_enabled);
         assert_eq!(status_state.voice_mode, VoiceMode::Auto);
-        match writer_rx.recv_timeout(Duration::from_millis(200)).expect("status message") {
+        match writer_rx
+            .recv_timeout(Duration::from_millis(200))
+            .expect("status message")
+        {
             WriterMessage::EnhancedStatus(state) => {
                 assert!(state.message.contains("Auto-voice enabled"));
             }
@@ -3286,7 +3316,10 @@ mod tests {
         );
         assert!(!auto_voice_enabled);
         assert_eq!(status_state.voice_mode, VoiceMode::Manual);
-        match writer_rx.recv_timeout(Duration::from_millis(200)).expect("status message") {
+        match writer_rx
+            .recv_timeout(Duration::from_millis(200))
+            .expect("status message")
+        {
             WriterMessage::EnhancedStatus(state) => {
                 assert!(state.message.contains("Auto-voice disabled"));
             }
@@ -3301,13 +3334,7 @@ mod tests {
             PtyOverlaySession::new("cat", ".", &[], "xterm-256color").expect("pty session");
         let rows = 30;
         let cols = 100;
-        apply_pty_winsize(
-            &mut session,
-            rows,
-            cols,
-            OverlayMode::None,
-            HudStyle::Full,
-        );
+        apply_pty_winsize(&mut session, rows, cols, OverlayMode::None, HudStyle::Full);
         let reserved = reserved_rows_for_mode(OverlayMode::None, cols, HudStyle::Full) as u16;
         let expected_rows = rows.saturating_sub(reserved).max(1);
         let (set_rows, set_cols) = session.test_winsize();
@@ -3315,13 +3342,7 @@ mod tests {
         assert_eq!(set_rows, expected_rows);
 
         let before = session.test_winsize();
-        apply_pty_winsize(
-            &mut session,
-            0,
-            cols,
-            OverlayMode::None,
-            HudStyle::Full,
-        );
+        apply_pty_winsize(&mut session, 0, cols, OverlayMode::None, HudStyle::Full);
         assert_eq!(session.test_winsize(), before);
     }
 

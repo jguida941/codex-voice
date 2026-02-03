@@ -415,14 +415,8 @@ mod tests {
             current_status: &mut current_status,
             status_state: &mut status_state,
         };
-        let sent_newline = deliver_transcript(
-            "hello",
-            "Rust",
-            VoiceSendMode::Auto,
-            &mut io,
-            0,
-            None,
-        );
+        let sent_newline =
+            deliver_transcript("hello", "Rust", VoiceSendMode::Auto, &mut io, 0, None);
         assert!(sent_newline);
         assert!(recv_output_contains(&session.output_rx, "hello"));
     }

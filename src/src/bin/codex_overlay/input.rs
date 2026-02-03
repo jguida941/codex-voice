@@ -18,7 +18,10 @@ pub(crate) enum InputEvent {
     EnterKey,
     Exit,
     /// Mouse click at (x, y) coordinates (1-based, like terminal reports)
-    MouseClick { x: u16, y: u16 },
+    MouseClick {
+        x: u16,
+        y: u16,
+    },
 }
 
 pub(crate) fn spawn_input_thread(tx: Sender<InputEvent>) -> thread::JoinHandle<()> {

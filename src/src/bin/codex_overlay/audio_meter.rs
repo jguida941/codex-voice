@@ -316,9 +316,8 @@ pub fn format_waveform(levels: &[f32], width: usize, theme: Theme) -> String {
     // Uses iterator chain to avoid Vec allocation
     let start = levels.len().saturating_sub(width);
     let pad_count = width.saturating_sub(levels.len());
-    let samples_iter = std::iter::repeat(0.0_f32)
-        .take(pad_count)
-        .chain(levels[start..].iter().copied());
+    let samples_iter =
+        std::iter::repeat_n(0.0_f32, pad_count).chain(levels[start..].iter().copied());
 
     for level in samples_iter {
         // Convert dB to waveform character (assuming -60 to 0 range)

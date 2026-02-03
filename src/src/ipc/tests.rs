@@ -491,9 +491,9 @@ fn run_ipc_loop_processes_active_jobs() {
     assert!(events.iter().any(|event| {
         matches!(event, IpcEvent::JobEnd { provider, success, .. } if provider == "codex" && *success)
     }));
-    assert!(events.iter().any(|event| {
-        matches!(event, IpcEvent::Transcript { text, .. } if text == "hello")
-    }));
+    assert!(events
+        .iter()
+        .any(|event| { matches!(event, IpcEvent::Transcript { text, .. } if text == "hello") }));
     assert!(events.iter().any(|event| {
         matches!(event, IpcEvent::AuthEnd { provider, success, .. } if provider == "codex" && *success)
     }));

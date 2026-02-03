@@ -278,9 +278,7 @@ fn capture_voice_native(
         transcriber_guard.transcribe(&audio, config)?
     };
     let stt_elapsed = stt_start.elapsed();
-    metrics.transcribe_ms = stt_elapsed
-        .as_millis()
-        .min(u128::from(u32::MAX)) as u64;
+    metrics.transcribe_ms = stt_elapsed.as_millis().min(u128::from(u32::MAX)) as u64;
     let stt_elapsed = stt_elapsed.as_secs_f64();
 
     log_debug(&format!(
