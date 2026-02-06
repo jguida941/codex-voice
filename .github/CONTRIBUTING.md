@@ -40,10 +40,10 @@ Targeted checks mirrored in CI (run when relevant):
 
 ```bash
 # Perf smoke (voice metrics)
-cd src && cargo test --no-default-features app::tests::perf_smoke_emits_voice_metrics -- --nocapture
+cd src && cargo test --no-default-features legacy_tui::tests::perf_smoke_emits_voice_metrics -- --nocapture
 
 # Memory guard (thread cleanup)
-cd src && cargo test --no-default-features app::tests::memory_guard_backend_threads_drop -- --nocapture
+cd src && cargo test --no-default-features legacy_tui::tests::memory_guard_backend_threads_drop -- --nocapture
 
 # Mutation testing (heavy; usually on demand)
 cd src && cargo mutants --timeout 300 -o mutants.out

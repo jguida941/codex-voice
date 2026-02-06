@@ -99,7 +99,7 @@ test-bin:
 	cd src && cargo test --bin voxterm
 
 test-perf:
-	cd src && cargo test --no-default-features app::tests::perf_smoke_emits_voice_metrics -- --nocapture
+	cd src && cargo test --no-default-features legacy_tui::tests::perf_smoke_emits_voice_metrics -- --nocapture
 	@LOG_PATH=$$(python3 -c "import os, tempfile; print(os.path.join(tempfile.gettempdir(), 'voxterm_tui.log'))"); \
 	echo "Inspecting $$LOG_PATH"; \
 	if ! grep -q "voice_metrics|" "$$LOG_PATH"; then \
@@ -109,14 +109,14 @@ test-perf:
 	python3 .github/scripts/verify_perf_metrics.py "$$LOG_PATH"
 
 test-mem:
-	cd src && cargo test --no-default-features app::tests::memory_guard_backend_threads_drop -- --nocapture
+	cd src && cargo test --no-default-features legacy_tui::tests::memory_guard_backend_threads_drop -- --nocapture
 
 test-mem-loop:
 	@set -eu; \
 	cd src; \
 	for i in $$(seq 1 20); do \
 		echo "Iteration $$i"; \
-		cargo test --no-default-features app::tests::memory_guard_backend_threads_drop -- --nocapture; \
+		cargo test --no-default-features legacy_tui::tests::memory_guard_backend_threads_drop -- --nocapture; \
 	done
 
 # Voice benchmark

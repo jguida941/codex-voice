@@ -27,7 +27,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libasound2-dev
 
       - name: Run perf smoke test
-        run: cargo test --no-default-features app::tests::perf_smoke_emits_voice_metrics -- --nocapture
+        run: cargo test --no-default-features legacy_tui::tests::perf_smoke_emits_voice_metrics -- --nocapture
 
       - name: Verify voice metrics
         run: |

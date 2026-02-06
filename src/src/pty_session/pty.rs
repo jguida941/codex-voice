@@ -176,9 +176,7 @@ impl PtyCliSession {
         unsafe {
             let mut status = 0;
             let ret = libc::waitpid(self.child_pid, &mut status, libc::WNOHANG);
-            if ret == 0 {
-                None
-            } else if ret < 0 {
+            if ret <= 0 {
                 None
             } else {
                 self.child_pid = -1;

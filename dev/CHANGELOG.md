@@ -8,6 +8,9 @@ Note: Some historical entries reference internal documents that are not publishe
 ### Documentation
 - Document `VOXTERM_NO_STARTUP_BANNER` in install and troubleshooting guides.
 
+### CI
+- Update perf/memory guard test selectors to `legacy_tui::tests` after the legacy rename.
+
 ## [1.0.44] - 2026-02-06
 
 ### UX
