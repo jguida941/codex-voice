@@ -157,7 +157,7 @@ See the [Usage Guide](guides/USAGE.md) for details.
 | `Ctrl+]` | Mic less sensitive |
 | `Ctrl+\` | Mic more sensitive |
 | `?` | Show help |
-| `Enter` | Stop recording / submit prompt |
+| `Enter` | Stop recording / send text |
 | `Ctrl+Q` | Quit |
 | `Ctrl+C` | Send interrupt to CLI |
 

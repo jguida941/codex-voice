@@ -80,7 +80,7 @@ All shortcuts in one place:
 | `Ctrl+]` | **Threshold up** - Make mic less sensitive (+5 dB) |
 | `Ctrl+\` | **Threshold down** - Make mic more sensitive (-5 dB) |
 | `?` | **Help** - Show shortcut help overlay |
-| `Enter` | **Send/Stop** - In insert mode: stop recording early, or press `Enter` to submit typed text |
+| `Enter` | **Send/Stop** - In insert mode: stop recording early, or press `Enter` to send typed text |
 | `Ctrl+C` | Forward interrupt to CLI |
 | `Ctrl+Q` | **Quit** - Exit the overlay |
 
@@ -200,8 +200,6 @@ voxterm --sound-on-complete
 voxterm --sound-on-error
 ```
 
-Prints terminal capabilities, log paths, and audio device info without starting the overlay.
-
 ---
 
 ## Understanding the Status Line
@@ -309,10 +307,10 @@ Common startup configurations:
 # Use Claude Code
 voxterm --claude
 
-# Hands-free capture + auto-submit
+# Hands-free capture + auto-send
 voxterm --auto-voice
 
-# Hands-free with review before submitting
+# Hands-free with review before sending
 voxterm --auto-voice --voice-send-mode insert
 
 # Specific microphone
