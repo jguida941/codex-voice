@@ -343,6 +343,7 @@ impl PtyOverlaySession {
 }
 
 #[cfg(any(test, feature = "mutants"))]
+#[cfg_attr(any(test, feature = "mutants"), allow(dead_code))]
 pub(crate) fn test_pty_session(
     master_fd: RawFd,
     child_pid: i32,

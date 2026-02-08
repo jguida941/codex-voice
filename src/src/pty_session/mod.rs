@@ -24,4 +24,5 @@ pub(crate) use counters::{
 };
 
 #[cfg(any(test, feature = "mutants"))]
+#[allow(unused_imports)]
 pub(crate) use pty::test_pty_session;
