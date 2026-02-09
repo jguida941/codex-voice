@@ -1,5 +1,5 @@
 use crate::input::event::InputEvent;
-use crate::input::mouse::{parse_sgr_mouse, MouseEventKind};
+use crate::input::mouse::{is_sgr_mouse_sequence, parse_sgr_mouse, MouseEventKind};
 
 pub(crate) struct InputParser {
     pending: Vec<u8>,
@@ -142,6 +142,9 @@ impl InputParser {
                                 }
                             }
                         }
+                    } else if is_sgr_mouse_sequence(buffer) {
+                        // Ignore non-click SGR mouse events (scroll/motion) to avoid flooding output.
+                        self.esc_buffer = None;
                     } else {
                         self.pending.extend_from_slice(buffer);
                         self.esc_buffer = None;
@@ -380,5 +383,14 @@ mod tests {
         parser.consume_bytes(b"\x1b[<0;10;5M\x1b[<0;10;5m", &mut out);
         parser.flush_pending(&mut out);
         assert_eq!(out, vec![InputEvent::MouseClick { x: 10, y: 5 }]);
+    }
+
+    #[test]
+    fn input_parser_ignores_sgr_mouse_wheel() {
+        let mut parser = InputParser::new();
+        let mut out = Vec::new();
+        parser.consume_bytes(b"\x1b[<64;10;5M", &mut out);
+        parser.flush_pending(&mut out);
+        assert!(out.is_empty());
     }
 }

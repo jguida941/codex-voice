@@ -4,6 +4,17 @@ pub(crate) enum MouseEventKind {
     Release,
 }
 
+#[inline]
+pub(crate) fn is_sgr_mouse_sequence(buffer: &[u8]) -> bool {
+    if buffer.len() < 6 {
+        return false;
+    }
+    if buffer[0] != 0x1b || buffer[1] != b'[' || buffer[2] != b'<' {
+        return false;
+    }
+    matches!(buffer[buffer.len() - 1], b'M' | b'm')
+}
+
 /// Parse SGR mouse event: ESC [ < button ; x ; y M (press) or m (release)
 /// Only handles left-click press (button 0) and release (button 0 or 3).
 #[inline]
