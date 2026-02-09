@@ -11,7 +11,10 @@ use std::time::Instant;
 #[cfg(any(test, feature = "mutants"))]
 use super::counters::guard_loop;
 use super::counters::write_all_limit;
-use super::osc::{find_csi_sequence, find_osc_terminator, respond_to_terminal_queries, respond_to_terminal_queries_passthrough};
+use super::osc::{
+    find_csi_sequence, find_osc_terminator, respond_to_terminal_queries,
+    respond_to_terminal_queries_passthrough,
+};
 
 pub(super) fn should_retry_read_error(err: &io::Error) -> bool {
     err.kind() == ErrorKind::Interrupted || err.kind() == ErrorKind::WouldBlock
