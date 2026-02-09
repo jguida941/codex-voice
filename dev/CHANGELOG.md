@@ -5,6 +5,14 @@ Note: Some historical entries reference internal documents that are not publishe
 
 ## [Unreleased]
 
+## [1.0.48] - 2026-02-09
+
+### UX
+- Buffer partial PTY escape sequences so mouse reporting does not leak into Claude output.
+
+### Tests
+- Add coverage for buffering incomplete PTY escape sequences.
+
 ## [1.0.47] - 2026-02-09
 
 ### UX
