@@ -364,6 +364,7 @@ fn run_periodic_tasks(
     }
 
     if state.auto_voice_enabled
+        && !state.status_state.awaiting_review_send
         && deps.voice_manager.is_idle()
         && should_auto_trigger(
             &state.prompt_tracker,
@@ -586,6 +587,10 @@ pub(crate) fn run_event_loop(
                                             settings_ctx.toggle_send_mode();
                                             should_redraw = true;
                                         }
+                                        SettingsItem::TranscriptReview => {
+                                            settings_ctx.toggle_transcript_review();
+                                            should_redraw = true;
+                                        }
                                         SettingsItem::VoiceMode => {
                                             settings_ctx.toggle_voice_intent_mode();
                                             should_redraw = true;
@@ -689,6 +694,10 @@ pub(crate) fn run_event_loop(
                                                         settings_ctx.toggle_send_mode();
                                                         should_redraw = true;
                                                     }
+                                                    SettingsItem::TranscriptReview => {
+                                                        settings_ctx.toggle_transcript_review();
+                                                        should_redraw = true;
+                                                    }
                                                     SettingsItem::VoiceMode => {
                                                         settings_ctx.toggle_voice_intent_mode();
                                                         should_redraw = true;
@@ -729,6 +738,10 @@ pub(crate) fn run_event_loop(
                                                     }
                                                     SettingsItem::SendMode => {
                                                         settings_ctx.toggle_send_mode();
+                                                        should_redraw = true;
+                                                    }
+                                                    SettingsItem::TranscriptReview => {
+                                                        settings_ctx.toggle_transcript_review();
                                                         should_redraw = true;
                                                     }
                                                     SettingsItem::VoiceMode => {
@@ -1342,6 +1355,32 @@ pub(crate) fn run_event_loop(
                                         running = false;
                                     } else {
                                         timers.last_enter_at = Some(Instant::now());
+                                        if state.status_state.awaiting_review_send {
+                                            state.status_state.awaiting_review_send = false;
+                                            if state.auto_voice_enabled && deps.voice_manager.is_idle() {
+                                                if let Err(err) = start_voice_capture(
+                                                    &mut deps.voice_manager,
+                                                    VoiceCaptureTrigger::Auto,
+                                                    &deps.writer_tx,
+                                                    &mut timers.status_clear_deadline,
+                                                    &mut state.current_status,
+                                                    &mut state.status_state,
+                                                ) {
+                                                    log_debug(&format!(
+                                                        "auto voice capture failed after review send: {err:#}"
+                                                    ));
+                                                } else {
+                                                    let now = Instant::now();
+                                                    timers.last_auto_trigger_at = Some(now);
+                                                    timers.recording_started_at = Some(now);
+                                                    reset_capture_visuals(
+                                                        &mut state.status_state,
+                                                        &mut timers.preview_clear_deadline,
+                                                        &mut timers.last_meter_update,
+                                                    );
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                             }

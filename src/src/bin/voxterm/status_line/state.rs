@@ -171,6 +171,10 @@ pub struct StatusLineState {
     pub send_mode: VoiceSendMode,
     /// Transcript intent mode (command vs dictation)
     pub voice_intent_mode: VoiceIntentMode,
+    /// When true, transcripts are inserted for review/edit and user presses Enter to send.
+    pub review_before_send: bool,
+    /// Internal guard used to pause auto re-arm until the reviewed command is sent.
+    pub awaiting_review_send: bool,
     /// Right-side HUD panel mode
     pub hud_right_panel: HudRightPanel,
     /// Only animate the right-side panel while recording
@@ -223,6 +227,8 @@ mod tests {
         let state = StatusLineState::new();
         assert_eq!(state.sensitivity_db, -35.0);
         assert!(!state.auto_voice_enabled);
+        assert!(!state.review_before_send);
+        assert!(!state.awaiting_review_send);
         assert!(state.message.is_empty());
     }
 }

@@ -12,6 +12,8 @@ Note: Some historical entries reference internal documents that are not publishe
   - Command mode keeps macro expansion enabled.
   - Dictation mode disables macro expansion while preserving existing send-mode behavior (`auto` vs `insert`).
 - Show current intent mode (`CMD`/`DICT`) in status/HUD formatting so transcript-transform policy is always visible.
+- Add `Review first` in Settings to force transcript insert-before-send behavior and pause auto-voice re-arm until Enter is forwarded.
+- Surface review mode state in status/HUD labels (`RVW`) and send button styling.
 
 ### CI
 - Add a dedicated latency guard workflow (`.github/workflows/latency_guard.yml`) that runs synthetic voice-only regression bounds in CI.
@@ -21,10 +23,12 @@ Note: Some historical entries reference internal documents that are not publishe
 - Document latency baseline results in `dev/archive/2026-02-13-latency-baseline.md`.
 - Document the latency guard workflow and command usage in `dev/scripts/README.md`.
 - Document voice macros in `guides/USAGE.md`, `guides/TROUBLESHOOTING.md`, and `dev/ARCHITECTURE.md`.
+- Document transcript review-before-send behavior in usage/troubleshooting/architecture docs.
 
 ### Tests
 - Add unit coverage for voice macro parsing, trigger matching, template remainder substitution, and project file loading.
 - Add intent-mode tests for command vs dictation macro behavior and settings-toggle state transitions.
+- Add transcript delivery coverage for review wait-state tracking and settings-handler coverage for review toggle behavior.
 
 ### Developer Experience
 - Add `python3 dev/scripts/devctl.py hygiene` to audit archive naming, ADR status/index consistency, and `dev/scripts` documentation coverage.

@@ -216,6 +216,9 @@ is added automatically.
   - `Dictation`: macro expansion disabled (raw transcript injection).
 - **Auto send**: inject transcript + newline immediately when safe to send.
 - **Insert**: inject transcript only (no newline); user presses Enter to send.
+- **Review first (settings toggle)**: forces insert-style transcript delivery and
+  sets an internal review-wait flag so auto-voice does not re-arm until Enter is
+  forwarded to PTY.
 - **Enter while recording (insert mode)**: stops capture early and transcribes what was recorded.
 
 ## Operational Workflows (Dev/CI/Release)

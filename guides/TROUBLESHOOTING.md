@@ -13,6 +13,7 @@
 | Transcript stays queued in Claude review prompts | See [Status Messages → Transcript stays queued in Claude review prompts](#transcript-stays-queued-in-claude-review-prompts) |
 | Voice macro not expanding | See [Status Messages → Voice macro not expanding](#voice-macro-not-expanding) |
 | Voice macro expanded when dictating prose | See [Status Messages → Voice macro expanded when dictating prose](#voice-macro-expanded-when-dictating-prose) |
+| Auto-voice starts listening again before I finish editing | See [Status Messages → Auto-voice re-arms before transcript review is done](#auto-voice-re-arms-before-transcript-review-is-done) |
 | Wrong version after update | [Install Issues → Wrong version after update](#wrong-version-after-update) |
 
 Other sections: [Status Messages](#status-messages) · [Audio Setup](#audio-setup) ·
@@ -108,6 +109,16 @@ Settings (`Ctrl+O`), which bypasses macro expansion.
 1. Open Settings (`Ctrl+O`)
 2. Set **Voice mode** to **Dictation**
 3. Keep your preferred send mode (`auto` or `insert`) unchanged
+
+### Auto-voice re-arms before transcript review is done
+
+If you use auto-voice and want to edit each transcript before sending, default
+auto behavior can restart listening while you are still editing.
+
+**Fixes:**
+1. Open Settings (`Ctrl+O`)
+2. Turn **Review first** to **ON**
+3. Speak, edit the injected text, then press `Enter` to send and re-arm auto-voice
 
 ### Typing/Enter feels laggy while backend is thinking
 

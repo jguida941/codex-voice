@@ -33,6 +33,7 @@ pub(crate) fn show_settings_overlay(
         selected: settings_menu.selected,
         auto_voice_enabled: status_state.auto_voice_enabled,
         send_mode: config.voice_send_mode,
+        review_before_send: status_state.review_before_send,
         voice_intent_mode: status_state.voice_intent_mode,
         sensitivity_db: status_state.sensitivity_db,
         theme,

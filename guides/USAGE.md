@@ -99,8 +99,9 @@ or activate the selected row. `Esc` closes the menu.
 
 ![Settings Menu](https://raw.githubusercontent.com/jguida941/voxterm/master/img/settings.png)
 
-The menu surfaces the most common controls (auto-voice, send mode, voice mode,
-mic sensitivity, theme) plus backend and pipeline info.
+The menu surfaces the most common controls (auto-voice, send mode,
+review-first, voice mode, mic sensitivity, theme) plus backend and pipeline
+info.
 
 It also lets you configure:
 - **HUD style**: Full, Minimal, or Hidden
@@ -115,10 +116,11 @@ Left/Right selects a HUD button and Enter activates it (even if Mouse is OFF).
 
 ## Voice Modes
 
-Three controls shape voice behavior:
+Four controls shape voice behavior:
 
 - **Auto-voice** (`Ctrl+V`) - when ON, VoxTerm listens automatically. When OFF, you press `Ctrl+R` each time.
 - **Send mode** (`Ctrl+T`) - **auto** types your words and presses Enter. **Insert** types your words but lets you press Enter yourself.
+- **Review first** (Settings -> Review first) - when ON, VoxTerm injects transcripts without Enter and waits for your Enter before auto-voice re-arms.
 - **Voice mode** (Settings → Voice mode) - **Command** enables macro expansion; **Dictation** disables macro expansion.
 
 ### All four combinations
@@ -134,6 +136,10 @@ Command/Dictation mode is orthogonal to this table:
 - **Command**: macros can expand transcripts before injection.
 - **Dictation**: raw transcript is injected as-is.
 
+Review-first mode is orthogonal too:
+- **OFF**: auto-voice can re-arm immediately based on prompt/idle readiness.
+- **ON**: auto-voice waits until you press `Enter` after reviewing/editing the injected transcript.
+
 ### Tips
 
 - **Enter during recording** (insert mode): stops recording early so it
@@ -144,6 +150,8 @@ Command/Dictation mode is orthogonal to this table:
 - **Prompt detection**: if auto-voice doesn't re-trigger after the CLI
   finishes, it falls back to an idle timer. Set `--prompt-regex` if your
   prompt is unusual (especially with Claude).
+- **Review first + auto-voice**: VoxTerm pauses listening while you edit.
+  After you press `Enter`, it resumes listening automatically.
 
 ### Long dictation (auto-voice + insert)
 

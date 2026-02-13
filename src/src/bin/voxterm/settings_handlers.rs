@@ -98,6 +98,7 @@ impl<'a> SettingsActionContext<'a> {
                 self.status_state.recording_state = RecordingState::Idle;
                 *self.recording_started_at = None;
             }
+            self.status_state.awaiting_review_send = false;
             clear_capture_metrics(self.status_state);
             reset_capture_visuals(
                 self.status_state,
@@ -150,6 +151,26 @@ impl<'a> SettingsActionContext<'a> {
         let msg = match self.config.voice_send_mode {
             VoiceSendMode::Auto => "Send mode: auto (sends Enter)",
             VoiceSendMode::Insert => "Send mode: insert (press Enter to send)",
+        };
+        set_status(
+            self.writer_tx,
+            self.status_clear_deadline,
+            self.current_status,
+            self.status_state,
+            msg,
+            Some(Duration::from_secs(3)),
+        );
+    }
+
+    pub(crate) fn toggle_transcript_review(&mut self) {
+        self.status_state.review_before_send = !self.status_state.review_before_send;
+        if !self.status_state.review_before_send {
+            self.status_state.awaiting_review_send = false;
+        }
+        let msg = if self.status_state.review_before_send {
+            "Review before send: ON (edit then Enter)"
+        } else {
+            "Review before send: OFF"
         };
         set_status(
             self.writer_tx,
@@ -542,6 +563,89 @@ mod tests {
             WriterMessage::EnhancedStatus(state) => {
                 assert!(state.message.contains("command"));
                 assert!(state.message.contains("enabled"));
+            }
+            other => panic!("unexpected writer message: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn toggle_transcript_review_updates_state_and_status() {
+        let mut config = OverlayConfig::parse_from(["test-app"]);
+        let mut voice_manager = VoiceManager::new(config.app.clone());
+        let (writer_tx, writer_rx) = bounded(4);
+        let mut status_clear_deadline = None;
+        let mut current_status = None;
+        let mut status_state = StatusLineState::new();
+        let mut auto_voice_enabled = false;
+        let mut last_auto_trigger_at = None;
+        let mut recording_started_at = None;
+        let mut preview_clear_deadline = None;
+        let mut last_meter_update = Instant::now();
+        let button_registry = ButtonRegistry::new();
+        let mut terminal_rows = 24;
+        let mut terminal_cols = 80;
+        let mut theme = Theme::Coral;
+
+        {
+            let mut ctx = make_context(
+                &mut config,
+                &mut voice_manager,
+                &writer_tx,
+                &mut status_clear_deadline,
+                &mut current_status,
+                &mut status_state,
+                &mut auto_voice_enabled,
+                &mut last_auto_trigger_at,
+                &mut recording_started_at,
+                &mut preview_clear_deadline,
+                &mut last_meter_update,
+                &button_registry,
+                &mut terminal_rows,
+                &mut terminal_cols,
+                &mut theme,
+            );
+            ctx.toggle_transcript_review();
+        }
+        assert!(status_state.review_before_send);
+        match writer_rx
+            .recv_timeout(Duration::from_millis(200))
+            .expect("status message")
+        {
+            WriterMessage::EnhancedStatus(state) => {
+                assert!(state.message.contains("Review before send: ON"));
+            }
+            other => panic!("unexpected writer message: {other:?}"),
+        }
+
+        status_state.awaiting_review_send = true;
+        {
+            let mut ctx = make_context(
+                &mut config,
+                &mut voice_manager,
+                &writer_tx,
+                &mut status_clear_deadline,
+                &mut current_status,
+                &mut status_state,
+                &mut auto_voice_enabled,
+                &mut last_auto_trigger_at,
+                &mut recording_started_at,
+                &mut preview_clear_deadline,
+                &mut last_meter_update,
+                &button_registry,
+                &mut terminal_rows,
+                &mut terminal_cols,
+                &mut theme,
+            );
+            ctx.toggle_transcript_review();
+        }
+        assert!(!status_state.review_before_send);
+        assert!(!status_state.awaiting_review_send);
+        match writer_rx
+            .recv_timeout(Duration::from_millis(200))
+            .expect("status message")
+        {
+            WriterMessage::EnhancedStatus(state) => {
+                assert!(state.message.contains("Review before send: OFF"));
             }
             other => panic!("unexpected writer message: {other:?}"),
         }

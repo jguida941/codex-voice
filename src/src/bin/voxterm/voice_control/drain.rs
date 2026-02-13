@@ -37,6 +37,20 @@ fn apply_voice_intent_mode(
     (expanded.text, expanded.mode, macro_note)
 }
 
+fn apply_review_before_send(
+    mode: VoiceSendMode,
+    review_before_send: bool,
+) -> (VoiceSendMode, Option<String>) {
+    if review_before_send && mode == VoiceSendMode::Auto {
+        (
+            VoiceSendMode::Insert,
+            Some("review before send".to_string()),
+        )
+    } else {
+        (mode, None)
+    }
+}
+
 pub(crate) fn clear_capture_metrics(status_state: &mut StatusLineState) {
     status_state.recording_duration = None;
     status_state.meter_db = None;
@@ -220,6 +234,8 @@ pub(crate) fn drain_voice_messages<S: TranscriptSession>(
                 status_state.voice_intent_mode,
                 voice_macros,
             );
+            let (transcript_mode, review_note) =
+                apply_review_before_send(transcript_mode, status_state.review_before_send);
             update_last_latency(status_state, *recording_started_at, metrics.as_ref(), now);
             let ready =
                 transcript_ready(prompt_tracker, *last_enter_at, now, transcript_idle_timeout);
@@ -244,11 +260,20 @@ pub(crate) fn drain_voice_messages<S: TranscriptSession>(
                 .as_ref()
                 .filter(|metrics| metrics.frames_dropped > 0)
                 .map(|metrics| format!("dropped {} frames", metrics.frames_dropped));
-            let delivery_note = match (drop_note.as_deref(), macro_note.as_deref()) {
-                (Some(drop), Some(macro_note)) => Some(format!("{drop}, {macro_note}")),
-                (Some(drop), None) => Some(drop.to_string()),
-                (None, Some(macro_note)) => Some(macro_note.to_string()),
-                (None, None) => None,
+            let mut notes = Vec::with_capacity(3);
+            if let Some(note) = drop_note {
+                notes.push(note);
+            }
+            if let Some(note) = macro_note {
+                notes.push(note);
+            }
+            if let Some(note) = review_note {
+                notes.push(note);
+            }
+            let delivery_note = if notes.is_empty() {
+                None
+            } else {
+                Some(notes.join(", "))
             };
             let duration_secs = metrics
                 .as_ref()
@@ -331,7 +356,8 @@ pub(crate) fn drain_voice_messages<S: TranscriptSession>(
                 }
             }
             if auto_voice_enabled
-                && config.voice_send_mode == VoiceSendMode::Insert
+                && !status_state.review_before_send
+                && transcript_mode == VoiceSendMode::Insert
                 && pending_transcripts.is_empty()
                 && voice_manager.is_idle()
             {
@@ -571,6 +597,17 @@ macros:
         assert_eq!(mode, VoiceSendMode::Insert);
         assert!(note.is_none());
         let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn apply_review_before_send_forces_insert_when_enabled() {
+        let (mode, note) = apply_review_before_send(VoiceSendMode::Auto, true);
+        assert_eq!(mode, VoiceSendMode::Insert);
+        assert_eq!(note.as_deref(), Some("review before send"));
+
+        let (mode, note) = apply_review_before_send(VoiceSendMode::Insert, true);
+        assert_eq!(mode, VoiceSendMode::Insert);
+        assert!(note.is_none());
     }
 
     #[test]

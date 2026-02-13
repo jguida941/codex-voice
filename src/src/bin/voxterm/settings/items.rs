@@ -8,6 +8,7 @@ use crate::theme::Theme;
 pub enum SettingsItem {
     AutoVoice,
     SendMode,
+    TranscriptReview,
     VoiceMode,
     Sensitivity,
     Theme,
@@ -24,6 +25,7 @@ pub enum SettingsItem {
 pub const SETTINGS_ITEMS: &[SettingsItem] = &[
     SettingsItem::AutoVoice,
     SettingsItem::SendMode,
+    SettingsItem::TranscriptReview,
     SettingsItem::VoiceMode,
     SettingsItem::Sensitivity,
     SettingsItem::Theme,
@@ -56,6 +58,7 @@ pub struct SettingsView<'a> {
     pub selected: usize,
     pub auto_voice_enabled: bool,
     pub send_mode: VoiceSendMode,
+    pub review_before_send: bool,
     pub voice_intent_mode: VoiceIntentMode,
     pub sensitivity_db: f32,
     pub theme: Theme,

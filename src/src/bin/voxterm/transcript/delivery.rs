@@ -147,9 +147,14 @@ pub(crate) fn deliver_transcript<S: TranscriptSession>(
     };
     io.set_status(&status, Some(Duration::from_secs(2)));
     match send_transcript(io.session, text, mode) {
-        Ok(sent_newline) => sent_newline,
+        Ok(sent_newline) => {
+            io.status_state.awaiting_review_send =
+                io.status_state.review_before_send && !sent_newline;
+            sent_newline
+        }
         Err(err) => {
             log_debug(&format!("failed to send transcript: {err:#}"));
+            io.status_state.awaiting_review_send = false;
             io.set_status(
                 "Failed to send transcript (see log)",
                 Some(Duration::from_secs(2)),
@@ -213,6 +218,33 @@ mod tests {
         let sent = send_transcript(&mut session, "   ", VoiceSendMode::Insert).unwrap();
         assert!(!sent);
         assert_eq!(session.sent.len(), 1);
+    }
+
+    #[test]
+    fn deliver_transcript_tracks_review_wait_state() {
+        let (writer_tx, _writer_rx) = crossbeam_channel::bounded(8);
+        let mut session = StubSession::default();
+        let mut deadline = None;
+        let mut current_status = None;
+        let mut status_state = crate::status_line::StatusLineState::new();
+        status_state.review_before_send = true;
+        let mut io = TranscriptIo {
+            session: &mut session,
+            writer_tx: &writer_tx,
+            status_clear_deadline: &mut deadline,
+            current_status: &mut current_status,
+            status_state: &mut status_state,
+        };
+
+        let sent_newline =
+            deliver_transcript("hello", "Native", VoiceSendMode::Insert, &mut io, 0, None);
+        assert!(!sent_newline);
+        assert!(io.status_state.awaiting_review_send);
+
+        let sent_newline =
+            deliver_transcript("hello", "Native", VoiceSendMode::Auto, &mut io, 0, None);
+        assert!(sent_newline);
+        assert!(!io.status_state.awaiting_review_send);
     }
 
     #[test]

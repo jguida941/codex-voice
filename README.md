@@ -140,6 +140,8 @@ Use ↑/↓ to move and Enter to select, or type the theme number.
 
 Mouse control is on by default (toggle it off in Settings).
 You can click HUD buttons or use ←/→ to focus and Enter to activate.
+Settings also include `Voice mode` (Command/Dictation) and `Review first`
+for transcript edit-before-send behavior.
 See the [Usage Guide](guides/USAGE.md) for details.
 
 ### Voice Recording

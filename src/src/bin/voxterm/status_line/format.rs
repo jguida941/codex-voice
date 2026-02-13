@@ -53,6 +53,14 @@ fn pipeline_tag_short(pipeline: Pipeline) -> &'static str {
     }
 }
 
+fn intent_tag(state: &StatusLineState) -> String {
+    if state.review_before_send {
+        format!("{} RVW", state.voice_intent_mode.short_label())
+    } else {
+        state.voice_intent_mode.short_label().to_string()
+    }
+}
+
 /// Format hidden mode strip - grey/obscure, only shows essential info when active.
 /// More subtle than minimal mode - all dim colors for minimal distraction.
 fn format_hidden_strip(state: &StatusLineState, colors: &ThemeColors, width: usize) -> String {
@@ -401,7 +409,7 @@ fn format_heartbeat_panel(state: &StatusLineState, colors: &ThemeColors) -> Stri
 #[inline]
 fn format_mode_indicator(state: &StatusLineState, colors: &ThemeColors) -> String {
     let pipeline_tag = pipeline_tag_short(state.pipeline);
-    let intent_tag = state.voice_intent_mode.short_label();
+    let intent_tag = intent_tag(state);
 
     let mut result = String::with_capacity(32);
     result.push(' ');
@@ -413,7 +421,7 @@ fn format_mode_indicator(state: &StatusLineState, colors: &ThemeColors) -> Strin
             result.push_str(" REC ");
             result.push_str(pipeline_tag);
             result.push(' ');
-            result.push_str(intent_tag);
+            result.push_str(&intent_tag);
             result.push_str(colors.reset);
         }
         RecordingState::Processing => {
@@ -422,7 +430,7 @@ fn format_mode_indicator(state: &StatusLineState, colors: &ThemeColors) -> Strin
             result.push_str(" processing ");
             result.push_str(pipeline_tag);
             result.push(' ');
-            result.push_str(intent_tag);
+            result.push_str(&intent_tag);
             result.push_str(colors.reset);
         }
         RecordingState::Idle => {
@@ -438,7 +446,7 @@ fn format_mode_indicator(state: &StatusLineState, colors: &ThemeColors) -> Strin
             result.push(' ');
             result.push_str(label);
             result.push(' ');
-            result.push_str(intent_tag);
+            result.push_str(&intent_tag);
             if !color.is_empty() {
                 result.push_str(colors.reset);
             }
@@ -596,12 +604,16 @@ fn format_minimal(state: &StatusLineState, colors: &ThemeColors, width: usize) -
         VoiceIntentMode::Command => "cmd",
         VoiceIntentMode::Dictation => "dict",
     };
+    let review = if state.review_before_send { " rvw" } else { "" };
 
     let msg = if state.message.is_empty() {
         if state.voice_mode == VoiceMode::Auto {
-            format!("auto {intent}")
+            format!("auto {intent}{review}")
         } else {
-            format!("{}Ready {}{}", colors.success, intent, colors.reset)
+            format!(
+                "{}Ready {}{}{}",
+                colors.success, intent, review, colors.reset
+            )
         }
     } else {
         state.message.clone()
@@ -663,7 +675,7 @@ fn format_left_compact(state: &StatusLineState, colors: &ThemeColors) -> String 
     let parts = compact_mode_parts(state, colors);
     let mode_indicator = format_compact_indicator(&parts, colors);
     let mode_label = parts.label;
-    let intent = state.voice_intent_mode.short_label();
+    let intent = intent_tag(state);
 
     if mode_label.is_empty() {
         format!(
@@ -706,7 +718,7 @@ fn format_left_section(state: &StatusLineState, colors: &ThemeColors) -> String 
         RecordingState::Idle => state.voice_mode.indicator(),
     };
 
-    let intent_tag = state.voice_intent_mode.short_label();
+    let intent_tag = intent_tag(state);
     let mode_label = match state.recording_state {
         RecordingState::Recording => format!("REC {pipeline_tag} {intent_tag}"),
         RecordingState::Processing => format!("processing {pipeline_tag} {intent_tag}"),

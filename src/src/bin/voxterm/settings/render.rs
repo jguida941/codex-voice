@@ -63,6 +63,12 @@ fn format_settings_row(
             mode_button(view.send_mode),
             width = LABEL_WIDTH
         ),
+        SettingsItem::TranscriptReview => format!(
+            "{marker} {:<width$} {}",
+            "Review first",
+            toggle_button(view.review_before_send),
+            width = LABEL_WIDTH
+        ),
         SettingsItem::VoiceMode => format!(
             "{marker} {:<width$} {}",
             "Voice mode",
