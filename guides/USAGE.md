@@ -332,6 +332,10 @@ In Full HUD idle state, VoxTerm uses concise labels for visual stability:
   `Ready` sit closer to the right-side latency/visualizer cluster
 - right-panel Ribbon mode uses a wider waveform budget in Full HUD for better
   readability on wide terminals
+- Full HUD latency (`Nms`) now appears on the main row next to status text and
+  right-panel telemetry, rather than on the shortcuts row.
+- During active recording/processing, the main-row status text suppresses
+  duplicate state words so `REC`/`processing` is not shown twice.
 
 When Mouse is enabled, Minimal HUD shows a [back] button on the right to return
 to Full. If a right-panel mode is enabled, Minimal HUD also shows a compact

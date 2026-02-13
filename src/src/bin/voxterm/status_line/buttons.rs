@@ -25,7 +25,8 @@ pub fn get_button_positions(
             }
             let colors = theme.colors();
             let inner_width = width.saturating_sub(2);
-            let (_, buttons) = format_button_row_with_positions(state, &colors, inner_width, 2);
+            let (_, buttons) =
+                format_button_row_with_positions(state, &colors, inner_width, 2, false);
             buttons
         }
         HudStyle::Minimal => {
@@ -334,7 +335,8 @@ pub(super) fn format_shortcuts_row_with_positions(
     inner_width: usize,
 ) -> (String, Vec<ButtonPosition>) {
     // Row 2 from bottom of HUD (row 1 = bottom border)
-    let (shortcuts_str, buttons) = format_button_row_with_positions(state, colors, inner_width, 2);
+    let (shortcuts_str, buttons) =
+        format_button_row_with_positions(state, colors, inner_width, 2, false);
 
     // Add leading space to match main row's left margin
     let interior = format!(" {}", shortcuts_str);
@@ -457,6 +459,7 @@ fn format_button_row_with_positions(
     colors: &ThemeColors,
     inner_width: usize,
     hud_row: u16,
+    show_latency_badge: bool,
 ) -> (String, Vec<ButtonPosition>) {
     let button_defs = get_button_defs(state);
     let mut items = Vec::new();
@@ -523,15 +526,17 @@ fn format_button_row_with_positions(
     }
 
     // Latency badge (not clickable)
-    if let Some(latency) = state.last_latency_ms {
-        let latency_color = if latency < 300 {
-            colors.success
-        } else if latency < 500 {
-            colors.warning
-        } else {
-            colors.error
-        };
-        items.push(format!("{}{}ms{}", latency_color, latency, colors.reset));
+    if show_latency_badge {
+        if let Some(latency) = state.last_latency_ms {
+            let latency_color = if latency < 300 {
+                colors.success
+            } else if latency < 500 {
+                colors.warning
+            } else {
+                colors.error
+            };
+            items.push(format!("{}{}ms{}", latency_color, latency, colors.reset));
+        }
     }
 
     // Modern separator: dim dot
@@ -604,7 +609,7 @@ fn format_button_row_with_positions(
 }
 
 fn format_button_row(state: &StatusLineState, colors: &ThemeColors, inner_width: usize) -> String {
-    let (row, _) = format_button_row_with_positions(state, colors, inner_width, 2);
+    let (row, _) = format_button_row_with_positions(state, colors, inner_width, 2, true);
     row
 }
 

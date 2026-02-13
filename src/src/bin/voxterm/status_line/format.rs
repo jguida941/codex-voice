@@ -259,13 +259,15 @@ fn format_main_row(
         theme,
         inner_width.saturating_sub(content_width + 1),
     );
+    let latency_badge = format_main_row_latency_badge(state, colors);
+    let latency_width = display_width(&latency_badge);
     let right_width = display_width(&right_panel);
-    let message_available = inner_width.saturating_sub(content_width + right_width);
+    let message_available = inner_width.saturating_sub(content_width + latency_width + right_width);
     let truncated_message = truncate_display(&message_section, message_available);
     let message_width = display_width(&truncated_message);
     // Right-align the status text so concise states (e.g., Ready) land near the right telemetry.
     let padding_before_message = " ".repeat(message_available.saturating_sub(message_width));
-    let interior = format!("{content}{padding_before_message}{truncated_message}");
+    let interior = format!("{content}{padding_before_message}{truncated_message}{latency_badge}");
 
     // No background colors - use transparent backgrounds for terminal compatibility
     format!(
@@ -324,6 +326,20 @@ fn format_full_hud_message(state: &StatusLineState, colors: &ThemeColors) -> Str
             )
         }
     }
+}
+
+fn format_main_row_latency_badge(state: &StatusLineState, colors: &ThemeColors) -> String {
+    let Some(latency) = state.last_latency_ms else {
+        return String::new();
+    };
+    let latency_color = if latency < 300 {
+        colors.success
+    } else if latency < 500 {
+        colors.warning
+    } else {
+        colors.error
+    };
+    format!(" {}{}ms{}", latency_color, latency, colors.reset)
 }
 
 fn format_right_panel(
@@ -1146,6 +1162,18 @@ mod tests {
         let main_row = &banner.lines[1];
         let count = main_row.to_lowercase().matches("processing").count();
         assert_eq!(count, 1);
+    }
+
+    #[test]
+    fn format_status_banner_full_mode_shows_latency_on_main_row() {
+        let mut state = StatusLineState::new();
+        state.hud_style = HudStyle::Full;
+        state.recording_state = RecordingState::Idle;
+        state.last_latency_ms = Some(228);
+
+        let banner = format_status_banner(&state, Theme::Coral, 96);
+        assert!(banner.lines[1].contains("228ms"));
+        assert!(!banner.lines[2].contains("228ms"));
     }
 
     #[test]
