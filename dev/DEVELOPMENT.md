@@ -160,6 +160,9 @@ python3 dev/scripts/devctl.py mutation-score --threshold 0.80
 # Docs check (user-facing changes must update docs + changelog)
 python3 dev/scripts/devctl.py docs-check --user-facing
 
+# Governance hygiene audit (archive + ADR + scripts docs)
+python3 dev/scripts/devctl.py hygiene
+
 # Generate a report (JSON/MD)
 python3 dev/scripts/devctl.py report --format json --output /tmp/devctl-report.json
 
@@ -224,6 +227,7 @@ GitHub Actions run on every push and PR:
 |----------|------|----------------|
 | Rust TUI CI | `.github/workflows/rust_ci.yml` | Build, test, clippy, fmt |
 | Perf Smoke | `.github/workflows/perf_smoke.yml` | Perf smoke test + metrics verification |
+| Latency Guard | `.github/workflows/latency_guard.yml` | Synthetic latency regression guardrails |
 | Memory Guard | `.github/workflows/memory_guard.yml` | 20x memory guard loop |
 | Mutation Testing | `.github/workflows/mutation-testing.yml` | 80% minimum mutation score (scheduled) |
 
@@ -235,6 +239,9 @@ make ci
 
 # Full push/PR suite (adds perf smoke + memory guard loop)
 make prepush
+
+# Governance/doc architecture hygiene
+python3 dev/scripts/devctl.py hygiene
 ```
 
 **Manual equivalents (if you prefer direct cargo commands):**

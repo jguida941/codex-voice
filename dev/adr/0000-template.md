@@ -2,6 +2,8 @@
 
 Status: Proposed
 Date: YYYY-MM-DD
+Supersedes: ADR NNNN (optional)
+Superseded-by: ADR NNNN (required when Status is Superseded)
 
 ## Context
 

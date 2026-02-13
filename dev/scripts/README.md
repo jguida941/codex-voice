@@ -94,6 +94,7 @@ Notes:
 - `--pipe-command` can forward reports to another CLI that accepts stdin.
 - Release/homebrew subcommands require confirmation and refuse to run in CI by default.
 - Profiles for `check`: `ci`, `prepush`, `release`, `quick`.
+- `hygiene` audits archive naming, ADR status/index consistency, and scripts-doc coverage.
 
 Structure (high level):
 - `dev/scripts/devctl.py`: thin entrypoint wrapper
@@ -125,6 +126,9 @@ python3 dev/scripts/devctl.py mutation-score --threshold 0.80
 # Docs check (user-facing changes must update docs + changelog)
 python3 dev/scripts/devctl.py docs-check --user-facing
 
+# Governance hygiene audit (archive + ADR + scripts docs)
+python3 dev/scripts/devctl.py hygiene
+
 # Plot top 25% hotspots by directory
 python3 dev/scripts/devctl.py mutants --results-only --plot --plot-scope dir --plot-top-pct 25
 
@@ -150,6 +154,7 @@ make dev-prepush
 make dev-mutants
 make dev-mutation-score
 make dev-docs-check
+make dev-hygiene
 make dev-list
 make dev-status
 make dev-report

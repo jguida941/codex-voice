@@ -69,12 +69,17 @@ without re-litigating old context. Keep them short, factual, and specific.
 - **Deprecated** - No longer applies
 - **Superseded** - Replaced by another ADR (link to replacement)
 
+Status semantics:
+- `Deprecated`: decision is no longer recommended, but not directly replaced.
+- `Superseded`: decision was replaced by a newer ADR and must include `Superseded-by: ADR NNNN`.
+
 ## Process
 
 1. Copy the template and increment the number (next: 0023)
 2. Fill in Context, Decision, and Consequences
 3. Add links to related docs or code
-4. Update this index
+4. If replacing an older decision, set old ADR status to `Superseded` and add `Superseded-by: ADR NNNN`
+5. Update this index
 
 ## When to Write an ADR
 
@@ -90,3 +95,13 @@ Don't write an ADR for:
 - Minor refactoring
 - Single-module implementation details
 - Decisions already documented elsewhere
+
+## Hygiene checks
+
+Run this before/after pushes that touch ADRs or governance docs:
+
+```bash
+python3 dev/scripts/devctl.py hygiene
+```
+
+This validates ADR status fields, index synchronization, and superseded metadata.

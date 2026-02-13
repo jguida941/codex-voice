@@ -1,7 +1,7 @@
 # VoxTerm Developer Makefile
 # Run `make help` to see available commands
 
-.PHONY: help build run doctor fmt fmt-check lint check test test-bin test-perf test-mem test-mem-loop bench ci prepush mutants mutants-all mutants-audio mutants-config mutants-voice mutants-pty mutants-results mutants-raw dev-check dev-ci dev-prepush dev-mutants dev-mutants-results dev-mutation-score dev-docs-check dev-list dev-status dev-report release homebrew model-base model-small model-tiny clean clean-tests
+.PHONY: help build run doctor fmt fmt-check lint check test test-bin test-perf test-mem test-mem-loop bench ci prepush mutants mutants-all mutants-audio mutants-config mutants-voice mutants-pty mutants-results mutants-raw dev-check dev-ci dev-prepush dev-mutants dev-mutants-results dev-mutation-score dev-docs-check dev-hygiene dev-list dev-status dev-report release homebrew model-base model-small model-tiny clean clean-tests
 
 # Default target
 help:
@@ -36,6 +36,7 @@ help:
 	@echo "  make dev-mutants-results Show devctl mutants results"
 	@echo "  make dev-mutation-score  Run devctl mutation-score"
 	@echo "  make dev-docs-check    Run devctl docs-check --user-facing"
+	@echo "  make dev-hygiene      Run devctl hygiene audit"
 	@echo "  make dev-list          List devctl commands/profiles"
 	@echo "  make dev-status        Run devctl status"
 	@echo "  make dev-report        Run devctl report"
@@ -191,6 +192,9 @@ dev-mutation-score:
 
 dev-docs-check:
 	python3 dev/scripts/devctl.py docs-check --user-facing
+
+dev-hygiene:
+	python3 dev/scripts/devctl.py hygiene --format md
 
 dev-list:
 	python3 dev/scripts/devctl.py list

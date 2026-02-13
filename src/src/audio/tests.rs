@@ -27,6 +27,14 @@ const SAMPLE_RATE: u32 = TARGET_RATE;
 #[cfg(all(test, feature = "high-quality-audio"))]
 static RESAMPLE_TEST_LOCK: Mutex<()> = Mutex::new(());
 
+#[cfg(all(test, feature = "high-quality-audio"))]
+fn lock_resample_test() -> std::sync::MutexGuard<'static, ()> {
+    // If a prior assertion fails, keep later tests running with the inner lock.
+    RESAMPLE_TEST_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
 #[test]
 fn downmixes_multi_channel_audio() {
     let mut buf = Vec::new();
@@ -86,6 +94,7 @@ fn resample_to_target_rate_adjusts_length() {
 #[cfg(feature = "high-quality-audio")]
 #[test]
 fn rubato_resampler_matches_expected_length() {
+    let _guard = lock_resample_test();
     let input: Vec<f32> = (0..960).map(|i| (i as f32 * 0.01).sin()).collect();
     let result = resample_to_target_rate(&input, 48_000);
     let expected = (input.len() as f64 * 16_000f64 / 48_000f64).round() as usize;
@@ -102,6 +111,7 @@ fn rubato_resampler_matches_expected_length() {
 #[cfg(feature = "high-quality-audio")]
 #[test]
 fn rubato_resampler_handles_upsample() {
+    let _guard = lock_resample_test();
     let input: Vec<f32> = (0..160).map(|i| (i as f32 * 0.05).cos()).collect();
     let result = resample_to_target_rate(&input, 8_000);
     let expected = (input.len() as f64 * 16_000f64 / 8_000f64).round() as usize;
@@ -116,7 +126,7 @@ fn rubato_resampler_handles_upsample() {
 #[cfg(feature = "high-quality-audio")]
 #[test]
 fn rubato_accepts_valid_rate_without_forced_error() {
-    let _guard = RESAMPLE_TEST_LOCK.lock().unwrap();
+    let _guard = lock_resample_test();
     FORCE_RUBATO_ERROR.store(false, Ordering::Relaxed);
     let input: Vec<f32> = (0..256).map(|i| (i as f32 * 0.03).sin()).collect();
     let output = resample_with_rubato(&input, 48_000).expect("expected rubato success");
@@ -128,7 +138,7 @@ fn rubato_accepts_valid_rate_without_forced_error() {
 #[cfg(feature = "high-quality-audio")]
 #[test]
 fn rubato_rejects_out_of_bounds_rates() {
-    let _guard = RESAMPLE_TEST_LOCK.lock().unwrap();
+    let _guard = lock_resample_test();
     let input = vec![0.1f32; 64];
 
     FORCE_RUBATO_ERROR.store(true, Ordering::Relaxed);
@@ -149,7 +159,7 @@ fn rubato_rejects_out_of_bounds_rates() {
 #[cfg(feature = "high-quality-audio")]
 #[test]
 fn rubato_accepts_boundary_rates() {
-    let _guard = RESAMPLE_TEST_LOCK.lock().unwrap();
+    let _guard = lock_resample_test();
     let input = vec![0.1f32; 64];
 
     FORCE_RUBATO_ERROR.store(true, Ordering::Relaxed);
@@ -168,6 +178,7 @@ fn rubato_accepts_boundary_rates() {
 #[cfg(feature = "high-quality-audio")]
 #[test]
 fn rubato_resampler_is_not_shorter_than_expected() {
+    let _guard = lock_resample_test();
     let input: Vec<f32> = (0..480).map(|i| (i as f32 * 0.02).sin()).collect();
     let result = resample_to_target_rate(&input, 48_000);
     let expected = (input.len() as f64 * 16_000f64 / 48_000f64).round() as usize;
@@ -177,6 +188,7 @@ fn rubato_resampler_is_not_shorter_than_expected() {
 #[cfg(feature = "high-quality-audio")]
 #[test]
 fn rubato_rejects_aliasing_energy() {
+    let _guard = lock_resample_test();
     let signal = multi_tone_signal(&[(6_000.0, 1.0), (12_000.0, 1.0)], 48_000, 0.1);
     let resampled = resample_to_target_rate(&signal, 48_000);
     let wanted = goertzel_power(&resampled, SAMPLE_RATE, 6_000.0);
@@ -194,7 +206,7 @@ fn rubato_rejects_aliasing_energy() {
 #[cfg(feature = "high-quality-audio")]
 #[test]
 fn resample_to_target_rate_avoids_fallback_for_valid_input() {
-    let _guard = RESAMPLE_TEST_LOCK.lock().unwrap();
+    let _guard = lock_resample_test();
     RESAMPLE_FALLBACK_COUNT.store(0, Ordering::Relaxed);
     RESAMPLE_WARN_COUNT.store(0, Ordering::Relaxed);
     RESAMPLER_WARNING_SHOWN.store(false, Ordering::Relaxed);
@@ -208,7 +220,7 @@ fn resample_to_target_rate_avoids_fallback_for_valid_input() {
 #[cfg(feature = "high-quality-audio")]
 #[test]
 fn resample_to_target_rate_warns_once_on_fallback() {
-    let _guard = RESAMPLE_TEST_LOCK.lock().unwrap();
+    let _guard = lock_resample_test();
     RESAMPLE_FALLBACK_COUNT.store(0, Ordering::Relaxed);
     RESAMPLE_WARN_COUNT.store(0, Ordering::Relaxed);
     RESAMPLER_WARNING_SHOWN.store(false, Ordering::Relaxed);

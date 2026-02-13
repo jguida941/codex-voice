@@ -3,7 +3,7 @@
 import argparse
 import sys
 
-from .commands import check, docs_check, homebrew, listing, mutation_score, mutants, release, report, status
+from .commands import check, docs_check, homebrew, hygiene, listing, mutation_score, mutants, release, report, status
 from .config import DEFAULT_CI_LIMIT, DEFAULT_MEM_ITERATIONS, DEFAULT_MUTANTS_TIMEOUT, DEFAULT_MUTATION_THRESHOLD
 
 
@@ -121,6 +121,13 @@ def build_parser() -> argparse.ArgumentParser:
     list_cmd.add_argument("--format", choices=["json", "md"], default="md")
     list_cmd.add_argument("--output")
 
+    # hygiene
+    hygiene_cmd = sub.add_parser("hygiene", help="Audit archive/ADR/scripts governance hygiene")
+    hygiene_cmd.add_argument("--format", choices=["json", "md"], default="md")
+    hygiene_cmd.add_argument("--output")
+    hygiene_cmd.add_argument("--pipe-command", help="Pipe report output to a command")
+    hygiene_cmd.add_argument("--pipe-args", nargs="*", help="Extra args for pipe command")
+
     return parser
 
 
@@ -151,6 +158,8 @@ def main() -> int:
         return report.run(args)
     if args.command == "list":
         return listing.run(args)
+    if args.command == "hygiene":
+        return hygiene.run(args)
 
     return 0
 

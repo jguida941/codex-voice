@@ -225,6 +225,7 @@ When workflow mechanics change (dev loop, CI lanes, release flow), update this s
 3. Run local verification (`python3 dev/scripts/devctl.py check --profile ci` minimum).
 4. For latency-sensitive work, also run `./dev/scripts/tests/measure_latency.sh --ci-guard`.
 5. Update docs (`dev/CHANGELOG.md` for user-facing changes, plus related guides/dev docs).
+6. Run governance hygiene audit (`python3 dev/scripts/devctl.py hygiene`) for archive/ADR/scripts sync.
 
 Primary command entrypoint: `dev/scripts/devctl.py`.
 

@@ -211,6 +211,7 @@ Double-click `app/macos/VoxTerm.app`, pick a folder, it opens Terminal with VoxT
 
 PRs welcome. See [CONTRIBUTING.md](.github/CONTRIBUTING.md).
 Before opening a PR, run `python3 dev/scripts/devctl.py check --profile prepush`.
+For governance/docs consistency, also run `python3 dev/scripts/devctl.py hygiene`.
 
 ## License
 

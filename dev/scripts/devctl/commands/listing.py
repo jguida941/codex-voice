@@ -10,6 +10,7 @@ COMMANDS = [
     "mutants",
     "mutation-score",
     "docs-check",
+    "hygiene",
     "release",
     "homebrew",
     "status",

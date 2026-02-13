@@ -13,6 +13,10 @@ Note: Some historical entries reference internal documents that are not publishe
 - Document latency baseline results in `dev/archive/2026-02-13-latency-baseline.md`.
 - Document the latency guard workflow and command usage in `dev/scripts/README.md`.
 
+### Developer Experience
+- Add `python3 dev/scripts/devctl.py hygiene` to audit archive naming, ADR status/index consistency, and `dev/scripts` documentation coverage.
+- Add archive retention and ADR supersession lifecycle policy updates across `AGENTS.md`, `dev/archive/README.md`, and `dev/adr/README.md`.
+
 ### UX
 - Expand Claude prompt-ready matching to recognize confirmation prompts (for example `[Y/n]`) in addition to bare `>` prompt lines.
 - Reserve the terminal scroll region above the HUD/overlay so long PTY output does not scroll through the bottom HUD rows.
