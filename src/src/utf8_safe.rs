@@ -1,4 +1,4 @@
-//! UTF-8 safe string slicing and manipulation utilities
+//! UTF-8-safe slicing helpers so terminal rendering never panics on multibyte text.
 //!
 //! These functions ensure all string operations respect UTF-8 character boundaries
 //! to prevent panics when slicing strings containing multi-byte characters.

@@ -1,4 +1,4 @@
-//! Latency indicator HUD module.
+//! HUD latency module so recent transcription latency remains visible to users.
 //!
 //! Shows the last transcription latency: "◷ 1.2s"
 

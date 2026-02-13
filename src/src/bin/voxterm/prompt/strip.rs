@@ -1,3 +1,5 @@
+//! ANSI/control stripping so prompt matching runs on stable plain-text buffers.
+
 use vte::{Parser as VteParser, Perform};
 
 pub(super) fn strip_ansi_preserve_controls(bytes: &[u8]) -> Vec<u8> {

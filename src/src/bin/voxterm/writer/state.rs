@@ -1,3 +1,5 @@
+//! Writer thread state so status, overlays, and cursor movement stay synchronized.
+
 use crossterm::terminal::size as terminal_size;
 use std::io::{self, Write};
 use std::time::{Duration, Instant};

@@ -1,3 +1,5 @@
+//! PTY read/write loops that keep stream forwarding robust under partial escapes.
+
 use crate::log_debug;
 use anyhow::{anyhow, Result};
 use crossbeam_channel::Sender;

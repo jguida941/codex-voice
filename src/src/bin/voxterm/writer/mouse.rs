@@ -1,3 +1,5 @@
+//! Mouse-tracking escape-sequence controls so HUD click handling is explicit.
+
 use std::io::Write;
 use voxterm::log_debug;
 

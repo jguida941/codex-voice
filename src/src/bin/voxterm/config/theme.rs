@@ -1,3 +1,5 @@
+//! Theme resolution policy so color mode, flags, and backend defaults agree.
+
 use crate::color_mode::ColorMode;
 use crate::config::cli::OverlayConfig;
 use crate::theme::Theme;

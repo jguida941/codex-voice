@@ -1,3 +1,5 @@
+//! Bounded audio-frame dispatch that isolates callback pressure from processing loops.
+
 use crossbeam_channel::{Sender, TrySendError};
 use std::sync::{
     atomic::{AtomicUsize, Ordering},
@@ -20,7 +22,8 @@ pub(super) fn append_downmixed_samples<T, F>(
         return;
     }
 
-    // Average each interleaved frame to produce a mono representation.
+    // Average each interleaved frame so VAD/STT see one stable mono stream
+    // regardless of hardware channel layout.
     let mut acc = 0.0f32;
     let mut count = 0usize;
     for sample in data.iter().copied() {

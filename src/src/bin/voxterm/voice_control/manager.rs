@@ -1,3 +1,5 @@
+//! Voice-capture manager that centralizes lifecycle, config updates, and cancellation.
+
 use anyhow::{anyhow, Result};
 use crossbeam_channel::Sender;
 use std::sync::{Arc, Mutex};

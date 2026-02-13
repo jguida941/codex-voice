@@ -1,3 +1,5 @@
+//! ASCII meter formatting so live audio levels are readable in terminal HUDs.
+
 use crate::theme::{Theme, ThemeColors};
 
 use super::{AudioLevel, MeterConfig};

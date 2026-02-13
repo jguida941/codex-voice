@@ -1,4 +1,4 @@
-//! Enhanced status line layout with sections.
+//! Status-line module wiring that keeps multi-row HUD formatting composable.
 //!
 //! Provides a structured status line with mode indicator, pipeline tag,
 //! sensitivity level, status message, and keyboard shortcuts.

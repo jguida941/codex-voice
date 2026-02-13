@@ -1,4 +1,4 @@
-//! Claude Code backend implementation.
+//! Claude backend definition so Claude Code fits the shared backend interface.
 
 use super::AiBackend;
 

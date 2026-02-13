@@ -1,3 +1,5 @@
+//! Synthetic benchmark binary that tracks voice-capture and VAD latency regressions.
+
 use std::f32::consts::PI;
 
 #[cfg(not(feature = "vad_earshot"))]

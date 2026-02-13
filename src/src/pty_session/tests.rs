@@ -1,3 +1,5 @@
+//! Regression tests for PTY I/O, OSC filtering, and process lifecycle behavior.
+
 use super::counters::*;
 use super::io::*;
 use super::osc::*;

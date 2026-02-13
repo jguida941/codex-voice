@@ -1,3 +1,5 @@
+//! PTY loop counters used to detect backpressure and guard regressions in tests.
+
 use std::time::{Duration, Instant};
 
 #[cfg(any(test, feature = "mutants"))]

@@ -1,3 +1,5 @@
+//! Legacy TUI logging setup so diagnostics match overlay logging conventions.
+
 use crate::config::AppConfig;
 use crate::telemetry;
 use std::{

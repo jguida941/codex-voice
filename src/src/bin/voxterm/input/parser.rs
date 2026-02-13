@@ -1,3 +1,5 @@
+//! Byte-stream parser so terminal escape sequences become stable overlay events.
+
 use crate::input::event::InputEvent;
 use crate::input::mouse::{
     is_mouse_sequence, is_x10_mouse_prefix, parse_mouse_event, MouseEventKind,

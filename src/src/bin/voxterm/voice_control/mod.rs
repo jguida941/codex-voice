@@ -1,3 +1,5 @@
+//! Voice-capture subsystem wiring so start/stop/drain share consistent policy.
+
 mod drain;
 mod manager;
 mod pipeline;

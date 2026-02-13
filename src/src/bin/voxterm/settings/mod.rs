@@ -1,4 +1,4 @@
-//! Settings overlay with arrow-key navigation.
+//! Settings overlay wiring so menu rendering and actions evolve together.
 
 mod items;
 mod render;

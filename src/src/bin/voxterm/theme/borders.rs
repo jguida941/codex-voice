@@ -1,3 +1,5 @@
+//! Border glyph sets so HUD framing can vary by theme without layout changes.
+
 /// Border character set for drawing boxes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BorderSet {

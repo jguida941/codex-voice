@@ -1,3 +1,5 @@
+//! Responsive status-line layout breakpoints so HUD content degrades gracefully.
+
 use crate::config::HudStyle;
 
 /// Terminal width breakpoints for responsive layout.

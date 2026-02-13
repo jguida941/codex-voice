@@ -1,4 +1,4 @@
-//! Progress bar and spinner utilities.
+//! Progress rendering utilities so long tasks remain visible without blocking output.
 //!
 //! Provides visual progress indicators for long-running operations.
 

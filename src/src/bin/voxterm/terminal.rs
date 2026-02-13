@@ -1,3 +1,5 @@
+//! Terminal resize handling so PTY geometry stays aligned with the visible HUD.
+
 use anyhow::{anyhow, Result};
 use crossterm::terminal::size as terminal_size;
 use std::sync::atomic::{AtomicBool, Ordering};

@@ -1,4 +1,4 @@
-//! Codex CLI backend implementation.
+//! Codex backend definition so Codex CLI plugs into the shared backend registry.
 
 use super::AiBackend;
 

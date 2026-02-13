@@ -1,4 +1,4 @@
-//! Codex-specific TUI shell for the voxterm pipeline.
+//! Legacy Codex-only TUI shell retained for compatibility and focused testing.
 //!
 //! This mirrors the Python prototype but wraps it in a full-screen ratatui
 //! experience for the legacy Codex CLI path.

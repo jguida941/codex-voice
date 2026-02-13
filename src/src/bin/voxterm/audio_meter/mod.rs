@@ -1,4 +1,4 @@
-//! Visual audio level meter with ASCII bars.
+//! Audio-meter module so mic level feedback stays consistent across HUD views.
 //!
 //! Provides visual representation of audio levels for mic meter and real-time display.
 

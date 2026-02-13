@@ -1,3 +1,5 @@
+//! Transcript delivery flow so queued text reaches PTY sessions with clear status updates.
+
 use anyhow::Result;
 use crossbeam_channel::Sender;
 use std::collections::VecDeque;

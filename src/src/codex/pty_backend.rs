@@ -1,3 +1,5 @@
+//! PTY-backed Codex runner so interactive sessions can stream structured events.
+
 use super::backend::{
     BoundedEventQueue, CancelToken, CodexBackendError, CodexCallError, CodexEvent, CodexEventKind,
     CodexJob, CodexJobRunner, CodexJobStats, CodexRequest, EventSender, JobId, RequestMode,
@@ -70,6 +72,7 @@ pub(crate) fn reset_session_count_reset() {
 }
 
 impl CodexCliBackend {
+    /// Build a backend instance using the provided validated app config.
     pub fn new(config: AppConfig) -> Self {
         let working_dir = env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
         let state = CodexCliBackendState {
@@ -585,6 +588,7 @@ pub fn sanitize_pty_output(raw: &[u8]) -> String {
     text
 }
 
+/// Split normalized text into UI-ready lines for terminal rendering.
 pub fn prepare_for_display(text: &str) -> Vec<String> {
     text.lines().map(|line| line.to_string()).collect()
 }

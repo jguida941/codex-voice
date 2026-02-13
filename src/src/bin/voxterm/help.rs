@@ -1,4 +1,4 @@
-//! Help overlay for keyboard shortcuts.
+//! Help overlay that documents live keyboard shortcuts directly in the terminal UI.
 //!
 //! Displays available keyboard shortcuts in a formatted panel.
 

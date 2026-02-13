@@ -1,4 +1,4 @@
-//! Audio capture and voice activity detection (VAD) pipeline.
+//! Audio pipeline wiring that feeds capture, VAD, resampling, and recorder stages.
 //!
 //! Provides microphone recording with automatic silence detection. Audio is
 //! captured via CPAL, resampled to 16kHz mono (Whisper's expected format),

@@ -1,4 +1,4 @@
-//! Status line styling with ANSI colors and unicode indicators.
+//! Status styling rules that keep message severity visually consistent.
 //!
 //! Provides visual differentiation for different status message types
 //! in the overlay status line.

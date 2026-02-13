@@ -1,3 +1,5 @@
+//! Button-action handlers so HUD interactions mutate runtime state consistently.
+
 use std::time::{Duration, Instant};
 
 use crossbeam_channel::Sender;

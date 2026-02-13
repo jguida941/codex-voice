@@ -1,4 +1,4 @@
-//! Queue depth HUD module.
+//! HUD queue module so pending transcript depth is visible at a glance.
 //!
 //! Shows the number of pending transcripts in queue: "Q: 2"
 

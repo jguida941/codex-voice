@@ -1,3 +1,5 @@
+//! Theme-switch operations so shortcuts and buttons share one mutation path.
+
 use std::time::{Duration, Instant};
 
 use crossbeam_channel::Sender;

@@ -1,3 +1,10 @@
+//! Sample-rate conversion that normalizes device audio for the STT pipeline.
+//!
+//! Devices report many input rates, but Whisper expects a stable target rate.
+//! This module favors resilient, low-latency conversion over perfect fidelity:
+//! we try the high-quality `rubato` path when enabled, then fall back to a
+//! predictable linear/FIR path so capture never fails because of resampling.
+
 use super::TARGET_RATE;
 #[cfg(feature = "high-quality-audio")]
 use crate::log_debug;
@@ -12,7 +19,8 @@ use std::sync::atomic::AtomicUsize;
 #[cfg(feature = "high-quality-audio")]
 use std::sync::atomic::{AtomicBool, Ordering};
 
-// Derived from 16 kHz target and practical ratio bounds (~0.01x .. 8x).
+// Defensive bounds to reject obviously broken device rates before they create
+// pathological ratios or huge allocations in resampler internals.
 pub(super) const MIN_DEVICE_RATE: u32 = 2_000;
 pub(super) const MAX_DEVICE_RATE: u32 = 1_600_000;
 pub(super) const MIN_RESAMPLE_RATIO: f64 = TARGET_RATE as f64 / MAX_DEVICE_RATE as f64;
@@ -28,10 +36,14 @@ pub(super) static RESAMPLE_WARN_COUNT: AtomicUsize = AtomicUsize::new(0);
 #[cfg(all(test, feature = "high-quality-audio"))]
 pub(super) static FORCE_RUBATO_ERROR: AtomicBool = AtomicBool::new(false);
 
+/// Convert mono PCM to the pipeline target sample rate.
+///
+/// We treat resampling errors as recoverable because dropping a transcript is
+/// worse UX than a lower-fidelity fallback conversion.
 pub(super) fn resample_to_target_rate(input: &[f32], device_rate: u32) -> Vec<f32> {
-    // Guard rails
+    // Fast-path identity cases to avoid unnecessary work in the hot path.
     if device_rate == 0 {
-        return input.to_vec(); // avoid div-by-zero elsewhere
+        return input.to_vec();
     }
     if input.is_empty() {
         return input.to_vec();
@@ -47,7 +59,8 @@ pub(super) fn resample_to_target_rate(input: &[f32], device_rate: u32) -> Vec<f3
             Err(err) => {
                 #[cfg(all(test, feature = "high-quality-audio"))]
                 RESAMPLE_FALLBACK_COUNT.fetch_add(1, Ordering::Relaxed);
-                // CRITICAL: Use AcqRel ordering to prevent data race
+                // Emit one warning globally; AcqRel makes this deterministic
+                // across threads and test assertions.
                 if !RESAMPLER_WARNING_SHOWN.swap(true, Ordering::AcqRel) {
                     #[cfg(all(test, feature = "high-quality-audio"))]
                     RESAMPLE_WARN_COUNT.fetch_add(1, Ordering::Relaxed);
@@ -68,7 +81,8 @@ pub(super) fn resample_to_target_rate(input: &[f32], device_rate: u32) -> Vec<f3
 
 #[cfg(feature = "high-quality-audio")]
 pub(super) fn resample_with_rubato(input: &[f32], device_rate: u32) -> Result<Vec<f32>> {
-    // Defensive early guard
+    // Keep these early outs aligned with the basic path so behavior is stable
+    // regardless of feature flags.
     if device_rate == 0 {
         return Ok(input.to_vec());
     }
@@ -94,33 +108,38 @@ pub(super) fn resample_with_rubato(input: &[f32], device_rate: u32) -> Result<Ve
         return Err(anyhow!("forced rubato error"));
     }
 
+    // Small fixed chunks keep latency bounded and avoid per-chunk allocations.
     let chunk = 256usize;
     let params = InterpolationParameters {
         sinc_len: 64,
-        f_cutoff: 0.90, // safer cutoff
+        // Leave Nyquist headroom to reduce ringing/aliasing with finite taps.
+        f_cutoff: 0.90,
         interpolation: InterpolationType::Cubic,
         oversampling_factor: 256,
         window: WindowFunction::BlackmanHarris2,
     };
 
-    //           ratio,  drift, params, chunk_size, channels
+    // Drift tolerance lets long captures tolerate small device clock mismatch.
     let mut rs = SincFixedIn::<f32>::new(ratio, 2.0, params, chunk, 1)
         .map_err(|e| anyhow!("failed to construct sinc resampler: {e:?}"))?;
 
-    // pre-allocate
+    // Reserve based on worst-case ratio to avoid allocator churn while recording.
     let max_len = ((input.len() as f64) * MAX_RESAMPLE_RATIO).ceil() as usize;
     let mut expect = ((input.len() as f64) * ratio).round() as usize;
     expect = expect.clamp(1, max_len).saturating_add(8);
     let mut out = Vec::with_capacity(expect);
 
     let mut idx = 0usize;
-    let mut seg = vec![0.0f32; chunk]; // reuse buffer
+    // Reuse a single chunk buffer so this loop stays allocation-free.
+    let mut seg = vec![0.0f32; chunk];
     while idx < input.len() {
         let end = (idx + chunk).min(input.len());
         if end == idx {
             return Err(anyhow!("resampler made no progress"));
         }
         let len = end - idx;
+        // Pad the tail with the last sample so the final partial chunk does not
+        // introduce a hard zero edge (audible click) at chunk boundaries.
         let pad = input.get(end.wrapping_sub(1)).copied().unwrap_or(0.0);
         seg.fill(pad);
         seg[..len].copy_from_slice(&input[idx..end]);
@@ -132,6 +151,8 @@ pub(super) fn resample_with_rubato(input: &[f32], device_rate: u32) -> Result<Ve
     }
 
     match out.len().cmp(&expect) {
+        // Keep frame sizing deterministic for downstream code that assumes
+        // stable frame lengths across capture iterations.
         CmpOrdering::Greater => {
             out.truncate(expect);
         }
@@ -144,9 +165,10 @@ pub(super) fn resample_with_rubato(input: &[f32], device_rate: u32) -> Result<Ve
 }
 
 pub(super) fn basic_resample(input: &[f32], device_rate: u32) -> Vec<f32> {
-    // Guard rails
+    // Mirror the same safety guards as the rubato path so callers get
+    // predictable behavior no matter which backend is compiled in.
     if device_rate == 0 {
-        return input.to_vec(); // avoid div-by-zero elsewhere
+        return input.to_vec();
     }
     if input.is_empty() {
         return input.to_vec();
@@ -155,7 +177,7 @@ pub(super) fn basic_resample(input: &[f32], device_rate: u32) -> Vec<f32> {
         return input.to_vec();
     }
 
-    // Ratio > 1 means upsampling, < 1 means downsampling.
+    // Ratio > 1 up-samples; ratio < 1 down-samples.
     let mut ratio = TARGET_RATE as f32 / device_rate as f32;
     ratio = ratio.clamp(MIN_RESAMPLE_RATIO as f32, MAX_RESAMPLE_RATIO as f32);
     let filtered = if device_rate > TARGET_RATE {
@@ -222,7 +244,8 @@ pub(super) fn low_pass_fir(input: &[f32], device_rate: u32, taps: usize) -> Vec<
     for n in 0..input.len() {
         let mut acc = 0.0;
         for (k, coeff) in coeffs.iter().enumerate() {
-            // Use saturating arithmetic to prevent underflow
+            // Checked indexing models zero-padding at the boundaries without
+            // signed index math or underflow risk.
             if let Some(idx) = n.checked_add(k).and_then(|sum| sum.checked_sub(half)) {
                 if let Some(sample) = input.get(idx) {
                     acc += *sample * coeff;

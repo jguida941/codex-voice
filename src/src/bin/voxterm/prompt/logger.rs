@@ -1,3 +1,5 @@
+//! Prompt-observation logging so readiness heuristics can be tuned with evidence.
+
 use std::env;
 use std::fs;
 use std::io::Write;

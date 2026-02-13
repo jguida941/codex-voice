@@ -1,3 +1,5 @@
+//! Regression tests for legacy TUI state transitions and rendering behavior.
+
 #[cfg(test)]
 use super::set_logging_for_tests;
 use super::state::{CodexApp, OUTPUT_MAX_LINES};

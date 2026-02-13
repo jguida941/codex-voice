@@ -1,3 +1,5 @@
+//! Status-line formatter so full/minimal HUD modes share consistent semantics.
+
 use std::sync::OnceLock;
 
 use crate::audio_meter::format_waveform;

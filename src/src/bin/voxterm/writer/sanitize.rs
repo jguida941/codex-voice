@@ -1,3 +1,5 @@
+//! Status-string sanitization so control characters never corrupt terminal output.
+
 pub(super) fn sanitize_status(text: &str) -> String {
     text.chars()
         .map(|ch| {

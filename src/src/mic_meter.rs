@@ -1,3 +1,5 @@
+//! Interactive mic calibration so users can tune VAD thresholds before recording.
+
 use crate::audio::Recorder;
 use crate::config::{AppConfig, MAX_MIC_METER_SAMPLE_MS, MIN_MIC_METER_SAMPLE_MS};
 use anyhow::{anyhow, Result};
@@ -86,6 +88,7 @@ fn validate_sample_ms(label: &str, value: u64) -> Result<()> {
     Ok(())
 }
 
+/// Run interactive mic calibration and print a suggested VAD threshold.
 pub fn run_mic_meter(config: &AppConfig) -> Result<()> {
     validate_sample_ms("ambient", config.mic_meter_ambient_ms)?;
     validate_sample_ms("speech", config.mic_meter_speech_ms)?;

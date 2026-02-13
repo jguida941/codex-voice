@@ -1,3 +1,5 @@
+//! IPC session lifecycle orchestration for long-lived backend command execution.
+
 use crate::auth;
 use crate::codex::{sanitize_pty_output, CodexCliBackend, CodexEvent, CodexEventKind, CodexJob};
 use crate::config::AppConfig;
@@ -22,7 +24,7 @@ use super::router::{
 };
 
 // ============================================================================
-// PTY TOGGLE - Set to false to disable PTY completely
+// PTY toggle for tests/mutants so IPC paths can run without PTY dependencies.
 // ============================================================================
 #[cfg(any(test, feature = "mutants"))]
 const USE_PTY: bool = false;
@@ -30,7 +32,7 @@ const USE_PTY: bool = false;
 const USE_PTY: bool = true;
 
 // ============================================================================
-// IPC State
+// IPC state owned by the event loop.
 // ============================================================================
 
 pub(super) struct IpcState {
@@ -80,13 +82,13 @@ pub(super) struct AuthJob {
 
 impl IpcState {
     pub(super) fn new(mut config: AppConfig) -> Self {
-        // Force PTY off if toggle is disabled
+        // Keep test/mutant runs deterministic by disabling PTY when toggled off.
         if !USE_PTY {
             config.persistent_codex = false;
             log_debug("PTY disabled via USE_PTY toggle");
         }
 
-        // Generate unique session ID
+        // Session id is emitted in capabilities so clients can correlate events.
         let session_id = format!(
             "{:x}",
             std::time::SystemTime::now()
@@ -95,19 +97,19 @@ impl IpcState {
                 .as_millis()
         );
 
-        // Use validated Claude command from config
+        // Use already validated command values from config parsing.
         let claude_cmd = config.claude_cmd.clone();
 
-        // Initialize Codex backend
+        // Backend is shared so concurrent jobs can be cancelled from multiple paths.
         let codex_cli_backend = Arc::new(CodexCliBackend::new(config.clone()));
 
-        // Get default provider from env or config
+        // Allow env override so wrappers can pin provider without extra flags.
         let default_provider = env::var("VOXTERM_PROVIDER")
             .ok()
             .and_then(|s| Provider::from_str(&s))
             .unwrap_or(Provider::Codex);
 
-        // Initialize audio recorder
+        // Recorder/transcriber are optional so IPC still works without voice dependencies.
         let recorder = match audio::Recorder::new(config.input_device.as_deref()) {
             Ok(r) => {
                 log_debug("Audio recorder initialized");
@@ -119,7 +121,7 @@ impl IpcState {
             }
         };
 
-        // Initialize STT
+        // Load STT lazily from config path; failures remain recoverable.
         let transcriber = if let Some(model_path) = &config.whisper_model_path {
             match stt::Transcriber::new(model_path) {
                 Ok(t) => {
@@ -154,7 +156,7 @@ impl IpcState {
     pub(super) fn emit_capabilities(&self) {
         let providers = vec!["codex".to_string(), "claude".to_string()];
 
-        // Get actual device name from recorder if available
+        // Device name is included in capabilities for client-side diagnostics.
         let input_device = self.recorder.as_ref().map(|r| {
             r.lock()
                 .map(|recorder| recorder.device_name())
@@ -181,7 +183,7 @@ impl IpcState {
 }
 
 // ============================================================================
-// Event Sending
+// Event sending
 // ============================================================================
 
 pub(super) fn send_event(event: &IpcEvent) {
@@ -459,6 +461,7 @@ pub(super) fn run_auth_flow(provider: Provider, codex_cmd: &str, claude_cmd: &st
 // Main Event Loop
 // ============================================================================
 
+/// Run newline-delimited JSON IPC mode until stdin closes or loop exits.
 pub fn run_ipc_mode(config: AppConfig) -> Result<()> {
     log_debug("Starting JSON IPC mode (non-blocking)");
 

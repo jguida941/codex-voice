@@ -1,4 +1,4 @@
-//! HUD module system for the voice overlay.
+//! HUD module registry so status widgets can evolve without coupling render logic.
 //!
 //! Provides a modular, composable architecture for rendering HUD elements
 //! in the status line. Each module can render its own section and declare

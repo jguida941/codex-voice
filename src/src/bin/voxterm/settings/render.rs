@@ -1,3 +1,5 @@
+//! Settings panel rendering so menu state maps to stable terminal output.
+
 use crate::config::{HudRightPanel, HudStyle, VoiceSendMode};
 use crate::status_line::Pipeline;
 use crate::theme::ThemeColors;

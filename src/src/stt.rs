@@ -1,4 +1,4 @@
-//! Whisper speech-to-text integration.
+//! Whisper speech-to-text integration so capture results become local transcripts.
 //!
 //! Wraps `whisper_rs` to provide a simple transcription API. The model is loaded
 //! once and reused across captures to avoid repeated initialization overhead.

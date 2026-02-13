@@ -1,10 +1,11 @@
-# Overlay Competitor Comparison (2026-02-13)
+# Overlay Strategy Research (2026-02-13)
 
-This document compares VoxTerm against nearby products in the "voice + AI CLI"
-space. It is intended for product positioning and roadmap prioritization.
+This document consolidates competitor analysis and overlay enhancement research
+for VoxTerm's "voice + AI CLI" strategy. It is intended for product positioning
+and roadmap prioritization.
 
 ## Plan status
-- Reference research only (market/competitor analysis).
+- Reference research only (market/competitor + UX analysis).
 - The single active execution plan is `dev/active/MASTER_PLAN.md`.
 - Deferred work is tracked in `dev/deferred/`.
 
@@ -189,6 +190,70 @@ Target the 5-10% of developers with RSI:
 - User-trainable corrections (persistent word substitution rules)
 - Context-aware punctuation (code mode vs. documentation mode)
 
+## Overlay UX Enhancement Audit (2026-02-13)
+
+### Current runtime UI coverage
+- 11 color themes with brand-specific palettes
+- 3 HUD styles (Full, Minimal, Hidden) with responsive layout (25-120+ chars)
+- Modular HUD system with 4 pluggable modules (Mode, Meter, Latency, Queue)
+- 3 real-time audio viz modes (Ribbon, Dots, Heartbeat)
+- 3 animations (pulsing record indicator, braille spinner, heartbeat)
+- Interactive settings overlay (11 items, keyboard + mouse navigation)
+- Clickable HUD buttons with mouse position tracking
+- Help overlay, theme picker with live preview
+- Startup splash with ASCII art + gradient treatment
+- Mic calibration wizard
+- Terminal capability auto-detection (TrueColor/256/ANSI16/None, NO_COLOR)
+
+### Current runtime UI gaps
+1. No streaming/live transcript preview
+2. No transcript history UI
+3. No voice macros UI
+4. No AI command generation UI
+5. No color gradients in runtime HUD rendering (splash-only treatment today)
+6. No animation easing/tweening (frame-based only)
+7. No spectrum analyzer or frequency visualization
+8. No accessibility suite (screen reader/fatigue guidance)
+9. No waveform peak detection
+10. No toast notification system (inline status text only)
+
+### Overall assessment
+Current polish is strong but still short of a "premium" interaction layer.
+The existing modular HUD architecture is a solid base for incremental upgrades.
+
+## Overlay UX Enhancement Candidates (Research Intake)
+
+These items are research-derived references. They are not execution authority by
+themselves; implementation priority and status are tracked in `MASTER_PLAN.md`.
+
+| Candidate | Complexity | Impact | Notes |
+|---|---|---|---|
+| TachyonFX animation system | Medium | High | Fade, dissolve, slide, color sweeps for panel/state transitions |
+| Sparkline/chart telemetry widgets | Easy-Medium | High | Ratatui-native sparkline/gauge/chart for richer HUD metrics |
+| Toast notifications | Medium | High | Auto-dismissing queue/error/success toasts with history |
+| Command palette (fzf-style) | Medium | High | Searchable overlay command/action surface for discoverability |
+| Siri/Alexa-style voice-state visuals | Medium | High | Distinct idle/listening/processing/done visuals |
+| Adaptive/contextual HUD | Medium | Medium | Expand/shrink HUD by state with contextual badges |
+| Session dashboard/stats panel | Medium | Medium | Session analytics with optional export |
+| Multi-modal input panel | Medium-Hard | High | Hybrid voice + keyboard correction workflow |
+| Fig-style autocomplete dropdown | Medium-Hard | Medium | Contextual macro/suggestion completion overlays |
+| Block-based output model | Hard | High | Warp-style command/result blocks; major architecture shift |
+
+### Priority recommendation
+
+| # | Feature | Complexity | Impact | Why |
+|---|---|---|---|---|
+| 1 | TachyonFX animations | Medium | High | Immediate perceived quality lift with ratatui-native effects |
+| 2 | Sparkline audio/latency telemetry | Easy | High | Uses built-in widgets and existing metrics streams |
+| 3 | Toast notifications | Medium | High | Improves signal delivery over transient inline text |
+| 4 | Command palette | Medium | High | High discoverability gain for growing control surface |
+| 5 | Voice state visualization | Medium | High | Makes listening/transcribe states more legible |
+| 6 | Adaptive HUD | Medium | Medium | Better information density with less idle clutter |
+| 7 | Session dashboard | Medium | Medium | Exposes already-collected signals to users |
+| 8 | Multi-modal input panel | Hard | High | Enables hybrid voice + keyboard correction flow |
+| 9 | Fig-style autocomplete | Hard | Medium | Useful but positioning constraints in PTY wrapper |
+| 10 | Block-based output | Hard | High | High upside but highest architecture risk |
+
 ## VoxTerm Current Strengths (Audit Summary, 2026-02-12)
 
 - **Architecture**: Clean PTY passthrough; bounded crossbeam channels; serialized
@@ -271,10 +336,35 @@ Target the 5-10% of developers with RSI:
 - Vibe Coding (voice + AI): https://wisprflow.ai/vibe-coding
 - AI terminal renaissance: https://instil.co/blog/ai-predictions-2026
 
+### Overlay UX / TUI references
+- TachyonFX crate: https://github.com/ratatui/tachyonfx
+- TachyonFX ecosystem page: https://ratatui.rs/ecosystem/tachyonfx/
+- TachyonFX docs: https://docs.rs/tachyonfx/latest/tachyonfx/
+- Ratatui widget showcase: https://ratatui.rs/showcase/widgets/
+- Sparkline example: https://ratatui.rs/examples/widgets/sparkline/
+- Gauge example: https://ratatui.rs/examples/widgets/gauge/
+- CLI viz reference: https://github.com/sam1am/cli-viz
+- Warp output model reference: https://www.warp.dev/blog/2025-in-review
+- Warp product reference: https://www.warp.dev/terminal
+- Warp architecture/experience analysis: https://thenewstack.io/how-warp-went-from-terminal-to-agentic-development-environment/
+- Fig autocomplete (historical): https://github.com/withfig/autocomplete
+- Fig docs: https://fig.io/user-manual/autocomplete
+- fzf project: https://github.com/junegunn/fzf
+- Command palette UX pattern: https://uxpatterns.dev/patterns/advanced/command-palette
+- Voice UI visual design references: https://www.smashingmagazine.com/2021/06/alternative-voice-ui-voice-assistants/
+- Voice UI best practices: https://designlab.com/blog/voice-user-interface-design-best-practices
+- Multimodal VUI design: https://www.parallelhq.com/blog/voice-user-interface-vui-design-principles
+- Toast UX references: https://blog.logrocket.com/ux-design/toast-notifications/
+- Carbon notification patterns: https://carbondesignsystem.com/patterns/notification-pattern/
+- Productivity dashboard references: https://jellyfish.co/library/developer-productivity/dashboard/
+- Productivity analytics references: https://getdx.com/
+
 ## Notes
 
 - Some competitor details (especially CLI-state awareness) are inferred from
   public positioning and may need direct product testing for strict validation.
+- Some overlay UX references are pattern-level inspiration and should be tested
+  directly against VoxTerm's PTY passthrough model before implementation.
 - The broader landscape table captures tools that do not directly compete
   today but could add voice (Warp, shell-gpt) or terminal support (Wispr,
   Talon) and become threats. Monitor quarterly.

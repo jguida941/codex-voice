@@ -1,3 +1,5 @@
+//! Shared status-line state so rendering and interactions read one source of truth.
+
 use crate::buttons::ButtonAction;
 use crate::config::{HudRightPanel, HudStyle, VoiceSendMode};
 

@@ -1,4 +1,4 @@
-//! Codex backend interfaces plus the async worker used by the TUI. The backend
+//! Codex backend interfaces and async worker used by UI and IPC runtimes.
 //! exposes a `CodexJobRunner` trait that emits structured events so the UI can
 //! render streaming output, show "thinking..." indicators, and react to
 //! recoverable vs fatal failures without duplicating business logic.

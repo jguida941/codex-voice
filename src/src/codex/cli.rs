@@ -1,3 +1,5 @@
+//! Codex CLI invocation flow with cancellation and non-PTY reliability safeguards.
+
 use super::backend::{CancelToken, CodexCallError};
 use crate::{config::AppConfig, log_debug};
 use anyhow::{anyhow, Result};

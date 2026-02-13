@@ -1,3 +1,5 @@
+//! Transcript session abstraction so delivery logic is decoupled from PTY transport.
+
 use anyhow::Result;
 use voxterm::pty_session::PtyOverlaySession;
 

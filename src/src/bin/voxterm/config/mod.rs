@@ -1,3 +1,5 @@
+//! Overlay configuration assembly so CLI flags and backend defaults resolve consistently.
+
 mod backend;
 mod cli;
 mod theme;

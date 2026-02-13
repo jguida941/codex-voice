@@ -1,4 +1,4 @@
-//! Theme picker overlay.
+//! Theme picker overlay that lets users switch palettes without restarting sessions.
 //!
 //! Displays available themes and allows selecting by number.
 //! Now shows a visual preview of each theme's unique style.

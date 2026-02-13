@@ -1,3 +1,5 @@
+//! Settings action handlers so runtime config and HUD state change atomically.
+
 use std::time::{Duration, Instant};
 
 use crossbeam_channel::Sender;

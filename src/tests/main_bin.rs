@@ -1,3 +1,5 @@
+//! Integration tests that lock main-binary startup behavior and smoke paths.
+
 use std::process::Command;
 
 #[test]

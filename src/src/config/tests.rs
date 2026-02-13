@@ -1,3 +1,5 @@
+//! Regression tests that lock configuration defaults, validation rules, and env parsing.
+
 use super::defaults::{
     default_term, MAX_CAPTURE_HARD_LIMIT_MS, MAX_CODEX_ARGS, MAX_CODEX_ARG_BYTES,
 };

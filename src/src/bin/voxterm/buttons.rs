@@ -1,4 +1,4 @@
-//! Clickable button registry for mouse interaction.
+//! Clickable-button registry that keeps HUD hitboxes in sync with rendered rows.
 //!
 //! Tracks button positions on the HUD and maps mouse clicks to actions.
 

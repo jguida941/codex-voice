@@ -1,4 +1,4 @@
-//! OpenCode backend implementation.
+//! OpenCode backend definition so OpenCode can run via the common launcher path.
 
 use super::AiBackend;
 

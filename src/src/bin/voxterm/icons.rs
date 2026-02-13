@@ -1,4 +1,4 @@
-//! Icon vocabulary for the voice HUD.
+//! Shared icon vocabulary so HUD symbols stay consistent across render paths.
 //!
 //! Provides Unicode and ASCII fallback icons for all UI elements.
 

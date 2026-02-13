@@ -1,3 +1,5 @@
+//! Prompt subsystem wiring so readiness detection and logging share one policy.
+
 mod logger;
 mod regex;
 mod strip;

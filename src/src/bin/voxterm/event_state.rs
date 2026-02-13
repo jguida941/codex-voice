@@ -1,3 +1,5 @@
+//! Shared event-loop state bundles so handlers can mutate runtime state coherently.
+
 use std::collections::VecDeque;
 use std::time::{Duration, Instant};
 

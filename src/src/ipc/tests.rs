@@ -1,3 +1,5 @@
+//! Regression tests for IPC protocol routing, command handling, and session behavior.
+
 use super::protocol::*;
 use super::router::*;
 use super::session::*;

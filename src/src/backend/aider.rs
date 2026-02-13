@@ -1,4 +1,4 @@
-//! Aider backend implementation.
+//! Aider backend definition so the shared registry can launch Aider consistently.
 
 use super::AiBackend;
 

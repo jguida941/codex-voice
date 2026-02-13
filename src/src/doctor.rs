@@ -1,36 +1,45 @@
+//! Doctor-report assembly that surfaces runtime diagnostics and environment mismatches.
+
 use crate::{audio::Recorder, config::AppConfig, crash_log_path, log_file_path};
 use crossterm::terminal::size as terminal_size;
 use std::{env, fmt::Display};
 
+/// Structured text report builder used by `--doctor` commands.
 pub struct DoctorReport {
     lines: Vec<String>,
 }
 
 impl DoctorReport {
+    /// Create a new report with the provided title line.
     pub fn new(title: &str) -> Self {
         Self {
             lines: vec![title.to_string()],
         }
     }
 
+    /// Append a section heading and blank separator line.
     pub fn section(&mut self, title: &str) {
         self.lines.push(String::new());
         self.lines.push(format!("{title}:"));
     }
 
+    /// Append a `key: value` line in doctor output format.
     pub fn push_kv(&mut self, key: &str, value: impl Display) {
         self.lines.push(format!("  {key}: {value}"));
     }
 
+    /// Append a raw line without key/value formatting.
     pub fn push_line(&mut self, line: impl Into<String>) {
         self.lines.push(line.into());
     }
 
+    /// Render the full report as newline-separated text.
     pub fn render(&self) -> String {
         self.lines.join("\n")
     }
 }
 
+/// Build the baseline doctor report shared by all VoxTerm binaries.
 pub fn base_doctor_report(config: &AppConfig, binary_name: &str) -> DoctorReport {
     let mut report = DoctorReport::new("VoxTerm Doctor");
     report.push_kv("version", env!("CARGO_PKG_VERSION"));

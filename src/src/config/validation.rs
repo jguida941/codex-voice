@@ -1,3 +1,5 @@
+//! Configuration validation and normalization so invalid runtime settings fail fast.
+
 use super::defaults::{
     FORBIDDEN_DEVICE_CHARS, ISO_639_1_CODES, MAX_CAPTURE_HARD_LIMIT_MS, MAX_CODEX_ARGS,
     MAX_CODEX_ARG_BYTES,

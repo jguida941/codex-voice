@@ -1,3 +1,5 @@
+//! Status-line button layout and hitbox logic so keyboard/mouse actions map reliably.
+
 use crate::buttons::ButtonAction;
 use crate::config::{HudStyle, VoiceSendMode};
 use crate::status_style::StatusType;

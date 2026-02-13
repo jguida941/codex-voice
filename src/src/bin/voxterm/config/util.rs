@@ -1,3 +1,5 @@
+//! Backend command parsing so custom backend strings are split predictably.
+
 use std::path::Path;
 
 pub(super) fn split_backend_command(raw: &str) -> (String, Vec<String>) {

@@ -1,4 +1,4 @@
-//! TUI app state for the Codex-specific CLI path.
+//! Legacy Codex TUI state that coordinates rendering, input, and voice jobs.
 //!
 //! The multi-backend overlay lives under `src/bin/voxterm/`.
 

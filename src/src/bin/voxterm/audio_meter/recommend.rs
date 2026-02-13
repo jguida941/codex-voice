@@ -1,3 +1,5 @@
+//! Threshold recommendation logic so mic calibration maps to usable VAD settings.
+
 use anyhow::{anyhow, Result};
 use voxterm::config::{MAX_MIC_METER_SAMPLE_MS, MIN_MIC_METER_SAMPLE_MS};
 

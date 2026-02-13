@@ -1,4 +1,4 @@
-//! Earshot-powered Voice Activity Detector adapter implementing `VadEngine`.
+//! Earshot adapter so VAD engine selection stays behind one stable interface.
 
 use crate::audio::{VadDecision, VadEngine};
 use crate::config::VoicePipelineConfig;
@@ -12,6 +12,7 @@ pub struct EarshotVad {
 }
 
 impl EarshotVad {
+    /// Build an Earshot-backed VAD using thresholds/frame sizing from pipeline config.
     pub fn from_config(cfg: &VoicePipelineConfig) -> Self {
         let profile = match cfg.vad_threshold_db {
             t if t <= -50.0 => VoiceActivityProfile::VERY_AGGRESSIVE,

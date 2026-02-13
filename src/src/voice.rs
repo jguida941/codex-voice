@@ -1,4 +1,4 @@
-//! Background worker that records audio, runs STT, and falls back to python when needed.
+//! Background voice worker that keeps UI latency low while preserving STT fallback paths.
 //! This keeps the UI responsive while still guaranteeing a transcript even if the
 //! native recorder/transcriber path hits driver issues.
 
@@ -65,7 +65,9 @@ pub enum VoiceJobMessage {
 /// Identifies whether the Rust or Python path produced the transcript.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum VoiceCaptureSource {
+    /// Transcript came from the in-process Rust recorder + Whisper pipeline.
     Native,
+    /// Transcript came from the Python fallback pipeline.
     Python,
 }
 

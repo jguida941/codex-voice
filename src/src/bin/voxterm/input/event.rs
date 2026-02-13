@@ -1,3 +1,5 @@
+//! Semantic input events so the event loop does not depend on raw key bytes.
+
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) enum InputEvent {
     Bytes(Vec<u8>),

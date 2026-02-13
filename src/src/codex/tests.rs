@@ -1,3 +1,5 @@
+//! Regression tests for Codex backend execution, cancellation, and event delivery.
+
 use super::backend::{
     BoundedEventQueue, CancelToken, CodexCallError, CodexEvent, CodexEventKind, CodexJob,
     EventSender,

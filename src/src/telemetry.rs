@@ -1,3 +1,5 @@
+//! Optional local telemetry logging used for debugging and performance triage.
+
 use crate::config::AppConfig;
 use std::env;
 use std::fs::OpenOptions;

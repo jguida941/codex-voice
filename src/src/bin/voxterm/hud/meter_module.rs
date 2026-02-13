@@ -1,4 +1,4 @@
-//! Audio meter HUD module.
+//! HUD meter module so live microphone levels surface in the status panel.
 //!
 //! Shows the current audio level with a visual waveform: "-40dB ▁▂▃▅▆"
 

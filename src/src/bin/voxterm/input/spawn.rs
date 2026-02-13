@@ -1,3 +1,5 @@
+//! Input-thread bootstrap so stdin capture stays isolated from render/event logic.
+
 use crossbeam_channel::Sender;
 use std::io::{self, Read};
 use std::thread;

@@ -1,3 +1,5 @@
+//! Voice-job drain logic so capture results integrate safely with transcript queues.
+
 use crossbeam_channel::Sender;
 use std::collections::VecDeque;
 use std::time::{Duration, Instant};

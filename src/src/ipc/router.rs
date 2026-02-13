@@ -1,3 +1,5 @@
+//! IPC command router that keeps transport commands decoupled from backend logic.
+
 use crate::codex::{CodexBackendError, CodexJobRunner, CodexRequest};
 use crate::voice;
 use std::sync::mpsc;

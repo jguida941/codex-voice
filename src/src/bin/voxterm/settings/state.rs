@@ -1,3 +1,5 @@
+//! Settings-menu state and navigation rules so keyboard interactions stay predictable.
+
 use super::items::{SettingsItem, SETTINGS_ITEMS};
 
 #[derive(Debug, Clone)]

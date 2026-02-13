@@ -1,3 +1,5 @@
+//! Voice-pipeline capability logic so UI labels match the active capture path.
+
 use voxterm::VoiceCaptureSource;
 
 pub(super) fn using_native_pipeline(has_transcriber: bool, has_recorder: bool) -> bool {

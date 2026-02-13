@@ -1,3 +1,5 @@
+//! Core Codex request/event model that enforces bounded queues under load.
+
 use crate::lock_or_recover;
 use anyhow::{Error, Result};
 use std::{
@@ -21,24 +23,33 @@ pub type JobId = u64;
 /// User-facing mode describing how Codex should treat the request.
 #[derive(Debug, Clone, Copy)]
 pub enum RequestMode {
+    /// Standard conversational prompt/response request.
     Chat,
 }
 
 /// Payload variants supported by the backend.
 #[derive(Debug, Clone)]
 pub enum RequestPayload {
-    Chat { prompt: String },
+    /// Free-form chat prompt sent to Codex.
+    Chat {
+        /// Prompt text forwarded to the active backend invocation.
+        prompt: String,
+    },
 }
 
 /// Structured Codex request routed through the backend.
 #[derive(Debug, Clone)]
 pub struct CodexRequest {
+    /// Operation payload (currently chat-only).
     pub payload: RequestPayload,
+    /// Optional overall timeout for backend execution.
     pub timeout: Option<Duration>,
+    /// Extra workspace file paths to include in request context.
     pub workspace_files: Vec<PathBuf>,
 }
 
 impl CodexRequest {
+    /// Build a chat request with default timeout and no extra workspace files.
     pub fn chat(prompt: String) -> Self {
         Self {
             payload: RequestPayload::Chat { prompt },
@@ -51,14 +62,23 @@ impl CodexRequest {
 /// Telemetry produced for every Codex job so latency regressions can be audited.
 #[derive(Debug, Clone)]
 pub struct CodexJobStats {
+    /// Backend strategy label used for telemetry grouping.
     pub backend_type: &'static str,
+    /// Timestamp when job execution started.
     pub started_at: Instant,
+    /// Timestamp when first token arrived, if any.
     pub first_token_at: Option<Instant>,
+    /// Timestamp when job finished or failed.
     pub finished_at: Instant,
+    /// Number of tokens streamed during job execution.
     pub tokens_received: usize,
+    /// Raw bytes transferred from backend output.
     pub bytes_transferred: usize,
+    /// Number of PTY start attempts made before completion/fallback.
     pub pty_attempts: u32,
+    /// Whether non-PTY CLI fallback path was used.
     pub cli_fallback_used: bool,
+    /// Whether PTY mode is currently disabled due to fatal failures.
     pub disable_pty: bool,
 }
 
@@ -81,38 +101,60 @@ impl CodexJobStats {
 /// Event emitted by the backend describing job progress.
 #[derive(Debug, Clone)]
 pub struct CodexEvent {
+    /// Job identifier associated with this event.
     pub job_id: JobId,
+    /// Event payload describing job progress/state change.
     pub kind: CodexEventKind,
 }
 
 /// Classified event payload.
 #[derive(Debug, Clone)]
 pub enum CodexEventKind {
+    /// Job accepted and execution began.
     Started {
+        /// Mode used for this invocation.
         mode: RequestMode,
     },
+    /// Informational status update from backend orchestration.
     Status {
+        /// Human-readable status message.
         message: String,
     },
+    /// Streaming token/output chunk from provider.
     Token {
+        /// Token or output text fragment.
         text: String,
     },
+    /// Non-fatal error where retry/fallback may continue job progress.
     RecoverableError {
+        /// Stage in which the error occurred.
         phase: &'static str,
+        /// Human-readable error details.
         message: String,
+        /// Whether a retry path is available to caller.
         retry_available: bool,
     },
+    /// Fatal error that ends the current job.
     FatalError {
+        /// Stage in which the fatal error occurred.
         phase: &'static str,
+        /// Human-readable fatal error details.
         message: String,
+        /// Whether PTY mode was disabled as part of this failure.
         disable_pty: bool,
     },
+    /// Terminal success event containing final output summary.
     Finished {
+        /// Final output lines prepared for UI rendering.
         lines: Vec<String>,
+        /// High-level completion status string.
         status: String,
+        /// Telemetry snapshot for this completed job.
         stats: CodexJobStats,
     },
+    /// Terminal cancellation event.
     Canceled {
+        /// Whether PTY mode is disabled after cancellation handling.
         disable_pty: bool,
     },
 }
@@ -120,19 +162,25 @@ pub enum CodexEventKind {
 /// Errors surfaced synchronously when a backend cannot start a job.
 #[derive(Debug)]
 pub enum CodexBackendError {
+    /// Request shape/contents were invalid before execution.
     InvalidRequest(&'static str),
+    /// Backend is unavailable/disabled at runtime.
     BackendDisabled(String),
 }
 
 /// Runtime implementation of the Codex backend interface.
 pub trait CodexJobRunner: Send + Sync {
+    /// Start a new asynchronous Codex job.
     fn start(&self, request: CodexRequest) -> Result<CodexJob, CodexBackendError>;
+    /// Request cancellation for a running job id.
     fn cancel(&self, job_id: JobId);
+    /// Working directory used for backend command execution.
     fn working_dir(&self) -> &Path;
 }
 
 /// Handle to an asynchronous Codex invocation routed through the backend.
 pub struct CodexJob {
+    /// Stable job id used to correlate streamed events.
     pub id: JobId,
     events: Arc<BoundedEventQueue>,
     signal_rx: Receiver<()>,

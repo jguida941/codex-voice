@@ -1,3 +1,5 @@
+//! Terminal query interception so PTY control probes do not leak into UI output.
+
 use crate::log_debug;
 use std::mem;
 use std::os::unix::io::RawFd;

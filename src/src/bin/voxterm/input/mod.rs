@@ -1,3 +1,5 @@
+//! Input subsystem wiring that turns raw terminal bytes into overlay events.
+
 mod event;
 mod mouse;
 mod parser;

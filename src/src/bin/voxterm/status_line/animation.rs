@@ -1,3 +1,5 @@
+//! Status-line animation frames so recording/processing states feel alive.
+
 use std::time::{SystemTime, UNIX_EPOCH};
 
 const HEARTBEAT_FRAMES: &[char] = &['·', '•', '●', '•'];

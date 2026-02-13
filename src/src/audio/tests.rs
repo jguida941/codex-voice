@@ -1,3 +1,5 @@
+//! Regression tests that lock capture, VAD, metering, and resampling behavior.
+
 use super::capture::{CaptureState, FrameAccumulator};
 use super::dispatch::{append_downmixed_samples, FrameDispatcher};
 use super::resample::{

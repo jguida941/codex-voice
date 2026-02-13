@@ -1,3 +1,5 @@
+//! Shared VoxTerm library exports that keep binaries aligned on common behavior.
+
 pub mod audio;
 pub mod auth;
 pub mod backend;

@@ -1,3 +1,5 @@
+//! Diagnostic binary that reproduces crash-rendering scenarios for terminal safety checks.
+
 use ratatui::{
     text::{Line, Text},
     widgets::Paragraph,

@@ -1,3 +1,5 @@
+//! Terminal rendering primitives so status and overlays update without flicker.
+
 use std::io::{self, Write};
 
 use crate::status_line::StatusBanner;

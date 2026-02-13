@@ -1,3 +1,5 @@
+//! Mutex lock recovery so one poisoned lock does not kill long-running sessions.
+
 use std::sync::{Mutex, MutexGuard};
 
 pub(crate) fn lock_or_recover<'a, T>(lock: &'a Mutex<T>, context: &str) -> MutexGuard<'a, T> {

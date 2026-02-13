@@ -1,7 +1,12 @@
-//! Audio capture state machine with voice activity detection.
+//! Audio capture policy layer that balances low latency against transcript quality.
 //!
-//! Manages the recording loop: accumulates audio frames, tracks speech duration,
-//! and decides when to stop based on silence detection or time limits.
+//! This is the policy layer between raw VAD labels and user-facing transcripts.
+//! It balances two competing goals:
+//! - stop quickly after the user is done speaking (low latency)
+//! - keep enough context to avoid clipping trailing words (transcript quality)
+//!
+//! To do that, capture tracks speech/silence timing and retains a bounded
+//! rolling buffer with configurable lookback before trimming silence.
 
 use super::vad::{FrameLabel, VadConfig, VadEngine, VadSmoother};
 use std::collections::VecDeque;
@@ -43,7 +48,10 @@ impl Default for CaptureMetrics {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StopReason {
     /// VAD detected sustained silence; includes silence tail duration.
-    VadSilence { tail_ms: u64 },
+    VadSilence {
+        /// Duration of trailing silence that triggered stop, in milliseconds.
+        tail_ms: u64,
+    },
     /// Maximum capture duration reached.
     MaxDuration,
     /// User manually stopped capture.
@@ -76,11 +84,16 @@ pub struct CaptureResult {
     pub metrics: CaptureMetrics,
 }
 
+/// Frame plus its VAD classification so we can trim silence by label later.
 pub(super) struct FrameRecord {
     pub(super) samples: Vec<f32>,
     label: FrameLabel,
 }
 
+/// Bounded rolling audio buffer used during capture.
+///
+/// We keep labeled frames instead of a flat sample vector so trailing-silence
+/// trimming can drop whole silence spans while preserving a small lookback tail.
 pub(super) struct FrameAccumulator {
     pub(super) frames: VecDeque<FrameRecord>,
     pub(super) total_samples: usize,
@@ -114,6 +127,8 @@ impl FrameAccumulator {
     pub(super) fn push_frame(&mut self, samples: Vec<f32>, label: FrameLabel) {
         self.total_samples = self.total_samples.saturating_add(samples.len());
         self.frames.push_back(FrameRecord { samples, label });
+        // Enforce a hard memory ceiling during long captures by dropping oldest
+        // frames first. Lookback in newer frames is preserved.
         while self.total_samples > self.max_samples {
             if let Some(record) = self.frames.pop_front() {
                 self.total_samples = self.total_samples.saturating_sub(record.samples.len());
@@ -128,6 +143,8 @@ impl FrameAccumulator {
     }
 
     pub(super) fn into_audio(mut self, stop_reason: &StopReason) -> Vec<f32> {
+        // Only trim when stopping on silence. For manual stop/timeout we keep
+        // full buffered audio so users do not lose content unexpectedly.
         if matches!(stop_reason, StopReason::VadSilence { .. }) {
             self.trim_trailing_silence();
         }
@@ -151,6 +168,8 @@ impl FrameAccumulator {
         if excess == 0 {
             return;
         }
+        // Retain a short silence tail to avoid clipping final consonants/plosives
+        // that VAD may classify as silence at frame boundaries.
         let target_total = self.total_samples.saturating_sub(excess);
         loop {
             if self.total_samples <= target_total {
@@ -185,10 +204,8 @@ impl FrameAccumulator {
 
 /// Tracks recording progress and determines when to stop capture.
 ///
-/// The state machine monitors:
-/// - Total recording duration (enforces max limit)
-/// - Consecutive silence duration (triggers stop after speech ends)
-/// - Speech duration (ensures minimum speech before allowing stop)
+/// The state machine tracks elapsed, speech, and silence windows separately so
+/// stop decisions are robust to transient VAD flips.
 pub(super) struct CaptureState<'a> {
     cfg: &'a VadConfig,
     frame_ms: u64,
@@ -216,12 +233,8 @@ impl<'a> CaptureState<'a> {
 
     /// Processes a frame and returns a stop reason if capture should end.
     ///
-    /// Stop conditions:
-    /// 1. Max duration reached (hard limit)
-    /// 2. Silence detected after speech (user stopped talking)
-    ///
-    /// Note: Silence only triggers a stop after speech has been detected,
-    /// preventing premature stops when the mic starts in a quiet room.
+    /// Silence can stop capture only after speech has already been detected and
+    /// minimum duration is met; this avoids ending immediately in quiet rooms.
     pub(super) fn on_frame(&mut self, label: FrameLabel) -> Option<StopReason> {
         match label {
             FrameLabel::Speech => {
@@ -241,7 +254,7 @@ impl<'a> CaptureState<'a> {
             return Some(StopReason::MaxDuration);
         }
 
-        // Only stop on silence after detecting speech (avoids false stops in quiet rooms)
+        // Silence stop is intentionally gated by prior speech + minimum duration.
         if self.speech_ms > 0
             && self.total_ms >= self.cfg.min_recording_duration_ms
             && self.silence_streak_ms >= self.cfg.silence_duration_ms
@@ -254,6 +267,8 @@ impl<'a> CaptureState<'a> {
     }
 
     pub(super) fn on_timeout(&mut self) -> Option<StopReason> {
+        // Timeout path advances elapsed time even without frames so stalled input
+        // devices cannot keep capture alive forever.
         self.total_ms = self.total_ms.saturating_add(self.frame_ms);
         if self.total_ms >= self.cfg.max_recording_duration_ms {
             Some(StopReason::Timeout)
@@ -323,6 +338,8 @@ pub fn offline_capture_from_pcm(
     if matches!(stop_reason, StopReason::MaxDuration)
         && state.silence_tail_ms() >= cfg.silence_duration_ms
     {
+        // If we ran out the loop while already in long silence, classify as
+        // silence stop so metrics reflect user behavior rather than loop order.
         stop_reason = StopReason::VadSilence {
             tail_ms: state.silence_tail_ms(),
         };

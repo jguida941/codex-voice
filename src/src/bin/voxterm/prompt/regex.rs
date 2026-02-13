@@ -1,3 +1,5 @@
+//! Prompt-regex resolution so custom and backend defaults validate consistently.
+
 use anyhow::{Context, Result};
 use regex::Regex;
 use std::env;

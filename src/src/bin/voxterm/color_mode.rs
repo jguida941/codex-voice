@@ -1,4 +1,4 @@
-//! Terminal color capability detection.
+//! Terminal color-capability detection so theme fallbacks match host support.
 //!
 //! Detects what color modes the terminal supports and provides fallbacks.
 

@@ -1,3 +1,5 @@
+//! Audio-level sampling so mic calibration reflects real ambient/speech levels.
+
 use anyhow::Result;
 use std::time::Duration;
 use voxterm::audio::Recorder;

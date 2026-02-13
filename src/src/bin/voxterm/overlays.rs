@@ -1,3 +1,5 @@
+//! Help/settings overlay rendering so panel layout stays centralized and consistent.
+
 use crossbeam_channel::Sender;
 
 use crate::config::OverlayConfig;

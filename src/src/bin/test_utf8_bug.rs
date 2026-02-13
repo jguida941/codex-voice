@@ -1,3 +1,5 @@
+//! Diagnostic binary that guards UTF-8 output handling against regression.
+
 fn main() {
     println!("Demonstrating the UTF-8 bug that was fixed:\n");
 

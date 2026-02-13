@@ -1,4 +1,4 @@
-//! System microphone recording via CPAL.
+//! CPAL recorder implementation that feeds bounded frames into the voice pipeline.
 //!
 //! Handles device enumeration, format conversion, and sample rate normalization.
 //! All audio is converted to 16kHz mono f32 PCM for Whisper compatibility.

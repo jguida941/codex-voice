@@ -1,3 +1,5 @@
+//! Backend command resolution so provider selection is deterministic at startup.
+
 use voxterm::backend::BackendRegistry;
 
 use crate::config::cli::OverlayConfig;

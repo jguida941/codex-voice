@@ -1,3 +1,5 @@
+//! Writer message protocol and bootstrap so terminal output stays serialized.
+
 mod mouse;
 mod render;
 mod sanitize;

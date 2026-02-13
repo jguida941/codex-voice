@@ -1,3 +1,5 @@
+//! Core runtime loop that coordinates PTY output, input events, and voice jobs.
+
 use std::io::ErrorKind;
 use std::time::{Duration, Instant};
 

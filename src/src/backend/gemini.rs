@@ -1,4 +1,4 @@
-//! Gemini CLI backend implementation.
+//! Gemini backend definition so Gemini CLI can run through the shared overlay flow.
 
 use super::AiBackend;
 

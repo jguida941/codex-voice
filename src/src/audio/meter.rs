@@ -1,3 +1,5 @@
+//! Shared decibel meter state that keeps UI level reads thread-safe and cheap.
+
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 
@@ -10,7 +12,7 @@ pub struct LiveMeter {
 }
 
 impl LiveMeter {
-    /// Create a new meter initialized to the default floor value.
+    /// Initialize to a floor value so UI status starts from silence, not zero.
     pub fn new() -> Self {
         Self {
             level_bits: Arc::new(AtomicU32::new(DEFAULT_METER_DB.to_bits())),

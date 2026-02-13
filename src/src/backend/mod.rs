@@ -1,4 +1,4 @@
-//! Multi-backend architecture for AI CLI tools.
+//! Backend trait/registry layer so one overlay runtime can drive many AI CLIs.
 //!
 //! This module provides a unified interface for different AI CLI backends
 //! (Codex CLI, Claude Code, Gemini CLI, Aider, OpenCode, etc.) allowing the voice HUD

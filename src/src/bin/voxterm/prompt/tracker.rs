@@ -1,3 +1,5 @@
+//! Prompt-detection state machine so auto-voice and auto-send trigger safely.
+
 use regex::Regex;
 use std::time::{Duration, Instant};
 

@@ -1,3 +1,5 @@
+//! Settings item metadata so menus render and dispatch actions from one schema.
+
 use crate::config::{HudRightPanel, HudStyle, VoiceSendMode};
 use crate::status_line::Pipeline;
 use crate::theme::Theme;

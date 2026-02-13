@@ -1,4 +1,4 @@
-//! Full pipeline latency measurement harness for Phase 2B measurement gate.
+//! End-to-end latency harness that exposes voice-to-provider bottlenecks.
 //!
 //! This binary instruments the complete voice→Codex flow to identify bottlenecks:
 //! - Voice capture (record + STT)

@@ -1,4 +1,4 @@
-//! Backend CLI authentication helpers.
+//! Backend login helpers so auth flows run on the controlling TTY reliably.
 
 /// Result type for login attempts.
 pub type AuthResult = std::result::Result<(), String>;

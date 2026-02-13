@@ -1,3 +1,5 @@
+//! Idle/readiness checks so auto-send triggers only when prompt timing is safe.
+
 use std::time::{Duration, Instant};
 
 use crate::prompt::PromptTracker;

@@ -1,3 +1,5 @@
+//! CLI startup utilities so boot-time checks stay consistent across entry paths.
+
 use anyhow::Result;
 use voxterm::audio;
 

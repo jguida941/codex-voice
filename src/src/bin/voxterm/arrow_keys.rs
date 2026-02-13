@@ -1,3 +1,5 @@
+//! Arrow-key normalization so directional input maps consistently across terminals.
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ArrowKey {
     Up,

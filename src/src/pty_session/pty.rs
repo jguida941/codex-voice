@@ -1,4 +1,4 @@
-//! Pseudo-terminal (PTY) session management.
+//! PTY session lifecycle so backend CLIs behave like true interactive terminals.
 //!
 //! Spawns backend CLIs in a PTY so they behave as if
 //! running in an interactive terminal. Handles I/O forwarding, window resize

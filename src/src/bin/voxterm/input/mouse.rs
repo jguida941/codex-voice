@@ -1,3 +1,5 @@
+//! Mouse-sequence parsing so clicks work across SGR, URXVT, and X10 protocols.
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum MouseEventKind {
     Press,

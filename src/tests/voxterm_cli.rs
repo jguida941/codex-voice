@@ -1,3 +1,5 @@
+//! Integration tests that lock voxterm CLI flag and output behavior.
+
 use std::process::Command;
 
 fn combined_output(output: &std::process::Output) -> String {

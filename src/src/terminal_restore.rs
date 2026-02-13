@@ -1,3 +1,5 @@
+//! Terminal-state guards that prevent broken shells after exit or panic paths.
+
 use crossterm::{
     cursor::Show,
     event::DisableMouseCapture,
@@ -22,17 +24,20 @@ static PANIC_HOOK_INSTALLED: OnceLock<()> = OnceLock::new();
 pub struct TerminalRestoreGuard;
 
 impl TerminalRestoreGuard {
+    /// Create a guard and install the shared panic hook (once).
     pub fn new() -> Self {
         install_terminal_panic_hook();
         TerminalRestoreGuard
     }
 
+    /// Enable terminal raw mode and track state for guaranteed restoration.
     pub fn enable_raw_mode(&self) -> io::Result<()> {
         enable_raw_mode()?;
         RAW_MODE_ENABLED.store(true, Ordering::SeqCst);
         Ok(())
     }
 
+    /// Enter alternate screen and track state for guaranteed restoration.
     pub fn enter_alt_screen(&self, stdout: &mut impl Write) -> io::Result<()> {
         execute!(stdout, EnterAlternateScreen)?;
         ALT_SCREEN_ENABLED.store(true, Ordering::SeqCst);
@@ -40,12 +45,14 @@ impl TerminalRestoreGuard {
     }
 
     #[allow(dead_code)]
+    /// Enable mouse capture and track state for guaranteed restoration.
     pub fn enable_mouse_capture(&self, stdout: &mut impl Write) -> io::Result<()> {
         execute!(stdout, crossterm::event::EnableMouseCapture)?;
         MOUSE_CAPTURE_ENABLED.store(true, Ordering::SeqCst);
         Ok(())
     }
 
+    /// Restore all tracked terminal state immediately.
     pub fn restore(&self) {
         restore_terminal();
     }
@@ -63,6 +70,7 @@ impl Drop for TerminalRestoreGuard {
     }
 }
 
+/// Restore terminal raw mode, mouse capture, alt-screen, and cursor visibility.
 pub fn restore_terminal() {
     if RAW_MODE_ENABLED.swap(false, Ordering::SeqCst) {
         let _ = disable_raw_mode();
@@ -78,6 +86,7 @@ pub fn restore_terminal() {
     let _ = stdout.flush();
 }
 
+/// Install a panic hook that restores terminal state before delegating.
 pub fn install_terminal_panic_hook() {
     PANIC_HOOK_INSTALLED.get_or_init(|| {
         let previous = panic::take_hook();

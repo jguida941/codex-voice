@@ -1,4 +1,4 @@
-//! Mode indicator HUD module.
+//! HUD mode module so manual/auto/pipeline state is always explicit.
 //!
 //! Shows the current voice mode: "● AUTO", "○ MANUAL", or "◐ INSERT".
 

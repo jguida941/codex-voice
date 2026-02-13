@@ -1,3 +1,5 @@
+//! ANSI-aware width/truncation logic so status text clips without visual drift.
+
 use unicode_width::UnicodeWidthChar;
 
 /// Calculate display width excluding ANSI escape codes.

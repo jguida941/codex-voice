@@ -1,3 +1,5 @@
+//! Theme color tokens so rendering code references semantic colors, not raw escapes.
+
 /// ANSI color codes for a theme.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ThemeColors {

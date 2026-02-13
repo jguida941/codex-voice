@@ -1,4 +1,4 @@
-//! Transcript queuing and delivery helpers.
+//! Transcript queue/delivery wiring so capture output reaches the CLI in order.
 
 mod delivery;
 mod idle;

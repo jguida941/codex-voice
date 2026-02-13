@@ -1,4 +1,4 @@
-//! Custom command backend implementation.
+//! User-defined backend adapter so arbitrary CLIs can reuse overlay orchestration.
 
 use super::AiBackend;
 

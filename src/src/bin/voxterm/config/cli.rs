@@ -1,3 +1,5 @@
+//! CLI flag schema so overlay startup behavior is explicit and discoverable.
+
 use clap::{Parser, ValueEnum};
 use std::path::PathBuf;
 use voxterm::config::AppConfig;

@@ -1,4 +1,4 @@
-//! Voice Activity Detection (VAD) for speech/silence classification.
+//! Voice Activity Detection logic that drives stop/continue decisions during capture.
 //!
 //! Processes audio frames and determines whether the user is speaking.
 //! Used to automatically stop recording after a period of silence.
@@ -89,6 +89,7 @@ pub trait VadEngine {
     }
 }
 
+/// Per-frame VAD classification consumed by capture stop logic.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum VadDecision {
     /// Speech detected in the frame.

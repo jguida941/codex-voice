@@ -1,4 +1,4 @@
-//! Minimal `ratatui` front-end for the Codex-specific TUI path.
+//! Minimal ratatui frontend that keeps legacy Codex UI tests lightweight.
 //!
 //! This mirrors the logic from the legacy TUI entrypoint so integration tests can drive
 //! the UI without pulling in all of the overlay stack. The multi-backend overlay lives

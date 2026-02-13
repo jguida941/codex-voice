@@ -1,4 +1,4 @@
-//! Session statistics tracking.
+//! Session statistics tracking so end-of-run summaries reflect real voice activity.
 //!
 //! Tracks voice capture statistics during a session and formats them for display.
 

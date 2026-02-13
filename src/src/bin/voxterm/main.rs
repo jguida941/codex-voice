@@ -1,11 +1,11 @@
-//! VoxTerm overlay - voice input for the selected backend CLI (Codex, Claude, etc.).
+//! VoxTerm overlay entrypoint so PTY, HUD, and voice control start as one runtime.
 //!
 //! Runs the selected CLI in a PTY and intercepts hotkeys for voice capture. Transcripts
 //! are injected as keystrokes, preserving the native TUI.
 //!
 //! # Architecture
 //!
-//! - Input thread: reads stdin, intercepts Ctrl+R/V/Q
+//! - Input thread: reads stdin, intercepts overlay shortcut keys
 //! - PTY reader: forwards CLI output to terminal
 //! - Writer thread: serializes output to avoid interleaving
 //! - Voice worker: background audio capture and STT

@@ -1,3 +1,5 @@
+//! Transcript queue management so auto-send/order guarantees remain predictable.
+
 use std::collections::VecDeque;
 use voxterm::{log_debug, VoiceCaptureSource};
 

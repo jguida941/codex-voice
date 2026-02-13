@@ -1,4 +1,4 @@
-//! Command-line parsing and validation helpers.
+//! App configuration model so CLI flags and defaults produce one validated runtime config.
 
 mod defaults;
 #[cfg(test)]
@@ -223,29 +223,45 @@ pub struct AppConfig {
 /// Tunable parameters for the voice capture + STT pipeline.
 #[derive(Debug, Clone)]
 pub struct VoicePipelineConfig {
+    /// Input sample rate used by capture and VAD.
     pub sample_rate: u32,
+    /// Maximum capture duration before forced stop (milliseconds).
     pub max_capture_ms: u64,
+    /// Silence required to auto-stop after speech (milliseconds).
     pub silence_tail_ms: u64,
+    /// Minimum detected speech before STT processing begins (milliseconds).
     pub min_speech_ms_before_stt_start: u64,
+    /// Audio kept before silence stop to avoid clipping endings (milliseconds).
     pub lookback_ms: u64,
+    /// Total rolling capture buffer budget (milliseconds).
     pub buffer_ms: u64,
+    /// Bounded frame-channel capacity between capture and processing workers.
     pub channel_capacity: usize,
+    /// Timeout for STT processing before fallback/error (milliseconds).
     pub stt_timeout_ms: u64,
+    /// VAD dB threshold for speech detection.
     pub vad_threshold_db: f32,
+    /// Frame size fed to VAD (milliseconds).
     pub vad_frame_ms: u64,
+    /// Number of frames used for VAD smoothing/majority vote.
     pub vad_smoothing_frames: usize,
+    /// Whether Python fallback is allowed when native path fails.
     pub python_fallback_allowed: bool,
+    /// Selected VAD engine implementation.
     pub vad_engine: VadEngineKind,
 }
 
 /// Available runtime-selectable VAD implementations.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
 pub enum VadEngineKind {
+    /// Earshot-based VAD implementation.
     Earshot,
+    /// Simple RMS-threshold VAD implementation.
     Simple,
 }
 
 impl VadEngineKind {
+    /// Stable lowercase identifier used in logs, metrics, and status output.
     pub fn label(self) -> &'static str {
         match self {
             VadEngineKind::Earshot => "earshot",

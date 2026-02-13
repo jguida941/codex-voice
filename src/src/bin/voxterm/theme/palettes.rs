@@ -1,3 +1,5 @@
+//! Built-in theme palettes so color choices remain centralized and testable.
+
 use super::{ThemeColors, BORDER_DOUBLE, BORDER_HEAVY, BORDER_ROUNDED, BORDER_SINGLE};
 
 /// Coral theme - warm red/coral accents (default)

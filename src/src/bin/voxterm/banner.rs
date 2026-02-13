@@ -1,4 +1,4 @@
-//! Startup banner for VoxTerm.
+//! Startup banner renderer that surfaces key runtime mode/settings at launch.
 //!
 //! Displays version and configuration info on startup.
 

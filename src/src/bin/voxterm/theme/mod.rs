@@ -1,4 +1,4 @@
-//! Color themes for the overlay status line.
+//! Theme registry so users can switch visual style without changing behavior.
 //!
 //! Provides predefined color palettes that can be selected via CLI flags.
 
