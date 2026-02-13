@@ -211,6 +211,9 @@ is added automatically.
 
 - Before queue/send, transcripts pass through project voice-macro expansion from
   `.voxterm/macros.yaml` (if present).
+- Voice intent mode (`Command` / `Dictation`) gates that transform:
+  - `Command`: macro expansion enabled.
+  - `Dictation`: macro expansion disabled (raw transcript injection).
 - **Auto send**: inject transcript + newline immediately when safe to send.
 - **Insert**: inject transcript only (no newline); user presses Enter to send.
 - **Enter while recording (insert mode)**: stops capture early and transcribes what was recorded.

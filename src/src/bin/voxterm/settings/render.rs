@@ -1,7 +1,7 @@
 //! Settings panel rendering so menu state maps to stable terminal output.
 
 use crate::config::{HudRightPanel, HudStyle, VoiceSendMode};
-use crate::status_line::Pipeline;
+use crate::status_line::{Pipeline, VoiceIntentMode};
 use crate::theme::ThemeColors;
 
 use super::items::{
@@ -61,6 +61,12 @@ fn format_settings_row(
             "{marker} {:<width$} {}",
             "Send mode",
             mode_button(view.send_mode),
+            width = LABEL_WIDTH
+        ),
+        SettingsItem::VoiceMode => format!(
+            "{marker} {:<width$} {}",
+            "Voice mode",
+            voice_mode_button(view.voice_intent_mode),
             width = LABEL_WIDTH
         ),
         SettingsItem::Sensitivity => {
@@ -141,6 +147,10 @@ fn mode_button(mode: VoiceSendMode) -> String {
         VoiceSendMode::Auto => button_label("Auto"),
         VoiceSendMode::Insert => button_label("Insert"),
     }
+}
+
+fn voice_mode_button(mode: VoiceIntentMode) -> String {
+    button_label(mode.label())
 }
 
 fn hud_panel_button(panel: HudRightPanel) -> String {

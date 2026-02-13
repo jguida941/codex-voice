@@ -8,7 +8,7 @@ use voxterm::{log_debug, VoiceCaptureSource, VoiceCaptureTrigger, VoiceJobMessag
 use crate::config::{OverlayConfig, VoiceSendMode};
 use crate::prompt::PromptTracker;
 use crate::session_stats::SessionStats;
-use crate::status_line::{Pipeline, RecordingState, StatusLineState};
+use crate::status_line::{Pipeline, RecordingState, StatusLineState, VoiceIntentMode};
 use crate::transcript::{
     deliver_transcript, push_pending_transcript, send_transcript, transcript_ready,
     try_flush_pending, PendingTranscript, TranscriptIo, TranscriptSession,
@@ -19,6 +19,23 @@ use crate::writer::{set_status, WriterMessage};
 use super::manager::{start_voice_capture, VoiceManager};
 use super::pipeline::pipeline_status_label;
 use super::{PREVIEW_CLEAR_MS, STATUS_TOAST_SECS, TRANSCRIPT_PREVIEW_MAX};
+
+fn apply_voice_intent_mode(
+    text: &str,
+    default_mode: VoiceSendMode,
+    voice_intent_mode: VoiceIntentMode,
+    voice_macros: &VoiceMacros,
+) -> (String, VoiceSendMode, Option<String>) {
+    if voice_intent_mode == VoiceIntentMode::Dictation {
+        return (text.to_string(), default_mode, None);
+    }
+    let expanded = voice_macros.apply(text, default_mode);
+    let macro_note = expanded
+        .matched_trigger
+        .as_ref()
+        .map(|trigger| format!("macro '{}'", trigger));
+    (expanded.text, expanded.mode, macro_note)
+}
 
 pub(crate) fn clear_capture_metrics(status_state: &mut StatusLineState) {
     status_state.recording_duration = None;
@@ -197,13 +214,12 @@ pub(crate) fn drain_voice_messages<S: TranscriptSession>(
             source,
             metrics,
         } => {
-            let expanded = voice_macros.apply(&text, config.voice_send_mode);
-            let text = expanded.text;
-            let transcript_mode = expanded.mode;
-            let macro_note = expanded
-                .matched_trigger
-                .as_ref()
-                .map(|trigger| format!("macro '{}'", trigger));
+            let (text, transcript_mode, macro_note) = apply_voice_intent_mode(
+                &text,
+                config.voice_send_mode,
+                status_state.voice_intent_mode,
+                voice_macros,
+            );
             update_last_latency(status_state, *recording_started_at, metrics.as_ref(), now);
             let ready =
                 transcript_ready(prompt_tracker, *last_enter_at, now, transcript_idle_timeout);
@@ -473,6 +489,9 @@ mod tests {
     use crate::config::VoiceSendMode;
     use crate::transcript::TranscriptSession;
     use clap::Parser;
+    use std::fs;
+    use std::sync::atomic::{AtomicU64, Ordering};
+    use std::time::{SystemTime, UNIX_EPOCH};
     use voxterm::audio::CaptureMetrics;
     use voxterm::config::AppConfig;
 
@@ -492,6 +511,66 @@ mod tests {
             self.sent_with_newline.push(text.to_string());
             Ok(())
         }
+    }
+
+    fn write_test_macros_file(yaml: &str) -> std::path::PathBuf {
+        static COUNTER: AtomicU64 = AtomicU64::new(0);
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("clock")
+            .as_nanos();
+        let mut dir = std::env::temp_dir();
+        dir.push(format!(
+            "voxterm-intent-{}-{}",
+            now,
+            COUNTER.fetch_add(1, Ordering::Relaxed)
+        ));
+        let macros_dir = dir.join(".voxterm");
+        fs::create_dir_all(&macros_dir).expect("create macro dir");
+        fs::write(macros_dir.join("macros.yaml"), yaml).expect("write macro file");
+        dir
+    }
+
+    #[test]
+    fn apply_voice_intent_mode_applies_macros_in_command_mode() {
+        let dir = write_test_macros_file(
+            r#"
+macros:
+  run tests: cargo test --all-features
+"#,
+        );
+        let voice_macros = VoiceMacros::load_for_project(&dir);
+        let (text, mode, note) = apply_voice_intent_mode(
+            "run tests",
+            VoiceSendMode::Auto,
+            VoiceIntentMode::Command,
+            &voice_macros,
+        );
+        assert_eq!(text, "cargo test --all-features");
+        assert_eq!(mode, VoiceSendMode::Auto);
+        assert_eq!(note.as_deref(), Some("macro 'run tests'"));
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn apply_voice_intent_mode_skips_macros_in_dictation_mode() {
+        let dir = write_test_macros_file(
+            r#"
+macros:
+  run tests: cargo test --all-features
+"#,
+        );
+        let voice_macros = VoiceMacros::load_for_project(&dir);
+        let (text, mode, note) = apply_voice_intent_mode(
+            "run tests",
+            VoiceSendMode::Insert,
+            VoiceIntentMode::Dictation,
+            &voice_macros,
+        );
+        assert_eq!(text, "run tests");
+        assert_eq!(mode, VoiceSendMode::Insert);
+        assert!(note.is_none());
+        let _ = fs::remove_dir_all(&dir);
     }
 
     #[test]

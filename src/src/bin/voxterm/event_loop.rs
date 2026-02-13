@@ -586,6 +586,10 @@ pub(crate) fn run_event_loop(
                                             settings_ctx.toggle_send_mode();
                                             should_redraw = true;
                                         }
+                                        SettingsItem::VoiceMode => {
+                                            settings_ctx.toggle_voice_intent_mode();
+                                            should_redraw = true;
+                                        }
                                         SettingsItem::Sensitivity => {}
                                         SettingsItem::Theme => {
                                             settings_ctx.cycle_theme(1);
@@ -685,6 +689,10 @@ pub(crate) fn run_event_loop(
                                                         settings_ctx.toggle_send_mode();
                                                         should_redraw = true;
                                                     }
+                                                    SettingsItem::VoiceMode => {
+                                                        settings_ctx.toggle_voice_intent_mode();
+                                                        should_redraw = true;
+                                                    }
                                                     SettingsItem::Sensitivity => {
                                                         settings_ctx.adjust_sensitivity(-5.0);
                                                         should_redraw = true;
@@ -721,6 +729,10 @@ pub(crate) fn run_event_loop(
                                                     }
                                                     SettingsItem::SendMode => {
                                                         settings_ctx.toggle_send_mode();
+                                                        should_redraw = true;
+                                                    }
+                                                    SettingsItem::VoiceMode => {
+                                                        settings_ctx.toggle_voice_intent_mode();
                                                         should_redraw = true;
                                                     }
                                                     SettingsItem::Sensitivity => {

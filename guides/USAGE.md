@@ -99,8 +99,8 @@ or activate the selected row. `Esc` closes the menu.
 
 ![Settings Menu](https://raw.githubusercontent.com/jguida941/voxterm/master/img/settings.png)
 
-The menu surfaces the most common controls (auto-voice, send mode, mic sensitivity,
-theme) plus backend and pipeline info.
+The menu surfaces the most common controls (auto-voice, send mode, voice mode,
+mic sensitivity, theme) plus backend and pipeline info.
 
 It also lets you configure:
 - **HUD style**: Full, Minimal, or Hidden
@@ -115,10 +115,11 @@ Left/Right selects a HUD button and Enter activates it (even if Mouse is OFF).
 
 ## Voice Modes
 
-Two toggles control voice behavior:
+Three controls shape voice behavior:
 
 - **Auto-voice** (`Ctrl+V`) - when ON, VoxTerm listens automatically. When OFF, you press `Ctrl+R` each time.
 - **Send mode** (`Ctrl+T`) - **auto** types your words and presses Enter. **Insert** types your words but lets you press Enter yourself.
+- **Voice mode** (Settings → Voice mode) - **Command** enables macro expansion; **Dictation** disables macro expansion.
 
 ### All four combinations
 
@@ -128,6 +129,10 @@ Two toggles control voice behavior:
 | Off | Insert | You press `Ctrl+R` to record. Text is typed. You press `Enter` when ready. |
 | On | Auto | Just start talking. Text is typed + Enter is pressed for you. |
 | On | Insert | Just start talking. Text is typed. You press `Enter` when ready. |
+
+Command/Dictation mode is orthogonal to this table:
+- **Command**: macros can expand transcripts before injection.
+- **Dictation**: raw transcript is injected as-is.
 
 ### Tips
 
@@ -225,6 +230,7 @@ Rules:
 - Trigger matching is case-insensitive and ignores repeated spaces.
 - Template macros can consume extra spoken words via `{TRANSCRIPT}`.
 - `mode` is optional and can be `auto` or `insert`.
+- Macros are applied only when **Voice mode = Command**. In **Dictation**, transcripts bypass macros.
 
 ---
 
@@ -233,10 +239,10 @@ Rules:
 The bottom of your terminal shows the current state:
 
 Example layout:
-`◉ AUTO │ -35dB │ Auto-voice enabled   Ctrl+R rec  Ctrl+V auto`
+`◉ AUTO CMD │ -35dB │ Auto-voice enabled   Ctrl+R rec  Ctrl+V auto`
 
 Sections (left to right):
-- Mode indicator (auto/manual/idle)
+- Mode indicator (auto/manual/idle + `CMD`/`DICT` intent tag)
 - Mic sensitivity in dB
 - Status message (recording adds a live waveform + dB readout)
 - Shortcut hints (on wide terminals)
@@ -258,6 +264,7 @@ When recording or processing, the mode label includes a pipeline tag
 | `Processing …` | Transcribing your speech (spinner updates) |
 | `Transcript ready (Rust)` | Text typed into the terminal (auto mode also presses Enter) |
 | `Transcript ready (Rust, macro 'run tests')` | A voice macro trigger matched and expanded before injection |
+| `Voice mode: dictation (macros disabled)` | Intent mode switched to raw dictation behavior |
 | `No speech detected` | Recording finished but no voice was heard |
 | `Transcript queued (2)` | 2 transcripts waiting for the CLI to be ready |
 | `Mic sensitivity: -35 dB` | Threshold changed |

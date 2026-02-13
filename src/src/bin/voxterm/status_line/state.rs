@@ -33,6 +33,32 @@ impl VoiceMode {
     }
 }
 
+/// Voice intent mode controls transcript transformation policy.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum VoiceIntentMode {
+    /// Command-style voice input; macro expansion is enabled.
+    #[default]
+    Command,
+    /// Natural-language dictation; macro expansion is disabled.
+    Dictation,
+}
+
+impl VoiceIntentMode {
+    pub fn label(&self) -> &'static str {
+        match self {
+            Self::Command => "Command",
+            Self::Dictation => "Dictation",
+        }
+    }
+
+    pub fn short_label(&self) -> &'static str {
+        match self {
+            Self::Command => "CMD",
+            Self::Dictation => "DICT",
+        }
+    }
+}
+
 /// Current recording state.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum RecordingState {
@@ -143,6 +169,8 @@ pub struct StatusLineState {
     pub last_latency_ms: Option<u32>,
     /// Current voice send mode
     pub send_mode: VoiceSendMode,
+    /// Transcript intent mode (command vs dictation)
+    pub voice_intent_mode: VoiceIntentMode,
     /// Right-side HUD panel mode
     pub hud_right_panel: HudRightPanel,
     /// Only animate the right-side panel while recording
@@ -174,6 +202,14 @@ mod tests {
         assert_eq!(VoiceMode::Auto.label(), "AUTO");
         assert_eq!(VoiceMode::Manual.label(), "MANUAL");
         assert_eq!(VoiceMode::Idle.label(), "IDLE");
+    }
+
+    #[test]
+    fn voice_intent_mode_labels() {
+        assert_eq!(VoiceIntentMode::Command.label(), "Command");
+        assert_eq!(VoiceIntentMode::Dictation.label(), "Dictation");
+        assert_eq!(VoiceIntentMode::Command.short_label(), "CMD");
+        assert_eq!(VoiceIntentMode::Dictation.short_label(), "DICT");
     }
 
     #[test]

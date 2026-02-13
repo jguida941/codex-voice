@@ -70,7 +70,9 @@ use crate::input::spawn_input_thread;
 use crate::prompt::{resolve_prompt_log, resolve_prompt_regex, PromptLogger, PromptTracker};
 use crate::session_stats::{format_session_stats, SessionStats};
 use crate::settings::SettingsMenuState;
-use crate::status_line::{Pipeline, StatusLineState, VoiceMode, METER_HISTORY_MAX};
+use crate::status_line::{
+    Pipeline, StatusLineState, VoiceIntentMode, VoiceMode, METER_HISTORY_MAX,
+};
 use crate::terminal::{apply_pty_winsize, install_sigwinch_handler};
 use crate::theme_ops::theme_index_from_theme;
 use crate::voice_control::{reset_capture_visuals, start_voice_capture, VoiceManager};
@@ -248,6 +250,7 @@ fn main() -> Result<()> {
     status_state.sensitivity_db = config.app.voice_vad_threshold_db;
     status_state.auto_voice_enabled = auto_voice_enabled;
     status_state.send_mode = config.voice_send_mode;
+    status_state.voice_intent_mode = VoiceIntentMode::Command;
     status_state.hud_right_panel = config.hud_right_panel;
     status_state.hud_right_panel_recording_only = config.hud_right_panel_recording_only;
     status_state.hud_style = initial_hud_style;

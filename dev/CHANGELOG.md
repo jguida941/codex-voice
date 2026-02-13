@@ -8,6 +8,10 @@ Note: Some historical entries reference internal documents that are not publishe
 ### UX
 - Add project-scoped voice macro expansion from `.voxterm/macros.yaml` before transcript injection, including trigger-to-command mappings and template macros with `{TRANSCRIPT}` remainder substitution.
 - Support per-macro send-mode overrides (`auto`/`insert`) so selected macros can stay in insert behavior even when global send mode is auto.
+- Add a separate command/dictation voice intent mode in Settings:
+  - Command mode keeps macro expansion enabled.
+  - Dictation mode disables macro expansion while preserving existing send-mode behavior (`auto` vs `insert`).
+- Show current intent mode (`CMD`/`DICT`) in status/HUD formatting so transcript-transform policy is always visible.
 
 ### CI
 - Add a dedicated latency guard workflow (`.github/workflows/latency_guard.yml`) that runs synthetic voice-only regression bounds in CI.
@@ -20,6 +24,7 @@ Note: Some historical entries reference internal documents that are not publishe
 
 ### Tests
 - Add unit coverage for voice macro parsing, trigger matching, template remainder substitution, and project file loading.
+- Add intent-mode tests for command vs dictation macro behavior and settings-toggle state transitions.
 
 ### Developer Experience
 - Add `python3 dev/scripts/devctl.py hygiene` to audit archive naming, ADR status/index consistency, and `dev/scripts` documentation coverage.

@@ -44,7 +44,7 @@
 
 ## Phase 2 - Overlay Quick Wins
 - [x] MP-085 Voice macros and custom triggers (`.voxterm/macros.yaml`).
-- [ ] MP-086 Command mode vs dictation mode (state model + toggle UX).
+- [x] MP-086 Command mode vs dictation mode (state model + toggle UX).
 - [ ] MP-087 Transcript preview/edit before send.
 - [ ] MP-088 Persistent user config (`~/.config/voxterm/config.toml`) for core preferences.
 
