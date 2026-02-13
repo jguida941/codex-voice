@@ -87,6 +87,9 @@ brew upgrade voxterm
 If Homebrew still shows an older version or `voxterm` runs an older binary, see
 [Troubleshooting: Wrong version after update](TROUBLESHOOTING.md#wrong-version-after-update).
 
+After upgrading, run `voxterm --version` and open Settings (`Ctrl+O`) once to
+confirm runtime options such as `Voice mode` and `Review first` are present.
+
 ## Option B: Install from source
 
 Recommended if you want a local build or plan to hack on VoxTerm.

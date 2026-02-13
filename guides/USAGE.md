@@ -139,6 +139,7 @@ Command/Dictation mode is orthogonal to this table:
 Review-first mode is orthogonal too:
 - **OFF**: auto-voice can re-arm immediately based on prompt/idle readiness.
 - **ON**: auto-voice waits until you press `Enter` after reviewing/editing the injected transcript.
+- In HUD/status, review mode appends `RVW` to the intent tag and the send control text becomes `review`.
 
 ### Tips
 

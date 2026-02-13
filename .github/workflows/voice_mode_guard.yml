@@ -1,0 +1,41 @@
+name: Voice Mode Guard
+
+on:
+  push:
+    paths:
+      - "src/**"
+      - ".github/workflows/voice_mode_guard.yml"
+  pull_request:
+    paths:
+      - "src/**"
+      - ".github/workflows/voice_mode_guard.yml"
+
+jobs:
+  voice-mode-guard:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install ALSA development headers
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev
+
+      - name: Command/Dictation mode guards
+        run: |
+          cargo test --bin voxterm settings_handlers::tests::toggle_voice_intent_mode_updates_state_and_status -- --nocapture
+          cargo test --bin voxterm voice_control::drain::tests::apply_voice_intent_mode_applies_macros_in_command_mode -- --nocapture
+          cargo test --bin voxterm voice_control::drain::tests::apply_voice_intent_mode_skips_macros_in_dictation_mode -- --nocapture
+
+      - name: Review-first mode guards
+        run: |
+          cargo test --bin voxterm settings_handlers::tests::toggle_transcript_review_updates_state_and_status -- --nocapture
+          cargo test --bin voxterm voice_control::drain::tests::apply_review_before_send_forces_insert_when_enabled -- --nocapture
+          cargo test --bin voxterm transcript::delivery::tests::deliver_transcript_tracks_review_wait_state -- --nocapture
+          cargo test --bin voxterm status_line::format::tests::format_status_line_shows_review_tag_when_enabled -- --nocapture
+          cargo test --bin voxterm status_line::buttons::tests::button_defs_use_review_label_when_enabled -- --nocapture

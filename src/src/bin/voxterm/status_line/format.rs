@@ -909,6 +909,18 @@ mod tests {
     }
 
     #[test]
+    fn format_status_line_shows_review_tag_when_enabled() {
+        let state = StatusLineState {
+            auto_voice_enabled: true,
+            voice_mode: VoiceMode::Auto,
+            review_before_send: true,
+            ..Default::default()
+        };
+        let line = format_status_line(&state, Theme::Coral, 80);
+        assert!(line.contains("RVW"));
+    }
+
+    #[test]
     fn format_status_banner_minimal_mode() {
         let mut state = StatusLineState::new();
         state.hud_style = HudStyle::Minimal;

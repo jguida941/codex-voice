@@ -18,6 +18,7 @@ Note: Some historical entries reference internal documents that are not publishe
 ### CI
 - Add a dedicated latency guard workflow (`.github/workflows/latency_guard.yml`) that runs synthetic voice-only regression bounds in CI.
 - Extend `latency_measurement` and `dev/scripts/tests/measure_latency.sh` with CI guardrail flags (`--ci-guard`, `--skip-stt`, and min/max latency bounds) for deterministic regression checks.
+- Add a dedicated voice-mode regression workflow (`.github/workflows/voice_mode_guard.yml`) to continuously validate command/dictation/review mode behavior.
 
 ### Documentation
 - Document latency baseline results in `dev/archive/2026-02-13-latency-baseline.md`.
@@ -29,6 +30,7 @@ Note: Some historical entries reference internal documents that are not publishe
 - Add unit coverage for voice macro parsing, trigger matching, template remainder substitution, and project file loading.
 - Add intent-mode tests for command vs dictation macro behavior and settings-toggle state transitions.
 - Add transcript delivery coverage for review wait-state tracking and settings-handler coverage for review toggle behavior.
+- Add HUD/status assertions for review-mode labels (`RVW` and `review` send control text).
 
 ### Developer Experience
 - Add `python3 dev/scripts/devctl.py hygiene` to audit archive naming, ADR status/index consistency, and `dev/scripts` documentation coverage.

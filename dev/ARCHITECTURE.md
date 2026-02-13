@@ -242,6 +242,7 @@ Primary command entrypoint: `dev/scripts/devctl.py`.
 | Workflow | File | Purpose |
 |---|---|---|
 | Rust CI | `.github/workflows/rust_ci.yml` | fmt + clippy + workspace tests |
+| Voice Mode Guard | `.github/workflows/voice_mode_guard.yml` | command/dictation/review mode regression tests |
 | Perf Smoke | `.github/workflows/perf_smoke.yml` | validate `voice_metrics|...` logging contract |
 | Latency Guardrails | `.github/workflows/latency_guard.yml` | synthetic latency regression checks (`measure_latency.sh --ci-guard`) |
 | Memory Guard | `.github/workflows/memory_guard.yml` | repeated thread/resource cleanup test |

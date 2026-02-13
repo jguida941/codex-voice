@@ -45,6 +45,9 @@ voxterm --logs                    # Enable debug logging
 | `--voice-send-mode <auto\|insert>` | `auto` types text and presses Enter; `insert` types text, you press Enter | auto |
 | `--seconds <N>` | Recording duration for the Python fallback pipeline (1-60) | 5 |
 
+`Review first` is currently a runtime Settings toggle (`Ctrl+O`) and does not yet
+have a CLI flag.
+
 ---
 
 ## Backend Selection

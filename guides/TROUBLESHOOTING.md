@@ -14,6 +14,7 @@
 | Voice macro not expanding | See [Status Messages → Voice macro not expanding](#voice-macro-not-expanding) |
 | Voice macro expanded when dictating prose | See [Status Messages → Voice macro expanded when dictating prose](#voice-macro-expanded-when-dictating-prose) |
 | Auto-voice starts listening again before I finish editing | See [Status Messages → Auto-voice re-arms before transcript review is done](#auto-voice-re-arms-before-transcript-review-is-done) |
+| HUD still shows `send` while Review first is ON | See [Status Messages → Review mode indicator does not match settings](#review-mode-indicator-does-not-match-settings) |
 | Wrong version after update | [Install Issues → Wrong version after update](#wrong-version-after-update) |
 
 Other sections: [Status Messages](#status-messages) · [Audio Setup](#audio-setup) ·
@@ -119,6 +120,16 @@ auto behavior can restart listening while you are still editing.
 1. Open Settings (`Ctrl+O`)
 2. Turn **Review first** to **ON**
 3. Speak, edit the injected text, then press `Enter` to send and re-arm auto-voice
+
+### Review mode indicator does not match settings
+
+With **Review first** ON, status/HUD should include `RVW` and the send control
+label should read `review`.
+
+**Fixes:**
+1. Toggle **Review first** OFF and back ON in Settings (`Ctrl+O`)
+2. Confirm you are running the latest build (`voxterm --version`)
+3. Restart `voxterm` if the old HUD state persists
 
 ### Typing/Enter feels laggy while backend is thinking
 

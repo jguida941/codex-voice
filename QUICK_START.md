@@ -77,6 +77,9 @@ Send mode note: "auto" types your words and presses Enter. "Insert" types your w
 but lets you press `Enter` yourself. VoxTerm only writes to the terminal (PTY) and
 does not call Codex/Claude directly.
 
+Review mode note: in Settings (`Ctrl+O`), turn **Review first** ON to always inject
+transcripts without Enter and re-arm auto-voice only after you press `Enter`.
+
 ## 5) Common flags
 
 ```bash

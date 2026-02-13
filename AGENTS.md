@@ -166,6 +166,7 @@ python3 dev/scripts/devctl.py mutation-score --threshold 0.80
 
 ## CI workflows (reference)
 - `rust_ci.yml`: format, clippy, and test for `src/`.
+- `voice_mode_guard.yml`: targeted command/dictation/review mode regression tests.
 - `perf_smoke.yml`: perf smoke test and voice metrics verification.
 - `latency_guard.yml`: synthetic latency regression guardrails.
 - `memory_guard.yml`: repeated memory guard test.

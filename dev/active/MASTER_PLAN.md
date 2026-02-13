@@ -46,6 +46,7 @@
 - [x] MP-085 Voice macros and custom triggers (`.voxterm/macros.yaml`).
 - [x] MP-086 Command mode vs dictation mode (state model + toggle UX).
 - [x] MP-087 Transcript preview/edit before send (Settings `Review first` toggle forces insert-style review and pauses auto re-arm until Enter).
+- [x] MP-112 Add CI voice-mode regression lane for command/dictation/review behavior (`.github/workflows/voice_mode_guard.yml`).
 - [ ] MP-088 Persistent user config (`~/.config/voxterm/config.toml`) for core preferences.
 
 ## Phase 3 - Overlay Differentiators

@@ -165,6 +165,9 @@ See the [Usage Guide](guides/USAGE.md) for details.
 | `Ctrl+Q` | Quit |
 | `Ctrl+C` | Send interrupt to CLI |
 
+When Settings -> `Review first` is ON, transcripts are inserted for edit and the
+send control shows `review` until you press `Enter`.
+
 ## Install Options
 
 <details>

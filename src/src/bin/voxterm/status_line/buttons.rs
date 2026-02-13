@@ -686,4 +686,16 @@ mod tests {
         assert!(line.contains("Vox"));
         assert!(line.contains("Ctrl+U"));
     }
+
+    #[test]
+    fn button_defs_use_review_label_when_enabled() {
+        let mut state = StatusLineState::new();
+        state.review_before_send = true;
+        let defs = get_button_defs(&state);
+        let send = defs
+            .iter()
+            .find(|def| def.action == ButtonAction::ToggleSendMode)
+            .expect("send button");
+        assert_eq!(send.label, "review");
+    }
 }

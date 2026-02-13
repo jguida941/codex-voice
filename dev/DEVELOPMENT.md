@@ -226,6 +226,7 @@ GitHub Actions run on every push and PR:
 | Workflow | File | What it checks |
 |----------|------|----------------|
 | Rust TUI CI | `.github/workflows/rust_ci.yml` | Build, test, clippy, fmt |
+| Voice Mode Guard | `.github/workflows/voice_mode_guard.yml` | Focused command/dictation/review mode regressions |
 | Perf Smoke | `.github/workflows/perf_smoke.yml` | Perf smoke test + metrics verification |
 | Latency Guard | `.github/workflows/latency_guard.yml` | Synthetic latency regression guardrails |
 | Memory Guard | `.github/workflows/memory_guard.yml` | 20x memory guard loop |
