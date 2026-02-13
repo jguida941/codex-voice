@@ -18,7 +18,7 @@ impl OverlayConfig {
         let mode = self.color_mode();
         if !mode.supports_color() {
             Theme::None
-        } else if !mode.supports_truecolor() {
+        } else if matches!(mode, ColorMode::Ansi16) {
             requested.fallback_for_ansi()
         } else {
             requested
@@ -95,5 +95,87 @@ mod tests {
             assert_eq!(config.theme_for_backend("codex"), Theme::Codex);
             assert_eq!(config.theme_for_backend("custom"), Theme::Coral);
         });
+    }
+
+    #[test]
+    fn theme_for_backend_keeps_requested_theme_on_256color_term() {
+        let _guard = ENV_GUARD
+            .get_or_init(|| Mutex::new(()))
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        let prev_colorterm = std::env::var("COLORTERM").ok();
+        let prev_term = std::env::var("TERM").ok();
+        let prev_no_color = std::env::var("NO_COLOR").ok();
+        std::env::remove_var("COLORTERM");
+        std::env::set_var("TERM", "xterm-256color");
+        std::env::remove_var("NO_COLOR");
+
+        let config = OverlayConfig::parse_from(["test", "--theme", "dracula"]);
+        assert_eq!(config.theme_for_backend("codex"), Theme::Dracula);
+
+        match prev_colorterm {
+            Some(value) => std::env::set_var("COLORTERM", value),
+            None => std::env::remove_var("COLORTERM"),
+        }
+        match prev_term {
+            Some(value) => std::env::set_var("TERM", value),
+            None => std::env::remove_var("TERM"),
+        }
+        match prev_no_color {
+            Some(value) => std::env::set_var("NO_COLOR", value),
+            None => std::env::remove_var("NO_COLOR"),
+        }
+    }
+
+    #[test]
+    fn theme_for_backend_keeps_ansi_fallback_on_ansi16_term() {
+        let _guard = ENV_GUARD
+            .get_or_init(|| Mutex::new(()))
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        let prev_colorterm = std::env::var("COLORTERM").ok();
+        let prev_term = std::env::var("TERM").ok();
+        let prev_no_color = std::env::var("NO_COLOR").ok();
+        let extra_keys = [
+            "TERM_PROGRAM",
+            "TERMINAL_EMULATOR",
+            "PYCHARM_HOSTED",
+            "JETBRAINS_IDE",
+            "IDEA_INITIAL_DIRECTORY",
+            "IDEA_INITIAL_PROJECT",
+            "CLION_IDE",
+        ];
+        let prev_extra: Vec<(String, Option<String>)> = extra_keys
+            .iter()
+            .map(|key| ((*key).to_string(), std::env::var(key).ok()))
+            .collect();
+        std::env::remove_var("COLORTERM");
+        std::env::set_var("TERM", "xterm");
+        std::env::remove_var("NO_COLOR");
+        for key in &extra_keys {
+            std::env::remove_var(key);
+        }
+
+        let config = OverlayConfig::parse_from(["test", "--theme", "dracula"]);
+        assert_eq!(config.theme_for_backend("codex"), Theme::Ansi);
+
+        match prev_colorterm {
+            Some(value) => std::env::set_var("COLORTERM", value),
+            None => std::env::remove_var("COLORTERM"),
+        }
+        match prev_term {
+            Some(value) => std::env::set_var("TERM", value),
+            None => std::env::remove_var("TERM"),
+        }
+        match prev_no_color {
+            Some(value) => std::env::set_var("NO_COLOR", value),
+            None => std::env::remove_var("NO_COLOR"),
+        }
+        for (key, value) in prev_extra {
+            match value {
+                Some(v) => std::env::set_var(key, v),
+                None => std::env::remove_var(key),
+            }
+        }
     }
 }

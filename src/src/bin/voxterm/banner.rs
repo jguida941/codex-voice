@@ -67,7 +67,6 @@ pub fn format_ascii_banner(use_color: bool, terminal_width: u16) -> String {
     let reset = "\x1b[0m";
     let dim = "\x1b[90m";
     let mut output = String::new();
-    output.push('\n');
 
     let logo_width = ASCII_LOGO
         .iter()
@@ -357,6 +356,12 @@ mod tests {
         assert!(banner.contains("Ctrl+V auto-voice"));
         assert!(banner.contains("Ctrl+Q quit"));
         assert!(banner.contains(VERSION));
+    }
+
+    #[test]
+    fn ascii_banner_has_no_leading_blank_line() {
+        let banner = format_ascii_banner(false, 120);
+        assert!(!banner.starts_with('\n'));
     }
 
     #[test]

@@ -34,6 +34,7 @@ pub fn theme_picker_total_width_for_terminal(width: usize) -> usize {
 pub fn format_theme_picker(current_theme: Theme, selected_idx: usize, width: usize) -> String {
     let colors = current_theme.colors();
     let borders = &colors.borders;
+    let show_theme_preview = current_theme != Theme::None;
     let mut lines = Vec::new();
     // Inner width is what goes between the left and right border characters
     // All rows must have exactly this many visible characters between borders
@@ -82,6 +83,7 @@ pub fn format_theme_picker(current_theme: Theme, selected_idx: usize, width: usi
             desc,
             marker,
             inner_width,
+            show_theme_preview,
         ));
     }
 
@@ -147,6 +149,7 @@ fn format_option_line_with_preview(
     desc: &str,
     marker: &str,
     inner_width: usize,
+    show_theme_preview: bool,
 ) -> String {
     // Label: "1. coral"
     let label = format!("{}. {}", num, name);
@@ -159,6 +162,11 @@ fn format_option_line_with_preview(
     let desc_col = inner_width.saturating_sub(fixed_visible);
     let desc_truncated: String = desc.chars().take(desc_col).collect();
     let desc_padded = format!("{:<width$}", desc_truncated, width = desc_col);
+    let (preview_color, preview_icon) = if show_theme_preview {
+        (theme_colors.recording, theme_colors.indicator_rec)
+    } else {
+        ("", " ")
+    };
 
     // Build the row: exactly inner_width visible characters between borders
     // "{indicator} {marker} {label} {desc}" = 1+1+1+1+14+1+desc_col = 19+desc_col = inner_width
@@ -167,8 +175,8 @@ fn format_option_line_with_preview(
         colors.border,
         borders.vertical,
         colors.reset,
-        theme_colors.recording,
-        theme_colors.indicator_rec,
+        preview_color,
+        preview_icon,
         colors.reset,
         marker,
         label_padded,
@@ -216,5 +224,14 @@ mod tests {
     #[test]
     fn theme_picker_height_positive() {
         assert!(theme_picker_height() > 5);
+    }
+
+    #[test]
+    fn theme_picker_none_theme_uses_neutral_preview_rows() {
+        let output = format_theme_picker(Theme::None, 10, 60);
+        assert!(!output.contains("\x1b["));
+        assert!(!output.contains("◉"));
+        assert!(!output.contains("⏺"));
+        assert!(output.contains("11. none"));
     }
 }

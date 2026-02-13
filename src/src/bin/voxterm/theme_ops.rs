@@ -5,6 +5,7 @@ use std::time::{Duration, Instant};
 use crossbeam_channel::Sender;
 use voxterm::pty_session::PtyOverlaySession;
 
+use crate::color_mode::ColorMode;
 use crate::config::OverlayConfig;
 use crate::overlays::OverlayMode;
 use crate::status_line::StatusLineState;
@@ -132,7 +133,7 @@ fn resolve_theme_choice(config: &OverlayConfig, requested: Theme) -> (Theme, Opt
     if !mode.supports_color() {
         return (Theme::None, Some("no color support"));
     }
-    if !mode.supports_truecolor() {
+    if matches!(mode, ColorMode::Ansi16) {
         let resolved = requested.fallback_for_ansi();
         if resolved != requested {
             return (resolved, Some("ansi fallback"));

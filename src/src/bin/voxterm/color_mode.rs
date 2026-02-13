@@ -68,6 +68,7 @@ impl ColorMode {
     }
 
     /// Check if true color (24-bit) is supported.
+    #[allow(dead_code)]
     pub fn supports_truecolor(&self) -> bool {
         matches!(self, Self::TrueColor)
     }
@@ -78,20 +79,30 @@ fn env_supports_truecolor_without_colorterm() -> bool {
         let program = term_program.to_lowercase();
         if matches!(
             program.as_str(),
-            "vscode" | "cursor" | "wezterm" | "iterm.app" | "warpterminal"
-        ) {
+            "vscode" | "cursor" | "wezterm" | "iterm.app" | "warpterminal" | "jetbrains-jediterm"
+        ) || program.contains("jetbrains")
+            || program.contains("jediterm")
+        {
             return true;
         }
     }
 
     if let Ok(terminal_emulator) = env::var("TERMINAL_EMULATOR") {
         let emulator = terminal_emulator.to_lowercase();
-        if emulator.contains("jetbrains-jediterm") {
+        if emulator.contains("jetbrains") || emulator.contains("jediterm") {
             return true;
         }
     }
 
-    env::var("PYCHARM_HOSTED").is_ok() || env::var("JETBRAINS_IDE").is_ok()
+    [
+        "PYCHARM_HOSTED",
+        "JETBRAINS_IDE",
+        "IDEA_INITIAL_DIRECTORY",
+        "IDEA_INITIAL_PROJECT",
+        "CLION_IDE",
+    ]
+    .iter()
+    .any(|name| env::var(name).is_ok())
 }
 
 impl std::fmt::Display for ColorMode {
@@ -290,6 +301,74 @@ mod tests {
             match prev_term_program {
                 Some(v) => std::env::set_var("TERM_PROGRAM", v),
                 None => std::env::remove_var("TERM_PROGRAM"),
+            }
+            match prev_no_color {
+                Some(v) => std::env::set_var("NO_COLOR", v),
+                None => std::env::remove_var("NO_COLOR"),
+            }
+        });
+    }
+
+    #[test]
+    fn detect_truecolor_for_jetbrains_term_program_env() {
+        with_env_lock(|| {
+            let prev_colorterm = std::env::var("COLORTERM").ok();
+            let prev_term = std::env::var("TERM").ok();
+            let prev_term_program = std::env::var("TERM_PROGRAM").ok();
+            let prev_no_color = std::env::var("NO_COLOR").ok();
+
+            std::env::remove_var("COLORTERM");
+            std::env::set_var("TERM", "xterm-256color");
+            std::env::set_var("TERM_PROGRAM", "JetBrains-JediTerm");
+            std::env::remove_var("NO_COLOR");
+
+            assert_eq!(ColorMode::detect(), ColorMode::TrueColor);
+
+            match prev_colorterm {
+                Some(v) => std::env::set_var("COLORTERM", v),
+                None => std::env::remove_var("COLORTERM"),
+            }
+            match prev_term {
+                Some(v) => std::env::set_var("TERM", v),
+                None => std::env::remove_var("TERM"),
+            }
+            match prev_term_program {
+                Some(v) => std::env::set_var("TERM_PROGRAM", v),
+                None => std::env::remove_var("TERM_PROGRAM"),
+            }
+            match prev_no_color {
+                Some(v) => std::env::set_var("NO_COLOR", v),
+                None => std::env::remove_var("NO_COLOR"),
+            }
+        });
+    }
+
+    #[test]
+    fn detect_truecolor_for_jetbrains_ide_env_marker() {
+        with_env_lock(|| {
+            let prev_colorterm = std::env::var("COLORTERM").ok();
+            let prev_term = std::env::var("TERM").ok();
+            let prev_idea_dir = std::env::var("IDEA_INITIAL_DIRECTORY").ok();
+            let prev_no_color = std::env::var("NO_COLOR").ok();
+
+            std::env::remove_var("COLORTERM");
+            std::env::set_var("TERM", "xterm-256color");
+            std::env::set_var("IDEA_INITIAL_DIRECTORY", "/tmp/project");
+            std::env::remove_var("NO_COLOR");
+
+            assert_eq!(ColorMode::detect(), ColorMode::TrueColor);
+
+            match prev_colorterm {
+                Some(v) => std::env::set_var("COLORTERM", v),
+                None => std::env::remove_var("COLORTERM"),
+            }
+            match prev_term {
+                Some(v) => std::env::set_var("TERM", v),
+                None => std::env::remove_var("TERM"),
+            }
+            match prev_idea_dir {
+                Some(v) => std::env::set_var("IDEA_INITIAL_DIRECTORY", v),
+                None => std::env::remove_var("IDEA_INITIAL_DIRECTORY"),
             }
             match prev_no_color {
                 Some(v) => std::env::set_var("NO_COLOR", v),

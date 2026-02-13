@@ -17,6 +17,7 @@
 | Transcript stays queued in Claude confirmation prompts | See [Status Messages → Transcript stays queued in Claude-confirmation prompts](#transcript-stays-queued-in-claude-confirmation-prompts) |
 | Startup splash lingers in IDE terminal | See [Startup Banner Lingers in IDE Terminal](#startup-banner-lingers-in-ide-terminal) |
 | Theme colors look muted in IDE terminal | See [Theme Colors Look Muted in IDE Terminal](#theme-colors-look-muted-in-ide-terminal) |
+| Theme picker still looks colorized in `none` theme | See [Theme Picker Looks Colorized in `none` Theme](#theme-picker-looks-colorized-in-none-theme) |
 | Voice macro not expanding | See [Status Messages → Voice macro not expanding](#voice-macro-not-expanding) |
 | Voice macro expanded unexpectedly | See [Status Messages → Voice macro expanded unexpectedly](#voice-macro-expanded-unexpectedly) |
 | Wrong version after update | [Install Issues → Wrong version after update](#wrong-version-after-update) |
@@ -489,6 +490,20 @@ themes look like ANSI fallbacks on older builds.
    ```
 
 If forced truecolor fixes appearance, update to the latest VoxTerm build.
+
+Older builds could also force `ansi` fallback in some `xterm-256color` IDE
+terminals. Current builds keep the selected theme on 256-color terminals and
+reserve `ansi` fallback for true ANSI-16 environments.
+
+### Theme Picker Looks Colorized in `none` Theme
+
+If Theme Picker still shows per-theme colored rows while current theme is
+`none`, you are likely on an older build.
+
+**Fixes:**
+1. Upgrade to the latest VoxTerm build
+2. Reopen Theme Picker (`Ctrl+Y`) after upgrading
+3. Confirm current theme row is `none`
 
 ---
 
