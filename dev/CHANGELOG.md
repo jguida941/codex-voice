@@ -5,6 +5,15 @@ Note: Some historical entries reference internal documents that are not publishe
 
 ## [Unreleased]
 
+## [1.0.62] - 2026-02-13
+
+### UX
+- Revert the post-`v1.0.61` scroll-region protection change that caused severe Full HUD redraw corruption/duplication in active Codex sessions.
+- Re-publish the known-good Full HUD writer/render baseline (the `v1.0.53`-derived path with one-column safety margin) as the current stable release.
+
+### Documentation
+- Clarify release history: `v1.0.62` supersedes the first `v1.0.61` tag for HUD stability.
+
 ## [1.0.61] - 2026-02-13
 
 ### UX

@@ -359,7 +359,7 @@ debug log above is still the fastest way to confirm what your terminal emits.
 
 If you see stacked/repeated Full HUD frames in PyCharm/CLion/RustRover:
 
-This is addressed in `v1.0.61` and newer using the stable `v1.0.53`
+This is addressed in `v1.0.62` and newer using the stable `v1.0.53`
 writer/render HUD path plus a one-column layout safety margin.
 
 Symptoms can include:

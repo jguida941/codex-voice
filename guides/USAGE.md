@@ -279,6 +279,7 @@ When recording or processing, the mode label includes a pipeline tag
 Visual updates:
 - VoxTerm keeps bounded telemetry history for meter/latency and renders sparkline-style trends in compact HUD space.
 - Full HUD rendering uses a conservative writer path (`v1.0.53` baseline) plus a one-column safety margin to avoid duplicated/wrapped rows in IDE terminals.
+- `v1.0.62` is the current stable tag for this Full HUD path.
 - Compact HUD modules adapt by context:
   - recording: meter + latency + queue (space permitting)
   - backend busy: queue + latency

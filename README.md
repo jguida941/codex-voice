@@ -62,7 +62,7 @@ Startup splash behavior:
 - set `VOXTERM_STARTUP_SPLASH_MS=0` for immediate clear
 - set `VOXTERM_NO_STARTUP_BANNER=1` to skip it entirely
 
-IDE terminal HUD compatibility (`v1.0.61`):
+IDE terminal HUD compatibility (`v1.0.62`):
 - Full HUD uses the proven `v1.0.53` writer/render baseline plus a one-column
   right-edge safety margin to avoid duplicated or wrapped rows in
   Cursor/JetBrains terminals.
