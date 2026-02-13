@@ -3,6 +3,7 @@
 use std::sync::OnceLock;
 
 use crate::audio_meter::format_waveform;
+use crate::buttons::ButtonAction;
 use crate::config::{HudRightPanel, HudStyle};
 use crate::hud::{HudRegistry, HudState, LatencyModule, MeterModule, Mode as HudMode, QueueModule};
 use crate::status_style::StatusType;
@@ -133,10 +134,21 @@ pub fn format_status_banner(state: &StatusLineState, theme: Theme, width: usize)
             // Get shortcuts row with button positions
             let (shortcuts_line, buttons) =
                 format_shortcuts_row_with_positions(state, &colors, borders, inner_width);
+            let message_anchor_col = buttons
+                .iter()
+                .find(|button| button.action == ButtonAction::SettingsToggle)
+                .map(|button| button.start_x as usize);
 
             let lines = vec![
                 format_top_border(&colors, borders, width),
-                format_main_row(state, &colors, borders, theme, inner_width),
+                format_main_row(
+                    state,
+                    &colors,
+                    borders,
+                    theme,
+                    inner_width,
+                    message_anchor_col,
+                ),
                 shortcuts_line,
                 format_bottom_border(&colors, borders, width),
             ];
@@ -240,6 +252,7 @@ fn format_main_row(
     borders: &BorderSet,
     theme: Theme,
     inner_width: usize,
+    message_anchor_col: Option<usize>,
 ) -> String {
     // Build content sections
     let mode_section = format_mode_indicator(state, colors);
@@ -261,7 +274,26 @@ fn format_main_row(
     );
     let right_width = display_width(&right_panel);
     let message_available = inner_width.saturating_sub(content_width + right_width);
-    let truncated_message = truncate_display(&message_section, message_available);
+    let message_leading_space = if message_section.starts_with(' ') {
+        1
+    } else {
+        0
+    };
+    let message_anchor_padding = if message_section.is_empty() {
+        0
+    } else {
+        let target_prefix_width = message_anchor_col
+            .map(|anchor_col| anchor_col.saturating_sub(2 + message_leading_space))
+            .unwrap_or(content_width);
+        let desired_padding = target_prefix_width.saturating_sub(content_width);
+        desired_padding.min(message_available.saturating_sub(1))
+    };
+    let padded_message = if message_anchor_padding == 0 {
+        message_section
+    } else {
+        format!("{}{}", " ".repeat(message_anchor_padding), message_section)
+    };
+    let truncated_message = truncate_display(&padded_message, message_available);
     let message_width = display_width(&truncated_message);
     let interior = format!("{content}{truncated_message}");
 
@@ -1172,6 +1204,25 @@ mod tests {
 
         let banner = format_status_banner(&state, Theme::Coral, 120);
         assert!(banner.lines[1].contains("Auto-voice disabled"));
+    }
+
+    #[test]
+    fn format_status_banner_full_mode_aligns_info_message_over_settings_lane() {
+        let mut state = StatusLineState::new();
+        state.hud_style = HudStyle::Full;
+        state.recording_state = RecordingState::Idle;
+        state.voice_mode = VoiceMode::Manual;
+        state.message = "Auto-voice disabled (capture cancelled)".to_string();
+
+        let banner = format_status_banner(&state, Theme::None, 140);
+        let message_col = banner.lines[1]
+            .find("Auto-voice")
+            .expect("main row should include message");
+        let settings_col = banner.lines[2]
+            .find("[set]")
+            .expect("shortcuts row should include [set]");
+        // Message text should align with the `set` label lane (one column past `[`)
+        assert_eq!(message_col, settings_col + 1);
     }
 
     #[test]

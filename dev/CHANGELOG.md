@@ -21,6 +21,7 @@ Note: Some historical entries reference internal documents that are not publishe
 - Improve Full HUD visual balance by increasing the maximum right-panel ribbon waveform width.
 - Keep Full HUD steady-state badges (`Ready`, latency `Nms`) with the shortcuts/theme cluster on the lower row, while restoring toggle/status messages to the main row lane after dB.
 - Render Full HUD steady badges as `Ready Nms` (no extra separator between `Ready` and latency).
+- Anchor Full HUD transient toggle/status text to the `[set]` lane so long messages stay visually aligned with controls instead of drifting left.
 - Suppress duplicate active-state text in Full HUD main row (for example `processing`/`ready`) so recording/processing state is shown once via the left mode indicator.
 - Update send-mode status wording to user-facing `Edit mode: press Enter to send` when insert behavior is active.
 

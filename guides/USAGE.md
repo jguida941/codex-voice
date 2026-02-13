@@ -334,6 +334,8 @@ In Full HUD idle state, VoxTerm uses concise labels for visual stability:
   shortcuts/theme cluster.
 - Main-row status text lane (after dB) is reserved for transient/toggle
   messages so control feedback appears in a stable location.
+- Transient/toggle messages are anchored to the `set` control lane in Full HUD
+  (above `[set]`) so long status text does not drift left/right between updates.
 - During active recording/processing, duplicate state words are suppressed in
   the main-row status lane so `REC`/`processing` is not shown twice.
 
