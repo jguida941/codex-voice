@@ -65,7 +65,10 @@ pub(super) struct WriterState {
     last_status_draw_at: Instant,
     theme: Theme,
     mouse_enabled: bool,
-    scroll_reserved_rows: usize,
+    /// Actual bottom row of the current scroll region (0 = not set).
+    /// Tracking the computed row (not just reserved height) ensures
+    /// the scroll region is recalculated on terminal resize.
+    scroll_region_bottom: u16,
 }
 
 impl WriterState {
@@ -82,7 +85,7 @@ impl WriterState {
             last_status_draw_at: Instant::now(),
             theme: Theme::default(),
             mouse_enabled: false,
-            scroll_reserved_rows: 0,
+            scroll_region_bottom: 0,
         }
     }
 
@@ -175,10 +178,10 @@ impl WriterState {
                 disable_mouse(&mut self.stdout, &mut self.mouse_enabled);
             }
             WriterMessage::Shutdown => {
-                // Disable mouse before exiting to restore terminal state
-                disable_mouse(&mut self.stdout, &mut self.mouse_enabled);
+                // Reset scroll region and disable mouse before exiting.
                 let _ = reset_scroll_region(&mut self.stdout);
-                self.scroll_reserved_rows = 0;
+                self.scroll_region_bottom = 0;
+                disable_mouse(&mut self.stdout, &mut self.mouse_enabled);
                 return false;
             }
         }
@@ -215,6 +218,11 @@ impl WriterState {
             self.display.enhanced_status = None;
             self.display.banner_height = 0;
             self.pending.clear_status = false;
+            // Reset scroll region when the HUD is fully cleared.
+            if self.scroll_region_bottom > 0 {
+                let _ = reset_scroll_region(&mut self.stdout);
+                self.scroll_region_bottom = 0;
+            }
         }
         if self.pending.clear_overlay {
             if let Some(panel) = self.display.overlay_panel.as_ref() {
@@ -250,7 +258,7 @@ impl WriterState {
             .enhanced_status
             .as_ref()
             .map(|state| format_status_banner(state, theme, cols as usize));
-        let desired_reserved_rows = if let Some(panel) = self.display.overlay_panel.as_ref() {
+        let desired_reserved = if let Some(panel) = self.display.overlay_panel.as_ref() {
             panel.height
         } else if let Some(banner) = banner.as_ref() {
             banner.height
@@ -260,17 +268,31 @@ impl WriterState {
             0
         };
 
+        // Compute the actual scroll region bottom row.  Tracking the row
+        // (not just the reserved count) ensures resize is handled correctly.
+        let desired_bottom: u16 = if desired_reserved > 0 && rows > desired_reserved as u16 {
+            rows.saturating_sub(desired_reserved as u16)
+        } else {
+            0
+        };
+
+        // Always re-apply the scroll region on every redraw.  The child
+        // process (e.g., Claude Code TUI) can emit escape sequences that
+        // reset the scroll region, and we have no way to detect that.
+        // Re-applying is cheap (one short escape sequence with
+        // save/restore cursor) and this method is already throttled.
         let mut flush_error: Option<io::Error> = None;
-        if desired_reserved_rows != self.scroll_reserved_rows {
-            let region_result = if desired_reserved_rows == 0 {
-                reset_scroll_region(&mut self.stdout)
-            } else {
-                set_scroll_region(&mut self.stdout, rows, desired_reserved_rows)
-            };
-            if let Err(err) = region_result {
+        if desired_bottom > 0 {
+            if let Err(err) = set_scroll_region(&mut self.stdout, rows, desired_reserved) {
                 flush_error = Some(err);
             } else {
-                self.scroll_reserved_rows = desired_reserved_rows;
+                self.scroll_region_bottom = desired_bottom;
+            }
+        } else if self.scroll_region_bottom > 0 {
+            if let Err(err) = reset_scroll_region(&mut self.stdout) {
+                flush_error = Some(err);
+            } else {
+                self.scroll_region_bottom = 0;
             }
         }
 
