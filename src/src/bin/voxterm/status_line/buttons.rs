@@ -63,6 +63,7 @@ fn minimal_strip_text(state: &StatusLineState, colors: &ThemeColors) -> String {
         format!("{}{} {}{}", color, indicator, label, colors.reset)
     };
 
+    let mut idle_status: Option<String> = None;
     match state.recording_state {
         RecordingState::Recording => {
             if let Some(db) = state.meter_db {
@@ -78,29 +79,7 @@ fn minimal_strip_text(state: &StatusLineState, colors: &ThemeColors) -> String {
         }
         RecordingState::Processing => {}
         RecordingState::Idle => {
-            let status_text = if state.message.is_empty() {
-                "Ready"
-            } else {
-                state.message.as_str()
-            };
-            let status_color = if state.message.is_empty() {
-                colors.success
-            } else {
-                StatusType::from_message(status_text).color(colors)
-            };
-            let status = if status_color.is_empty() {
-                status_text.to_string()
-            } else {
-                format!("{}{}{}", status_color, status_text, colors.reset)
-            };
-            if !status.is_empty() {
-                line.push(' ');
-                line.push_str(colors.dim);
-                line.push('·');
-                line.push_str(colors.reset);
-                line.push(' ');
-                line.push_str(&status);
-            }
+            idle_status = Some(minimal_idle_status(state, colors));
         }
     }
 
@@ -113,7 +92,49 @@ fn minimal_strip_text(state: &StatusLineState, colors: &ThemeColors) -> String {
         line.push_str(&panel);
     }
 
+    if let Some(status) = idle_status {
+        if !status.is_empty() {
+            line.push(' ');
+            line.push_str(colors.dim);
+            line.push('·');
+            line.push_str(colors.reset);
+            line.push(' ');
+            line.push_str(&status);
+        }
+    }
+
     line
+}
+
+fn minimal_idle_status(state: &StatusLineState, colors: &ThemeColors) -> String {
+    if state.queue_depth > 0 {
+        return format!(
+            "{}Queued {}{}",
+            colors.warning, state.queue_depth, colors.reset
+        );
+    }
+
+    if state.message.is_empty() {
+        return format!("{}Ready{}", colors.success, colors.reset);
+    }
+
+    let status_type = StatusType::from_message(&state.message);
+    let compact = match status_type {
+        StatusType::Error => "Error",
+        StatusType::Warning => "Warning",
+        // Keep minimal mode visually stable; map info/success churn to a steady ready state.
+        StatusType::Info | StatusType::Success | StatusType::Processing | StatusType::Recording => {
+            "Ready"
+        }
+    };
+    let color = match status_type {
+        StatusType::Error => colors.error,
+        StatusType::Warning => colors.warning,
+        StatusType::Info | StatusType::Success | StatusType::Processing | StatusType::Recording => {
+            colors.success
+        }
+    };
+    format!("{color}{compact}{}", colors.reset)
 }
 
 fn minimal_right_panel(state: &StatusLineState, colors: &ThemeColors) -> Option<String> {
@@ -127,7 +148,7 @@ fn minimal_right_panel(state: &StatusLineState, colors: &ThemeColors) -> Option<
 
     let panel = match state.hud_right_panel {
         HudRightPanel::Ribbon => {
-            let waveform = minimal_waveform(&state.meter_levels, 6);
+            let waveform = minimal_waveform(&state.meter_levels, 6, colors);
             format!(
                 "{}[{}{}{}]{}",
                 colors.dim, colors.reset, waveform, colors.dim, colors.reset
@@ -151,25 +172,36 @@ fn minimal_right_panel(state: &StatusLineState, colors: &ThemeColors) -> Option<
     Some(panel)
 }
 
-fn minimal_waveform(levels: &[f32], width: usize) -> String {
+fn minimal_waveform(levels: &[f32], width: usize, colors: &ThemeColors) -> String {
     const GLYPHS: [char; 8] = ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
     if width == 0 {
         return String::new();
     }
     if levels.is_empty() {
-        return "▁".repeat(width);
+        return format!("{}{}{}", colors.dim, "▁".repeat(width), colors.reset);
     }
 
-    let mut out = String::with_capacity(width);
+    let mut out = String::with_capacity(width * 8);
     let start = levels.len().saturating_sub(width);
     let slice = &levels[start..];
     if slice.len() < width {
+        out.push_str(colors.dim);
         out.push_str(&"▁".repeat(width - slice.len()));
+        out.push_str(colors.reset);
     }
     for db in slice {
         let normalized = ((*db + 60.0) / 60.0).clamp(0.0, 1.0);
         let idx = (normalized * (GLYPHS.len() as f32 - 1.0)).round() as usize;
+        let color = if normalized < 0.6 {
+            colors.success
+        } else if normalized < 0.85 {
+            colors.warning
+        } else {
+            colors.error
+        };
+        out.push_str(color);
         out.push(GLYPHS[idx]);
+        out.push_str(colors.reset);
     }
     out
 }
@@ -822,5 +854,45 @@ mod tests {
         state.meter_db = Some(-8.0);
         let line = minimal_strip_text(&state, &colors);
         assert!(line.contains("•"));
+    }
+
+    #[test]
+    fn minimal_strip_idle_success_collapses_to_ready() {
+        let colors = Theme::None.colors();
+        let mut state = StatusLineState::new();
+        state.recording_state = RecordingState::Idle;
+        state.voice_mode = VoiceMode::Auto;
+        state.message = "Transcript ready (Rust pipeline)".to_string();
+
+        let line = minimal_strip_text(&state, &colors);
+        assert!(line.contains("Ready"));
+        assert!(!line.contains("Transcript ready"));
+    }
+
+    #[test]
+    fn minimal_strip_idle_shows_queue_state() {
+        let colors = Theme::None.colors();
+        let mut state = StatusLineState::new();
+        state.recording_state = RecordingState::Idle;
+        state.queue_depth = 2;
+        state.message = "Auto-voice enabled".to_string();
+
+        let line = minimal_strip_text(&state, &colors);
+        assert!(line.contains("Queued 2"));
+    }
+
+    #[test]
+    fn minimal_ribbon_waveform_uses_level_colors() {
+        let colors = Theme::Coral.colors();
+        let mut state = StatusLineState::new();
+        state.hud_right_panel = HudRightPanel::Ribbon;
+        state.hud_right_panel_recording_only = false;
+        state.recording_state = RecordingState::Recording;
+        state
+            .meter_levels
+            .extend_from_slice(&[-55.0, -45.0, -35.0, -20.0, -10.0, -5.0]);
+
+        let panel = minimal_right_panel(&state, &colors).expect("panel");
+        assert!(panel.contains(colors.success));
     }
 }

@@ -325,6 +325,8 @@ Examples of the Minimal strip: `◉ AUTO · Ready`, `● REC · -55dB`.
 When Mouse is enabled, Minimal HUD shows a [back] button on the right to return
 to Full. If a right-panel mode is enabled, Minimal HUD also shows a compact
 telemetry visualization chip (`Ribbon`, `Dots`, or `Heartbeat`).
+Idle status text in Minimal HUD is intentionally compact to keep layout stable:
+`Ready`, `Queued N`, `Warning`, or `Error`.
 
 Minimal HUD (recording example):
 

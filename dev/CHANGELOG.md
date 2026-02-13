@@ -14,6 +14,7 @@ Note: Some historical entries reference internal documents that are not publishe
 - Add bounded sparkline-style telemetry in compact HUD views for both meter levels and latency trend.
 - Add a short state-transition pulse marker on mode/state changes so status updates are easier to perceive.
 - Add adaptive compact HUD module selection by context (recording vs busy queue vs idle) so narrow layouts prioritize relevant telemetry.
+- In Minimal HUD with right-panel visuals, color ribbon waveform bars by level (instead of inheriting terminal default white), and stabilize idle status text to concise labels (`Ready`/`Queued N`/`Warning`/`Error`) to reduce layout churn.
 
 ### CI
 - Add a dedicated latency guard workflow (`.github/workflows/latency_guard.yml`) that runs synthetic voice-only regression bounds in CI.
@@ -34,6 +35,7 @@ Note: Some historical entries reference internal documents that are not publishe
 - Add coverage for bounded latency history retention and transition animation marker behavior.
 - Add HUD module coverage for meter/latency sparkline rendering.
 - Add status-line coverage for adaptive compact module registry selection.
+- Add minimal-HUD coverage for ribbon colorized waveform output and idle status compaction behavior.
 
 ### Developer Experience
 - Add `python3 dev/scripts/devctl.py hygiene` to audit archive naming, ADR status/index consistency, and `dev/scripts` documentation coverage.
