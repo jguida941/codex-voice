@@ -196,7 +196,9 @@ impl Drop for PtyCliSession {
             // SAFETY: child_pid/master_fd come from spawn_pty_child; cleanup uses best-effort signals
             // and closes the fd if still open.
             if let Err(err) = self.send("exit\n") {
-                log_debug(&format!("failed to send PTY exit command: {err:#}"));
+                if !is_benign_shutdown_write_error(&err) {
+                    log_debug(&format!("failed to send PTY exit command: {err:#}"));
+                }
             }
             if !wait_for_exit(self.child_pid, Duration::from_millis(500)) {
                 if libc::kill(self.child_pid, libc::SIGTERM) != 0 {
@@ -366,10 +368,16 @@ pub(crate) fn test_pty_session(
 impl Drop for PtyOverlaySession {
     fn drop(&mut self) {
         unsafe {
+            if self.child_pid < 0 {
+                close_fd(self.master_fd);
+                return;
+            }
             // SAFETY: child_pid/master_fd come from spawn_pty_child; cleanup uses best-effort signals
             // and closes the fd if still open.
             if let Err(err) = self.send_text_with_newline("exit") {
-                log_debug(&format!("failed to send PTY exit command: {err:#}"));
+                if !is_benign_shutdown_write_error(&err) {
+                    log_debug(&format!("failed to send PTY exit command: {err:#}"));
+                }
             }
             if !wait_for_exit(self.child_pid, Duration::from_millis(500)) {
                 if libc::kill(self.child_pid, libc::SIGTERM) != 0 {
@@ -406,6 +414,27 @@ impl Drop for PtyOverlaySession {
             close_fd(self.master_fd);
         }
     }
+}
+
+fn is_benign_shutdown_write_error(err: &anyhow::Error) -> bool {
+    for cause in err.chain() {
+        if let Some(io_err) = cause.downcast_ref::<io::Error>() {
+            if io_err.kind() == io::ErrorKind::BrokenPipe {
+                return true;
+            }
+            if matches!(
+                io_err.raw_os_error(),
+                Some(code)
+                    if code == libc::EIO
+                        || code == libc::EPIPE
+                        || code == libc::ENXIO
+                        || code == libc::EBADF
+            ) {
+                return true;
+            }
+        }
+    }
+    false
 }
 
 /// Forks and execs a child process under a new PTY.

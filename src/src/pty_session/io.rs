@@ -1,7 +1,7 @@
 //! PTY read/write loops that keep stream forwarding robust under partial escapes.
 
 use crate::log_debug;
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use crossbeam_channel::Sender;
 use std::io::{self, ErrorKind};
 use std::os::unix::io::RawFd;
@@ -218,7 +218,7 @@ pub(super) fn write_all(fd: RawFd, mut data: &[u8]) -> Result<()> {
                 if err.kind() == ErrorKind::WriteZero {
                     return Err(anyhow!("PTY write returned 0"));
                 }
-                return Err(anyhow!("PTY write failed: {err}"));
+                return Err(err).context("PTY write failed");
             }
         };
         data = if written <= data.len() {

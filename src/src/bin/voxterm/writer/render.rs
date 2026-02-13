@@ -1,6 +1,7 @@
 //! Terminal rendering primitives so status and overlays update without flicker.
 
 use std::io::{self, Write};
+use unicode_width::UnicodeWidthChar;
 
 use crate::status_line::StatusBanner;
 use crate::status_style::StatusType;
@@ -13,6 +14,51 @@ use super::state::OverlayPanel;
 // margins on some terminals, which would undo our HUD scroll region.
 const SAVE_CURSOR: &[u8] = b"\x1b[s";
 const RESTORE_CURSOR: &[u8] = b"\x1b[u";
+
+fn clamp_ansi_line(line: &str, max_cols: u16) -> String {
+    if max_cols == 0 {
+        return String::new();
+    }
+
+    let max_width = max_cols as usize;
+    let mut width: usize = 0;
+    let mut in_escape = false;
+    let mut escape_seq = String::new();
+    let mut out = String::new();
+
+    for ch in line.chars() {
+        if ch == '\x1b' {
+            in_escape = true;
+            escape_seq.clear();
+            escape_seq.push(ch);
+            continue;
+        }
+
+        if in_escape {
+            escape_seq.push(ch);
+            // End of CSI/SGR command.
+            if ('@'..='~').contains(&ch) {
+                out.push_str(&escape_seq);
+                escape_seq.clear();
+                in_escape = false;
+            }
+            continue;
+        }
+
+        let ch_width = UnicodeWidthChar::width(ch).unwrap_or(0);
+        if width.saturating_add(ch_width) > max_width {
+            break;
+        }
+        out.push(ch);
+        width = width.saturating_add(ch_width);
+    }
+
+    if !out.is_empty() && out.contains("\x1b[") && !out.ends_with("\x1b[0m") {
+        out.push_str("\x1b[0m");
+    }
+
+    out
+}
 
 pub(super) fn set_scroll_region(
     stdout: &mut dyn Write,
@@ -78,8 +124,9 @@ pub(super) fn write_status_banner(
     stdout: &mut dyn Write,
     banner: &StatusBanner,
     rows: u16,
+    cols: u16,
 ) -> io::Result<()> {
-    if rows == 0 || banner.height == 0 {
+    if rows == 0 || cols == 0 || banner.height == 0 {
         return Ok(());
     }
     let height = banner.height.min(rows as usize);
@@ -92,7 +139,8 @@ pub(super) fn write_status_banner(
         let row = start_row + idx as u16;
         sequence.extend_from_slice(format!("\x1b[{row};1H").as_bytes()); // Move to row
         sequence.extend_from_slice(b"\x1b[2K"); // Clear line
-        sequence.extend_from_slice(line.as_bytes()); // Write content
+        let clamped = clamp_ansi_line(line, cols);
+        sequence.extend_from_slice(clamped.as_bytes()); // Write content
     }
 
     sequence.extend_from_slice(RESTORE_CURSOR); // Restore cursor
@@ -142,8 +190,9 @@ pub(super) fn write_overlay_panel(
     stdout: &mut dyn Write,
     panel: &OverlayPanel,
     rows: u16,
+    cols: u16,
 ) -> io::Result<()> {
-    if rows == 0 {
+    if rows == 0 || cols == 0 {
         return Ok(());
     }
     let lines: Vec<&str> = panel.content.lines().collect();
@@ -155,7 +204,8 @@ pub(super) fn write_overlay_panel(
         let row = start_row + idx as u16;
         sequence.extend_from_slice(format!("\x1b[{row};1H").as_bytes());
         sequence.extend_from_slice(b"\x1b[2K");
-        sequence.extend_from_slice(line.as_bytes());
+        let clamped = clamp_ansi_line(line, cols);
+        sequence.extend_from_slice(clamped.as_bytes());
     }
     sequence.extend_from_slice(RESTORE_CURSOR);
     stdout.write_all(&sequence)
@@ -286,5 +336,30 @@ mod tests {
         assert!(output.contains("\u{1b}[u"));
         assert!(!output.contains("\u{1b}7"));
         assert!(!output.contains("\u{1b}8"));
+    }
+
+    #[test]
+    fn write_status_banner_clamps_to_terminal_width() {
+        let mut buf = Vec::new();
+        let banner = StatusBanner::new(vec!["123456789".to_string()]);
+        write_status_banner(&mut buf, &banner, 8, 5).unwrap();
+        let output = String::from_utf8_lossy(&buf);
+        assert!(output.contains("\u{1b}[8;1H"));
+        assert!(output.contains("12345"));
+        assert!(!output.contains("123456"));
+    }
+
+    #[test]
+    fn write_overlay_panel_clamps_to_terminal_width() {
+        let mut buf = Vec::new();
+        let panel = OverlayPanel {
+            content: "abcdefghij".to_string(),
+            height: 1,
+        };
+        write_overlay_panel(&mut buf, &panel, 8, 4).unwrap();
+        let output = String::from_utf8_lossy(&buf);
+        assert!(output.contains("\u{1b}[8;1H"));
+        assert!(output.contains("abcd"));
+        assert!(!output.contains("abcde"));
     }
 }

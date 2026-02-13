@@ -12,6 +12,7 @@
 | Startup splash lingers in IDE terminal | See [Startup Banner Lingers in IDE Terminal](#startup-banner-lingers-in-ide-terminal) |
 | Theme colors look muted in IDE terminal | See [Theme Colors Look Muted in IDE Terminal](#theme-colors-look-muted-in-ide-terminal) |
 | Full HUD appears multiple times in JetBrains terminal | See [HUD Duplicates in JetBrains Terminals](#hud-duplicates-in-jetbrains-terminals) |
+| `PTY write failed: Input/output error` appears on exit | See [PTY Exit Write Error in Logs](#pty-exit-write-error-in-logs) |
 | Voice macro not expanding | See [Status Messages → Voice macro not expanding](#voice-macro-not-expanding) |
 | Voice macro expanded unexpectedly | See [Status Messages → Voice macro expanded unexpectedly](#voice-macro-expanded-unexpectedly) |
 | Wrong version after update | [Install Issues → Wrong version after update](#wrong-version-after-update) |
@@ -360,7 +361,12 @@ debug log above is still the fastest way to confirm what your terminal emits.
 
 If you see stacked/repeated Full HUD frames in PyCharm/CLion/RustRover:
 
-This is fixed in `v1.0.59` and newer.
+This is fixed in `v1.0.60` and newer.
+
+Symptoms can include:
+- duplicated/staggered HUD borders
+- repeated trailing `[back]` strips
+- partial HUD rows left behind after redraw
 
 1. Verify version is current:
    ```bash
@@ -372,6 +378,18 @@ This is fixed in `v1.0.59` and newer.
    ```
 3. If it still reproduces, share `${TMPDIR}/voxterm_tui.log` so terminal escape
    handling can be confirmed for your profile.
+
+### PTY Exit Write Error in Logs
+
+If you see this on shutdown:
+
+```text
+failed to send PTY exit command: PTY write failed: Input/output error (os error 5)
+```
+
+That message came from a race where the backend PTY had already started closing.
+It is treated as benign in `v1.0.60` and newer and should no longer be reported
+as an error during normal exit.
 
 ---
 

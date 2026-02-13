@@ -1,9 +1,7 @@
 //! Writer thread state so status, overlays, and cursor movement stay synchronized.
 
 use crossterm::terminal::size as terminal_size;
-use std::env;
 use std::io::{self, Write};
-use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 use voxterm::log_debug;
 
@@ -17,27 +15,6 @@ use crate::status_line::{format_status_banner, state_transition_progress, Status
 use crate::theme::Theme;
 
 const OUTPUT_FLUSH_INTERVAL_MS: u64 = 16;
-
-fn detect_jetbrains_terminal() -> bool {
-    let env_contains = |key: &str, needle: &str| {
-        env::var(key)
-            .ok()
-            .map(|value| value.to_lowercase().contains(needle))
-            .unwrap_or(false)
-    };
-
-    env_contains("TERMINAL_EMULATOR", "jetbrains")
-        || env_contains("TERMINAL_EMULATOR", "jediterm")
-        || env_contains("TERM_PROGRAM", "jetbrains")
-        || env_contains("TERM_PROGRAM", "jediterm")
-        || env::var("PYCHARM_HOSTED").is_ok()
-        || env::var("IDEA_INITIAL_DIRECTORY").is_ok()
-}
-
-fn should_guard_banner_width() -> bool {
-    static GUARD: OnceLock<bool> = OnceLock::new();
-    *GUARD.get_or_init(detect_jetbrains_terminal)
-}
 
 #[derive(Debug, Clone)]
 pub(super) struct OverlayPanel {
@@ -305,11 +282,8 @@ impl WriterState {
 
         let rows = self.rows;
         let cols = self.cols;
-        let render_cols = if should_guard_banner_width() {
-            cols.saturating_sub(1).max(1)
-        } else {
-            cols
-        };
+        // Keep one safety column to avoid terminal auto-wrap drift across emulators.
+        let render_cols = cols.saturating_sub(1).max(1);
         let theme = self.theme;
         let banner = self
             .display
@@ -355,14 +329,14 @@ impl WriterState {
         }
 
         if let Some(panel) = self.display.overlay_panel.as_ref() {
-            let _ = write_overlay_panel(&mut self.stdout, panel, rows);
+            let _ = write_overlay_panel(&mut self.stdout, panel, rows, cols);
         } else if let Some(banner) = banner.as_ref() {
             let clear_height = self.display.banner_height.max(banner.height);
             if clear_height > 0 {
                 let _ = clear_status_banner(&mut self.stdout, rows, clear_height);
             }
             self.display.banner_height = banner.height;
-            let _ = write_status_banner(&mut self.stdout, banner, rows);
+            let _ = write_status_banner(&mut self.stdout, banner, rows, cols);
         } else if let Some(text) = self.display.status.as_deref() {
             if self.display.banner_height > 1 {
                 let _ = clear_status_banner(&mut self.stdout, rows, self.display.banner_height);

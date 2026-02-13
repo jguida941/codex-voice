@@ -5,6 +5,18 @@ Note: Some historical entries reference internal documents that are not publishe
 
 ## [Unreleased]
 
+## [1.0.60] - 2026-02-13
+
+### UX
+- Prevent cross-terminal HUD wrap artifacts by reserving a one-column safety margin for banner rendering and clipping writer-rendered HUD/overlay rows to terminal width before output.
+- Suppress misleading PTY shutdown noise by treating expected exit-time write failures (`EIO`/broken pipe family) as benign when backend PTY teardown has already started.
+
+### Tests
+- Add writer render coverage ensuring status-banner and overlay panel rows are clipped to terminal width.
+
+### Documentation
+- Update troubleshooting guidance for JetBrains HUD duplication symptoms and clarify that PTY exit-write `EIO` log noise is fixed in `v1.0.60`.
+
 ## [1.0.59] - 2026-02-13
 
 ### UX
