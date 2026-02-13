@@ -9,6 +9,7 @@
 #   ./dev/scripts/tests/measure_latency.sh               # Interactive mode, 10 samples
 #   ./dev/scripts/tests/measure_latency.sh --synthetic   # Synthetic audio mode
 #   ./dev/scripts/tests/measure_latency.sh --voice-only  # Measure voice pipeline only
+#   ./dev/scripts/tests/measure_latency.sh --ci-guard    # CI-friendly synthetic latency guardrails
 
 set -euo pipefail
 
@@ -18,17 +19,26 @@ cd "$REPO_ROOT/src"
 # Parse arguments
 MODE="interactive"
 COUNT=10
-VOICE_ONLY=""
+VOICE_ONLY_ARGS=()
+SKIP_STT_ARGS=()
 EXTRA_ARGS=()
 
 while [[ $# -gt 0 ]]; do
   case $1 in
+    --ci-guard)
+      MODE="ci-guard"
+      shift
+      ;;
     --synthetic)
       MODE="synthetic"
       shift
       ;;
     --voice-only)
-      VOICE_ONLY="--voice-only"
+      VOICE_ONLY_ARGS+=(--voice-only)
+      shift
+      ;;
+    --skip-stt)
+      SKIP_STT_ARGS+=(--skip-stt)
       shift
       ;;
     --count)
@@ -42,6 +52,11 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+if [[ "$MODE" != "synthetic" && "$MODE" != "ci-guard" && ${#SKIP_STT_ARGS[@]} -gt 0 ]]; then
+  echo "error: --skip-stt requires --synthetic or --ci-guard" >&2
+  exit 2
+fi
+
 echo "=================================="
 echo "Phase 2B Latency Measurement Gate"
 echo "=================================="
@@ -50,7 +65,43 @@ echo "This measurement identifies whether voice or Codex is the bottleneck."
 echo "Collecting $COUNT samples in $MODE mode..."
 echo ""
 
-if [[ "$MODE" == "synthetic" ]]; then
+if [[ "$MODE" == "ci-guard" ]]; then
+  echo "Running CI-friendly synthetic latency guardrails (no mic, no Whisper model)..."
+  echo ""
+
+  cargo run --quiet --release --bin latency_measurement -- \
+    --label "ci-short" \
+    --count "$COUNT" \
+    --synthetic \
+    --speech-ms 1000 \
+    --silence-ms 700 \
+    --voice-only \
+    --skip-stt \
+    --min-voice-capture-ms 1200 \
+    --max-voice-capture-ms 2600 \
+    --min-voice-total-ms 1200 \
+    --max-voice-total-ms 2800 \
+    ${EXTRA_ARGS[@]+"${EXTRA_ARGS[@]}"}
+
+  echo ""
+  echo "---"
+  echo ""
+
+  cargo run --quiet --release --bin latency_measurement -- \
+    --label "ci-medium" \
+    --count "$COUNT" \
+    --synthetic \
+    --speech-ms 3000 \
+    --silence-ms 700 \
+    --voice-only \
+    --skip-stt \
+    --min-voice-capture-ms 3200 \
+    --max-voice-capture-ms 5000 \
+    --min-voice-total-ms 3200 \
+    --max-voice-total-ms 5200 \
+    ${EXTRA_ARGS[@]+"${EXTRA_ARGS[@]}"}
+
+elif [[ "$MODE" == "synthetic" ]]; then
   echo "Running synthetic measurements (short, medium utterances)..."
   echo ""
 
@@ -61,7 +112,8 @@ if [[ "$MODE" == "synthetic" ]]; then
     --synthetic \
     --speech-ms 1000 \
     --silence-ms 700 \
-    $VOICE_ONLY \
+    "${VOICE_ONLY_ARGS[@]}" \
+    "${SKIP_STT_ARGS[@]}" \
     ${EXTRA_ARGS[@]+"${EXTRA_ARGS[@]}"}
 
   echo ""
@@ -75,7 +127,8 @@ if [[ "$MODE" == "synthetic" ]]; then
     --synthetic \
     --speech-ms 3000 \
     --silence-ms 700 \
-    $VOICE_ONLY \
+    "${VOICE_ONLY_ARGS[@]}" \
+    "${SKIP_STT_ARGS[@]}" \
     ${EXTRA_ARGS[@]+"${EXTRA_ARGS[@]}"}
 
 else
@@ -88,7 +141,7 @@ else
   cargo run --release --bin latency_measurement -- \
     --label "interactive" \
     --count "$COUNT" \
-    $VOICE_ONLY \
+    "${VOICE_ONLY_ARGS[@]}" \
     ${EXTRA_ARGS[@]+"${EXTRA_ARGS[@]}"}
 fi
 

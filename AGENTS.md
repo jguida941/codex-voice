@@ -52,6 +52,7 @@ Apply this sequence for every feature/fix:
 3. Add or update tests in the same change.
 4. Run verification (`python3 dev/scripts/devctl.py check --profile ci` minimum).
 5. Update docs and run `python3 dev/scripts/devctl.py docs-check --user-facing` for user-facing changes.
+   - If architecture/workflow/lifecycle/CI/release mechanics changed, update `dev/ARCHITECTURE.md` in the same change.
 6. Commit and push only after checks pass.
 
 ## One-command feedback loop (recommended)
@@ -81,7 +82,8 @@ After each push, run this loop before ending the session:
   - `cd src && cargo test --bin voxterm`
 - Performance/latency-sensitive changes:
   - `python3 dev/scripts/devctl.py check --profile prepush`
-  - `./dev/scripts/tests/measure_latency.sh --voice-only --synthetic` (when latency behavior changes)
+  - `./dev/scripts/tests/measure_latency.sh --voice-only --synthetic` (baseline runs)
+  - `./dev/scripts/tests/measure_latency.sh --ci-guard` (synthetic regression guardrails)
 - Threading/lifecycle/memory changes:
   - `cd src && cargo test --no-default-features legacy_tui::tests::memory_guard_backend_threads_drop -- --nocapture`
 - Mutation-hardening work:
@@ -161,6 +163,7 @@ python3 dev/scripts/devctl.py mutation-score --threshold 0.80
 ## CI workflows (reference)
 - `rust_ci.yml`: format, clippy, and test for `src/`.
 - `perf_smoke.yml`: perf smoke test and voice metrics verification.
+- `latency_guard.yml`: synthetic latency regression guardrails.
 - `memory_guard.yml`: repeated memory guard test.
 - `mutation-testing.yml`: scheduled mutation testing with threshold check.
 
@@ -193,7 +196,7 @@ When making changes, check which docs need updates:
 **Developer/architecture:**
 | Doc | Update when |
 |-----|-------------|
-| `dev/ARCHITECTURE.md` | Module structure, data flow, or design changes |
+| `dev/ARCHITECTURE.md` | Module structure, data flow, design changes, **or any workflow/lifecycle/CI/release mechanics added/changed/removed** |
 | `dev/DEVELOPMENT.md` | Build process, testing, or contribution workflow changes |
 | `dev/adr/` | Significant design decisions (see ADRs below) |
 
@@ -206,6 +209,7 @@ When making changes, check which docs need updates:
    `guides/INSTALL.md`, `guides/TROUBLESHOOTING.md`.
    - Use `python3 dev/scripts/devctl.py docs-check --user-facing` to validate doc coverage.
 4. Update developer docs if needed: `dev/ARCHITECTURE.md`, `dev/DEVELOPMENT.md`.
+   - `dev/ARCHITECTURE.md` is mandatory when architecture/workflow mechanics changed.
 5. If UI output or flags change, update any screenshots/tables that mention them.
 6. If a change introduces a new architectural decision, add an ADR in `dev/adr/` and update
    the ADR index.

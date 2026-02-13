@@ -5,6 +5,14 @@ Note: Some historical entries reference internal documents that are not publishe
 
 ## [Unreleased]
 
+### CI
+- Add a dedicated latency guard workflow (`.github/workflows/latency_guard.yml`) that runs synthetic voice-only regression bounds in CI.
+- Extend `latency_measurement` and `dev/scripts/tests/measure_latency.sh` with CI guardrail flags (`--ci-guard`, `--skip-stt`, and min/max latency bounds) for deterministic regression checks.
+
+### Documentation
+- Document latency baseline results in `dev/archive/2026-02-13-latency-baseline.md`.
+- Document the latency guard workflow and command usage in `dev/scripts/README.md`.
+
 ### UX
 - Expand Claude prompt-ready matching to recognize confirmation prompts (for example `[Y/n]`) in addition to bare `>` prompt lines.
 - Reserve the terminal scroll region above the HUD/overlay so long PTY output does not scroll through the bottom HUD rows.

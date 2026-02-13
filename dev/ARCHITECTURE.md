@@ -13,6 +13,7 @@ overlay without touching the native UI.
 - [Threads and Channels](#threads-and-channels)
 - [Startup Sequence](#startup-sequence)
 - [Core Flows](#core-flows)
+- [Operational Workflows (Dev/CI/Release)](#operational-workflows-devcirelease)
 - [Overlay State Machine](#overlay-state-machine)
 - [Whisper Integration (Rust)](#whisper-integration-rust)
 - [Voice Error and Fallback Flow](#voice-error-and-fallback-flow)
@@ -211,6 +212,39 @@ is added automatically.
 - **Auto send**: inject transcript + newline immediately when safe to send.
 - **Insert**: inject transcript only (no newline); user presses Enter to send.
 - **Enter while recording (insert mode)**: stops capture early and transcribes what was recorded.
+
+## Operational Workflows (Dev/CI/Release)
+
+This section documents engineering workflows that keep runtime behavior and release quality stable.
+When workflow mechanics change (dev loop, CI lanes, release flow), update this section in the same change.
+
+### 1) Local Feature Workflow
+
+1. Link work in `dev/active/MASTER_PLAN.md`.
+2. Implement code + tests in one change.
+3. Run local verification (`python3 dev/scripts/devctl.py check --profile ci` minimum).
+4. For latency-sensitive work, also run `./dev/scripts/tests/measure_latency.sh --ci-guard`.
+5. Update docs (`dev/CHANGELOG.md` for user-facing changes, plus related guides/dev docs).
+
+Primary command entrypoint: `dev/scripts/devctl.py`.
+
+### 2) CI Workflow Lanes
+
+| Workflow | File | Purpose |
+|---|---|---|
+| Rust CI | `.github/workflows/rust_ci.yml` | fmt + clippy + workspace tests |
+| Perf Smoke | `.github/workflows/perf_smoke.yml` | validate `voice_metrics|...` logging contract |
+| Latency Guardrails | `.github/workflows/latency_guard.yml` | synthetic latency regression checks (`measure_latency.sh --ci-guard`) |
+| Memory Guard | `.github/workflows/memory_guard.yml` | repeated thread/resource cleanup test |
+| Mutation Testing | `.github/workflows/mutation-testing.yml` | scheduled mutation score enforcement |
+
+### 3) Release Workflow (Master Branch)
+
+1. Finalize release metadata (`src/Cargo.toml`, `dev/CHANGELOG.md`).
+2. Verify release scope (at least CI-profile checks; release profile when needed).
+3. Promote/push from `master`, tag (`vX.Y.Z`), publish GitHub release.
+4. Update Homebrew tap via `./dev/scripts/update-homebrew.sh <version>`.
+5. Sync release snapshot in `dev/active/MASTER_PLAN.md`.
 
 ## Overlay State Machine
 

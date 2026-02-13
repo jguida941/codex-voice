@@ -162,8 +162,17 @@ Test scripts for benchmarking and integration testing.
 | Script | Purpose |
 |--------|---------|
 | `benchmark_voice.sh` | Voice pipeline performance |
-| `measure_latency.sh` | End-to-end latency profiling |
+| `measure_latency.sh` | End-to-end latency profiling + synthetic CI guardrails |
 | `integration_test.sh` | IPC protocol testing |
+
+Latency commands:
+```bash
+# Baseline synthetic latency (no mic) with the measurement harness
+./dev/scripts/tests/measure_latency.sh --synthetic --voice-only --skip-stt --count 5
+
+# CI-friendly regression guardrails (fails on threshold violations)
+./dev/scripts/tests/measure_latency.sh --ci-guard --count 3
+```
 
 ---
 

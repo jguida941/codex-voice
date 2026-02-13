@@ -45,6 +45,34 @@ struct Args {
     /// Silence duration for synthetic audio (milliseconds)
     #[arg(long)]
     silence_ms: Option<u64>,
+
+    /// Skip STT when using synthetic voice-only runs (CI-friendly; no Whisper model required)
+    #[arg(long)]
+    skip_stt: bool,
+
+    /// Minimum allowed voice capture latency per sample (milliseconds)
+    #[arg(long)]
+    min_voice_capture_ms: Option<u64>,
+
+    /// Maximum allowed voice capture latency per sample (milliseconds)
+    #[arg(long)]
+    max_voice_capture_ms: Option<u64>,
+
+    /// Minimum allowed voice total latency per sample (milliseconds)
+    #[arg(long)]
+    min_voice_total_ms: Option<u64>,
+
+    /// Maximum allowed voice total latency per sample (milliseconds)
+    #[arg(long)]
+    max_voice_total_ms: Option<u64>,
+
+    /// Minimum allowed voice STT latency per sample (milliseconds)
+    #[arg(long)]
+    min_voice_stt_ms: Option<u64>,
+
+    /// Maximum allowed voice STT latency per sample (milliseconds)
+    #[arg(long)]
+    max_voice_stt_ms: Option<u64>,
 }
 
 #[derive(Debug)]
@@ -59,12 +87,17 @@ struct LatencyMeasurement {
     codex_output_chars: usize,
 }
 
+#[derive(Debug, Clone, Copy)]
+struct SyntheticRunConfig {
+    speech_ms: u64,
+    silence_ms: u64,
+    voice_only: bool,
+    skip_stt: bool,
+}
+
 fn main() -> Result<()> {
     let args = Args::parse();
-
-    if args.synthetic && (args.speech_ms.is_none() || args.silence_ms.is_none()) {
-        bail!("--synthetic requires both --speech-ms and --silence-ms");
-    }
+    validate_args(&args)?;
 
     // Parse base config from environment/defaults and enable timing logs
     let mut config = AppConfig::parse_from(Vec::<String>::new());
@@ -80,6 +113,7 @@ fn main() -> Result<()> {
 
     print_measurements(&measurements);
     print_analysis(&measurements, args.voice_only);
+    enforce_guardrails(&measurements, &args)?;
 
     Ok(())
 }
@@ -127,6 +161,12 @@ fn collect_synthetic_measurements(
 ) -> Result<Vec<LatencyMeasurement>> {
     let speech_ms = args.speech_ms.unwrap();
     let silence_ms = args.silence_ms.unwrap();
+    let synthetic_cfg = SyntheticRunConfig {
+        speech_ms,
+        silence_ms,
+        voice_only: args.voice_only,
+        skip_stt: args.skip_stt,
+    };
 
     let mut measurements = Vec::with_capacity(args.count);
 
@@ -146,12 +186,10 @@ fn collect_synthetic_measurements(
 
         let measurement = measure_synthetic_run(
             &args.label,
-            speech_ms,
-            silence_ms,
+            synthetic_cfg,
             transcriber.clone(),
             backend.as_ref(),
             config,
-            args.voice_only,
         )?;
 
         measurements.push(measurement);
@@ -234,19 +272,17 @@ fn measure_single_run(
 
 fn measure_synthetic_run(
     label: &str,
-    speech_ms: u64,
-    silence_ms: u64,
+    synthetic_cfg: SyntheticRunConfig,
     transcriber: Option<Arc<Mutex<stt::Transcriber>>>,
     backend: &dyn CodexJobRunner,
     config: &AppConfig,
-    voice_only: bool,
 ) -> Result<LatencyMeasurement> {
     use std::f32::consts::PI;
 
     // Generate synthetic audio (440 Hz sine wave)
     let sample_rate = config.voice_pipeline_config().sample_rate;
-    let speech_samples = (speech_ms * sample_rate as u64 / 1000) as usize;
-    let silence_samples = (silence_ms * sample_rate as u64 / 1000) as usize;
+    let speech_samples = (synthetic_cfg.speech_ms * sample_rate as u64 / 1000) as usize;
+    let silence_samples = (synthetic_cfg.silence_ms * sample_rate as u64 / 1000) as usize;
 
     let mut samples = Vec::with_capacity(speech_samples + silence_samples);
     for n in 0..speech_samples {
@@ -256,19 +292,18 @@ fn measure_synthetic_run(
     }
     samples.extend(std::iter::repeat_n(0.0, silence_samples));
 
-    let t0 = Instant::now();
-
     // Run offline capture
     let pipeline_cfg = config.voice_pipeline_config();
     let vad_cfg: audio::VadConfig = (&pipeline_cfg).into();
     let mut vad_engine = create_vad_engine(&pipeline_cfg);
     let capture = audio::offline_capture_from_pcm(&samples, &vad_cfg, vad_engine.as_mut());
+    let voice_capture_ms = capture.metrics.capture_ms as u64;
 
-    let t_capture = Instant::now();
-    let voice_capture_ms = t_capture.duration_since(t0).as_millis() as u64;
-
-    // Run STT
-    let transcript = if let Some(transcriber) = transcriber {
+    // Run STT unless explicitly skipped for CI guardrails.
+    let stt_started_at = Instant::now();
+    let transcript = if synthetic_cfg.skip_stt {
+        String::new()
+    } else if let Some(transcriber) = transcriber {
         let guard = transcriber
             .lock()
             .map_err(|_| anyhow!("transcriber lock poisoned"))?;
@@ -277,15 +312,18 @@ fn measure_synthetic_run(
         bail!("Synthetic mode requires native Whisper model");
     };
 
-    let t1 = Instant::now();
-    let voice_stt_ms = t1.duration_since(t_capture).as_millis() as u64;
-    let voice_total_ms = t1.duration_since(t0).as_millis() as u64;
+    let voice_stt_ms = if synthetic_cfg.skip_stt {
+        0
+    } else {
+        stt_started_at.elapsed().as_millis() as u64
+    };
+    let voice_total_ms = voice_capture_ms.saturating_add(voice_stt_ms);
 
     eprintln!("Voice capture: {voice_capture_ms} ms");
     eprintln!("STT: {voice_stt_ms} ms");
     eprintln!("Transcript: {transcript}");
 
-    let (codex_ms, codex_output_chars, total_ms) = if voice_only {
+    let (codex_ms, codex_output_chars, total_ms) = if synthetic_cfg.voice_only {
         (None, 0, voice_total_ms)
     } else {
         eprintln!("\nStarting Codex call...");
@@ -301,7 +339,7 @@ fn measure_synthetic_run(
         let t3 = Instant::now();
 
         let codex_elapsed_ms = t3.duration_since(t2).as_millis() as u64;
-        let total_elapsed_ms = t3.duration_since(t0).as_millis() as u64;
+        let total_elapsed_ms = voice_total_ms.saturating_add(codex_elapsed_ms);
 
         eprintln!("Codex complete: {codex_elapsed_ms} ms");
 
@@ -421,6 +459,98 @@ fn extract_voice_timings(total_ms: u64) -> (u64, u64) {
     (total_ms, 0)
 }
 
+fn validate_args(args: &Args) -> Result<()> {
+    if args.synthetic && (args.speech_ms.is_none() || args.silence_ms.is_none()) {
+        bail!("--synthetic requires both --speech-ms and --silence-ms");
+    }
+    if args.skip_stt && !args.synthetic {
+        bail!("--skip-stt requires --synthetic");
+    }
+    if args.skip_stt && !args.voice_only {
+        bail!("--skip-stt requires --voice-only");
+    }
+
+    validate_min_max_pair(
+        "voice capture",
+        args.min_voice_capture_ms,
+        args.max_voice_capture_ms,
+    )?;
+    validate_min_max_pair(
+        "voice total",
+        args.min_voice_total_ms,
+        args.max_voice_total_ms,
+    )?;
+    validate_min_max_pair("voice stt", args.min_voice_stt_ms, args.max_voice_stt_ms)?;
+
+    Ok(())
+}
+
+fn validate_min_max_pair(name: &str, min: Option<u64>, max: Option<u64>) -> Result<()> {
+    if let (Some(min), Some(max)) = (min, max) {
+        if min > max {
+            bail!("{name} bounds invalid: min ({min}) > max ({max})");
+        }
+    }
+    Ok(())
+}
+
+fn enforce_guardrails(measurements: &[LatencyMeasurement], args: &Args) -> Result<()> {
+    if measurements.is_empty() {
+        return Ok(());
+    }
+
+    for (idx, measurement) in measurements.iter().enumerate() {
+        let sample = idx + 1;
+        check_latency_bounds(
+            "voice_capture_ms",
+            sample,
+            measurement.voice_capture_ms,
+            args.min_voice_capture_ms,
+            args.max_voice_capture_ms,
+        )?;
+        check_latency_bounds(
+            "voice_total_ms",
+            sample,
+            measurement.voice_total_ms,
+            args.min_voice_total_ms,
+            args.max_voice_total_ms,
+        )?;
+        check_latency_bounds(
+            "voice_stt_ms",
+            sample,
+            measurement.voice_stt_ms,
+            args.min_voice_stt_ms,
+            args.max_voice_stt_ms,
+        )?;
+    }
+
+    Ok(())
+}
+
+fn check_latency_bounds(
+    metric: &str,
+    sample: usize,
+    value_ms: u64,
+    min_ms: Option<u64>,
+    max_ms: Option<u64>,
+) -> Result<()> {
+    if let Some(min) = min_ms {
+        if value_ms < min {
+            bail!(
+                "guardrail failed for {metric} at sample {sample}: {value_ms}ms < minimum {min}ms"
+            );
+        }
+    }
+    if let Some(max) = max_ms {
+        if value_ms > max {
+            bail!(
+                "guardrail failed for {metric} at sample {sample}: {value_ms}ms > maximum {max}ms"
+            );
+        }
+    }
+    Ok(())
+}
+
 fn create_vad_engine(cfg: &voxterm::config::VoicePipelineConfig) -> Box<dyn audio::VadEngine> {
     use voxterm::config::VadEngineKind;
 
@@ -530,5 +660,102 @@ fn print_analysis(measurements: &[LatencyMeasurement], voice_only: bool) {
                 );
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn sample_measurement(capture_ms: u64, stt_ms: u64, total_ms: u64) -> LatencyMeasurement {
+        LatencyMeasurement {
+            label: "sample".to_string(),
+            voice_capture_ms: capture_ms,
+            voice_stt_ms: stt_ms,
+            voice_total_ms: total_ms,
+            codex_ms: None,
+            total_ms,
+            transcript_chars: 0,
+            codex_output_chars: 0,
+        }
+    }
+
+    fn base_args() -> Args {
+        Args {
+            label: "measurement".to_string(),
+            count: 1,
+            voice_only: true,
+            synthetic: true,
+            speech_ms: Some(1000),
+            silence_ms: Some(700),
+            skip_stt: false,
+            min_voice_capture_ms: None,
+            max_voice_capture_ms: None,
+            min_voice_total_ms: None,
+            max_voice_total_ms: None,
+            min_voice_stt_ms: None,
+            max_voice_stt_ms: None,
+        }
+    }
+
+    #[test]
+    fn validate_args_rejects_skip_stt_without_synthetic() {
+        let mut args = base_args();
+        args.synthetic = false;
+        args.skip_stt = true;
+        let err = validate_args(&args).expect_err("expected validation failure");
+        assert!(err.to_string().contains("--skip-stt requires --synthetic"));
+    }
+
+    #[test]
+    fn validate_args_rejects_skip_stt_without_voice_only() {
+        let mut args = base_args();
+        args.voice_only = false;
+        args.skip_stt = true;
+        let err = validate_args(&args).expect_err("expected validation failure");
+        assert!(err.to_string().contains("--skip-stt requires --voice-only"));
+    }
+
+    #[test]
+    fn validate_args_rejects_inverted_bounds() {
+        let mut args = base_args();
+        args.min_voice_capture_ms = Some(1200);
+        args.max_voice_capture_ms = Some(1000);
+        let err = validate_args(&args).expect_err("expected validation failure");
+        assert!(err
+            .to_string()
+            .contains("voice capture bounds invalid: min (1200) > max (1000)"));
+    }
+
+    #[test]
+    fn enforce_guardrails_accepts_values_in_range() {
+        let mut args = base_args();
+        args.min_voice_capture_ms = Some(800);
+        args.max_voice_capture_ms = Some(1800);
+        args.min_voice_total_ms = Some(800);
+        args.max_voice_total_ms = Some(2000);
+        args.max_voice_stt_ms = Some(600);
+
+        let measurements = vec![
+            sample_measurement(900, 200, 1100),
+            sample_measurement(1400, 250, 1650),
+        ];
+
+        enforce_guardrails(&measurements, &args).expect("guardrails should pass");
+    }
+
+    #[test]
+    fn enforce_guardrails_rejects_out_of_range_sample() {
+        let mut args = base_args();
+        args.max_voice_capture_ms = Some(1200);
+
+        let measurements = vec![
+            sample_measurement(900, 200, 1100),
+            sample_measurement(1400, 0, 1400),
+        ];
+        let err = enforce_guardrails(&measurements, &args).expect_err("guardrails should fail");
+        assert!(err
+            .to_string()
+            .contains("guardrail failed for voice_capture_ms at sample 2"));
     }
 }

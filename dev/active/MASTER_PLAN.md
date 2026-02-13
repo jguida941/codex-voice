@@ -2,12 +2,12 @@
 
 ## Canonical Plan Rule
 - This file is the single active plan for strategy, execution, and release tracking.
-- `dev/active/overlay.md` is reference research only (market/competitor audit), not an execution plan.
+- `dev/active/overlay.md` is reference research only (market/competitor + UX audit), not an execution plan.
 - Deferred work lives in `dev/deferred/` and must be explicitly reactivated here before implementation.
 
 ## Status Snapshot (2026-02-13)
-- Last tagged release: `v1.0.53` (2026-02-13)
-- Current release target: `v1.0.54`
+- Last tagged release: `v1.0.54` (2026-02-13)
+- Current release target: `v1.0.55`
 - Active development branch: `develop`
 - Release branch: `master`
 - Strategic focus: overlay differentiation with measurable latency correctness
@@ -17,7 +17,7 @@
 - Close trust gap: latency metrics must match user perception and be auditable.
 - Build differentiated product value in phases:
   1. Quick wins that improve daily workflow (macros, mode clarity, transcript review)
-  2. Differentiators (voice-to-command assist, voice navigation, history)
+  2. Differentiators (voice navigation, history, CLI workflow polish)
   3. Advanced expansion (streaming STT, tmux/neovim, accessibility)
 
 ## Phase 0 - Completed Release Stabilization (v1.0.51-v1.0.52)
@@ -29,6 +29,7 @@
 - [x] MP-077 Run release verification (`cargo build --release --bin voxterm`, tests, docs-check).
 - [x] MP-078 Finalize release notes, bump version, tag, push, GitHub release, and Homebrew tap update.
 - [x] MP-096 Expand SDLC agent governance: post-push audit loop, testing matrix by change type, CI expansion policy, and per-push docs sync requirements.
+- [x] MP-099 Consolidate overlay research into a single reference source (`dev/active/overlay.md`) and mirror candidate execution items in this plan.
 
 ## Phase 1 - Latency Truth and Observability
 - [x] MP-079 Define and document latency terms (capture, STT, post-capture processing, displayed HUD latency).
@@ -37,8 +38,8 @@
 - [x] MP-082 Add automated tests around latency calculation behavior.
 - [x] MP-097 Fix busy-output HUD responsiveness and stale meter/timer artifacts (settings lag under Codex output, stale REC duration/dB after capture, clamp meter floor to stable display bounds).
 - [x] MP-098 Eliminate blocking PTY input writes in the overlay event loop so queued/thinking backend output does not stall live typing responsiveness.
-- [ ] MP-083 Run and document baseline latency measurements with `latency_measurement` and `dev/scripts/tests/measure_latency.sh`.
-- [ ] MP-084 Add CI-friendly synthetic latency regression guardrails.
+- [x] MP-083 Run and document baseline latency measurements with `latency_measurement` and `dev/scripts/tests/measure_latency.sh` (`dev/archive/2026-02-13-latency-baseline.md`).
+- [x] MP-084 Add CI-friendly synthetic latency regression guardrails (`.github/workflows/latency_guard.yml` + `measure_latency.sh --ci-guard`).
 
 ## Phase 2 - Overlay Quick Wins
 - [ ] MP-085 Voice macros and custom triggers (`.voxterm/macros.yaml`).
@@ -47,7 +48,6 @@
 - [ ] MP-088 Persistent user config (`~/.config/voxterm/config.toml`) for core preferences.
 
 ## Phase 3 - Overlay Differentiators
-- [ ] MP-089 LLM-assisted voice-to-command generation (optional local/API provider).
 - [ ] MP-090 Voice terminal navigation actions (scroll/copy/error/explain).
 - [ ] MP-091 Searchable transcript history and replay workflow.
 
@@ -67,9 +67,20 @@
 - [ ] MP-037 Consider configurable PTY output channel capacity.
 - [ ] MP-054 Optional right-panel visualization modes in minimal HUD.
 - [ ] MP-055 Quick theme switcher in settings.
+- [ ] MP-100 Add animation transition framework for overlays and state changes (TachyonFX or equivalent).
+- [ ] MP-101 Add richer HUD telemetry visuals (sparkline/chart/gauge) with bounded data retention.
+- [ ] MP-102 Add toast notification center with auto-dismiss, severity, and history review.
+- [ ] MP-103 Add searchable command palette for settings/actions/macros with keyboard-first flow.
+- [ ] MP-104 Add explicit voice-state visualization (idle/listening/processing/responding) with clear transitions.
+- [ ] MP-105 Add adaptive/contextual HUD layouts and state-driven module expansion.
+- [ ] MP-106 Add hybrid voice+keyboard transcript input panel for correction and selective send.
+- [ ] MP-107 Add session dashboard with voice metrics (latency/WPM/error rate) and export path.
+- [ ] MP-108 Prototype contextual autocomplete/suggestion dropdowns for macros/corrections.
+- [ ] MP-109 Evaluate block-based voice command history UI against PTY/session constraints.
 
 ## Deferred Plans
 - `dev/deferred/DEV_MODE_PLAN.md` (paused until Phases 1-2 outcomes are complete).
+- MP-089 LLM-assisted voice-to-command generation (optional local/API provider) is deferred; current product focus is Codex/Claude CLI-native flow quality, not an additional LLM mediation layer.
 
 ## Release Policy (Checklist)
 1. `src/Cargo.toml` version bump
@@ -91,7 +102,7 @@
 
 ## References
 - Execution + release tracking: `dev/active/MASTER_PLAN.md`
-- Market and competitor evidence: `dev/active/overlay.md`
+- Market, competitor, and UX evidence: `dev/active/overlay.md`
 - SDLC policy: `AGENTS.md`
 - Architecture: `dev/ARCHITECTURE.md`
 - Changelog: `dev/CHANGELOG.md`
