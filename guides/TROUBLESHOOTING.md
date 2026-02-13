@@ -11,6 +11,7 @@
 | Typing feels laggy while Codex is busy | See [Status Messages → Typing/Enter feels laggy while backend is thinking](#typingenter-feels-laggy-while-backend-is-thinking) |
 | HUD/overlay overlaps after terminal resize | See [Status Messages → HUD/overlay overlaps after terminal resize](#hudoverlay-overlaps-after-terminal-resize) |
 | Transcript stays queued in Claude review prompts | See [Status Messages → Transcript stays queued in Claude review prompts](#transcript-stays-queued-in-claude-review-prompts) |
+| Voice macro not expanding | See [Status Messages → Voice macro not expanding](#voice-macro-not-expanding) |
 | Wrong version after update | [Install Issues → Wrong version after update](#wrong-version-after-update) |
 
 Other sections: [Status Messages](#status-messages) · [Audio Setup](#audio-setup) ·
@@ -81,6 +82,20 @@ queued until idle timeout.
 1. Upgrade to the latest VoxTerm build
 2. Restart the session after upgrading
 3. If needed, set an explicit prompt regex (example: `--prompt-regex '.*\\[[Yy]/[Nn]\\]\\s*$'`)
+
+### Voice macro not expanding
+
+VoxTerm loads macros from `.voxterm/macros.yaml` in your current working
+directory. If the file is missing, malformed, or the trigger does not match,
+the transcript is sent as-is.
+
+**Fixes:**
+1. Confirm path: `<project>/.voxterm/macros.yaml`
+2. Validate YAML shape:
+   - `macros:`
+   - trigger as key, string expansion or `{ template: ..., mode: auto|insert }`
+3. Match trigger text exactly (case-insensitive, whitespace-insensitive)
+4. Restart VoxTerm after editing the macro file
 
 ### Typing/Enter feels laggy while backend is thinking
 

@@ -38,6 +38,7 @@ mod theme_ops;
 mod theme_picker;
 mod transcript;
 mod voice_control;
+mod voice_macros;
 mod writer;
 
 pub(crate) use overlays::OverlayMode;
@@ -49,6 +50,7 @@ use crossterm::terminal::size as terminal_size;
 use std::collections::VecDeque;
 use std::env;
 use std::io::{self, Write};
+use std::path::Path;
 use std::time::{Duration, Instant};
 use voxterm::pty_session::PtyOverlaySession;
 use voxterm::{
@@ -72,6 +74,7 @@ use crate::status_line::{Pipeline, StatusLineState, VoiceMode, METER_HISTORY_MAX
 use crate::terminal::{apply_pty_winsize, install_sigwinch_handler};
 use crate::theme_ops::theme_index_from_theme;
 use crate::voice_control::{reset_capture_visuals, start_voice_capture, VoiceManager};
+use crate::voice_macros::VoiceMacros;
 use crate::writer::{set_status, spawn_writer_thread, WriterMessage};
 
 /// Max pending messages for the output writer thread.
@@ -149,6 +152,14 @@ fn main() -> Result<()> {
                 .map(|dir| dir.to_string_lossy().to_string())
         })
         .unwrap_or_else(|| ".".to_string());
+    let voice_macros = VoiceMacros::load_for_project(Path::new(&working_dir));
+    if let Some(path) = voice_macros.source_path() {
+        log_debug(&format!(
+            "voice macros path: {} (loaded {})",
+            path.display(),
+            voice_macros.len()
+        ));
+    }
 
     // Backend command and args already resolved
 
@@ -296,6 +307,7 @@ fn main() -> Result<()> {
         meter_update_ms,
         auto_idle_timeout,
         transcript_idle_timeout,
+        voice_macros,
     };
 
     if state.auto_voice_enabled {

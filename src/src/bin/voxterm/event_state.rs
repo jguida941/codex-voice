@@ -18,6 +18,7 @@ use crate::status_line::StatusLineState;
 use crate::theme::Theme;
 use crate::transcript::PendingTranscript;
 use crate::voice_control::VoiceManager;
+use crate::voice_macros::VoiceMacros;
 use crate::writer::WriterMessage;
 
 pub(crate) struct EventLoopState {
@@ -70,4 +71,5 @@ pub(crate) struct EventLoopDeps {
     pub(crate) meter_update_ms: u64,
     pub(crate) auto_idle_timeout: Duration,
     pub(crate) transcript_idle_timeout: Duration,
+    pub(crate) voice_macros: VoiceMacros,
 }

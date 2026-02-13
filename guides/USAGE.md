@@ -13,6 +13,7 @@ Gemini is currently nonfunctional and Aider/OpenCode are untested.
 - [Keyboard Shortcuts](#keyboard-shortcuts)
 - [Voice Modes Explained](#voice-modes-explained)
 - [Common Tasks](#common-tasks)
+- [Project Voice Macros](#project-voice-macros)
 - [Understanding the Status Line](#understanding-the-status-line)
 - [Starting with Custom Options](#starting-with-custom-options)
 - [See Also](#see-also)
@@ -50,7 +51,8 @@ directly - it just types into the terminal, exactly like you would.
 
 1. **Record** - you speak, VoxTerm listens until you stop
 2. **Transcribe** - Whisper converts speech to text locally (nothing leaves your machine)
-3. **Type** - the text is typed into the terminal automatically
+3. **Expand (optional)** - if `.voxterm/macros.yaml` matches your transcript trigger, VoxTerm expands it first
+4. **Type** - the final text is typed into the terminal automatically
 
 That's it. The only difference between the two send modes is what happens
 after the text is typed:
@@ -203,6 +205,29 @@ voxterm --sound-on-error
 
 ---
 
+## Project Voice Macros
+
+You can define project-local voice triggers in `.voxterm/macros.yaml`.
+VoxTerm loads this file from your current working directory and expands
+matching transcripts before typing into the CLI.
+
+Example:
+
+```yaml
+macros:
+  run tests: cargo test --all-features
+  commit with message:
+    template: "git commit -m '{TRANSCRIPT}'"
+    mode: insert
+```
+
+Rules:
+- Trigger matching is case-insensitive and ignores repeated spaces.
+- Template macros can consume extra spoken words via `{TRANSCRIPT}`.
+- `mode` is optional and can be `auto` or `insert`.
+
+---
+
 ## Understanding the Status Line
 
 The bottom of your terminal shows the current state:
@@ -232,6 +257,7 @@ When recording or processing, the mode label includes a pipeline tag
 | `Listening Manual Mode (Rust)` | Recording now (you pressed Ctrl+R) |
 | `Processing …` | Transcribing your speech (spinner updates) |
 | `Transcript ready (Rust)` | Text typed into the terminal (auto mode also presses Enter) |
+| `Transcript ready (Rust, macro 'run tests')` | A voice macro trigger matched and expanded before injection |
 | `No speech detected` | Recording finished but no voice was heard |
 | `Transcript queued (2)` | 2 transcripts waiting for the CLI to be ready |
 | `Mic sensitivity: -35 dB` | Threshold changed |

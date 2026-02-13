@@ -209,6 +209,8 @@ When the CLI is busy (output streaming), transcripts are queued and sent once th
 prompt appears or the transcript idle timer fires. Send mode controls whether a newline
 is added automatically.
 
+- Before queue/send, transcripts pass through project voice-macro expansion from
+  `.voxterm/macros.yaml` (if present).
 - **Auto send**: inject transcript + newline immediately when safe to send.
 - **Insert**: inject transcript only (no newline); user presses Enter to send.
 - **Enter while recording (insert mode)**: stops capture early and transcribes what was recorded.
@@ -434,6 +436,7 @@ quiet output intervals to avoid corrupting the backend's screen.
 - `src/src/bin/voxterm/voice_control/manager.rs` - voice capture lifecycle + start helpers
 - `src/src/bin/voxterm/voice_control/drain.rs` - voice job handling + transcript delivery
 - `src/src/bin/voxterm/voice_control/pipeline.rs` - pipeline selection helpers
+- `src/src/bin/voxterm/voice_macros.rs` - project macro loader + transcript trigger expansion
 - `src/src/bin/voxterm/transcript/` - transcript queue + delivery helpers
 - `src/src/bin/voxterm/session_stats.rs` - session counters + summary output
 - `src/src/bin/voxterm/cli_utils.rs` - CLI helper utilities
@@ -504,6 +507,9 @@ Full CLI reference: `guides/CLI_FLAGS.md`.
 | `--hud-right-panel-recording-only` | Animate right panel only while recording |
 | `--hud-style` | Full/minimal/hidden HUD |
 | `--minimal-hud` | Shorthand for minimal HUD |
+
+Project-local config:
+- `.voxterm/macros.yaml` (optional) defines transcript trigger expansions before PTY injection.
 
 **Core CLI Flags**
 | Flag | Purpose |

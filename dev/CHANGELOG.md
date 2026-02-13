@@ -5,6 +5,10 @@ Note: Some historical entries reference internal documents that are not publishe
 
 ## [Unreleased]
 
+### UX
+- Add project-scoped voice macro expansion from `.voxterm/macros.yaml` before transcript injection, including trigger-to-command mappings and template macros with `{TRANSCRIPT}` remainder substitution.
+- Support per-macro send-mode overrides (`auto`/`insert`) so selected macros can stay in insert behavior even when global send mode is auto.
+
 ### CI
 - Add a dedicated latency guard workflow (`.github/workflows/latency_guard.yml`) that runs synthetic voice-only regression bounds in CI.
 - Extend `latency_measurement` and `dev/scripts/tests/measure_latency.sh` with CI guardrail flags (`--ci-guard`, `--skip-stt`, and min/max latency bounds) for deterministic regression checks.
@@ -12,6 +16,10 @@ Note: Some historical entries reference internal documents that are not publishe
 ### Documentation
 - Document latency baseline results in `dev/archive/2026-02-13-latency-baseline.md`.
 - Document the latency guard workflow and command usage in `dev/scripts/README.md`.
+- Document voice macros in `guides/USAGE.md`, `guides/TROUBLESHOOTING.md`, and `dev/ARCHITECTURE.md`.
+
+### Tests
+- Add unit coverage for voice macro parsing, trigger matching, template remainder substitution, and project file loading.
 
 ### Developer Experience
 - Add `python3 dev/scripts/devctl.py hygiene` to audit archive naming, ADR status/index consistency, and `dev/scripts` documentation coverage.

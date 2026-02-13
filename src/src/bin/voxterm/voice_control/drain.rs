@@ -13,6 +13,7 @@ use crate::transcript::{
     deliver_transcript, push_pending_transcript, send_transcript, transcript_ready,
     try_flush_pending, PendingTranscript, TranscriptIo, TranscriptSession,
 };
+use crate::voice_macros::VoiceMacros;
 use crate::writer::{set_status, WriterMessage};
 
 use super::manager::{start_voice_capture, VoiceManager};
@@ -163,6 +164,7 @@ pub(crate) struct VoiceMessageContext<'a, S: TranscriptSession> {
 pub(crate) fn drain_voice_messages<S: TranscriptSession>(
     voice_manager: &mut VoiceManager,
     config: &OverlayConfig,
+    voice_macros: &VoiceMacros,
     session: &mut S,
     writer_tx: &Sender<WriterMessage>,
     status_clear_deadline: &mut Option<Instant>,
@@ -195,6 +197,13 @@ pub(crate) fn drain_voice_messages<S: TranscriptSession>(
             source,
             metrics,
         } => {
+            let expanded = voice_macros.apply(&text, config.voice_send_mode);
+            let text = expanded.text;
+            let transcript_mode = expanded.mode;
+            let macro_note = expanded
+                .matched_trigger
+                .as_ref()
+                .map(|trigger| format!("macro '{}'", trigger));
             update_last_latency(status_state, *recording_started_at, metrics.as_ref(), now);
             let ready =
                 transcript_ready(prompt_tracker, *last_enter_at, now, transcript_idle_timeout);
@@ -219,12 +228,18 @@ pub(crate) fn drain_voice_messages<S: TranscriptSession>(
                 .as_ref()
                 .filter(|metrics| metrics.frames_dropped > 0)
                 .map(|metrics| format!("dropped {} frames", metrics.frames_dropped));
+            let delivery_note = match (drop_note.as_deref(), macro_note.as_deref()) {
+                (Some(drop), Some(macro_note)) => Some(format!("{drop}, {macro_note}")),
+                (Some(drop), None) => Some(drop.to_string()),
+                (None, Some(macro_note)) => Some(macro_note.to_string()),
+                (None, None) => None,
+            };
             let duration_secs = metrics
                 .as_ref()
                 .map(|metrics| metrics.speech_ms as f32 / 1000.0)
                 .unwrap_or(0.0);
             session_stats.record_transcript(duration_secs);
-            let drop_suffix = drop_note
+            let queued_suffix = delivery_note
                 .as_ref()
                 .map(|note| format!(", {note}"))
                 .unwrap_or_default();
@@ -239,10 +254,10 @@ pub(crate) fn drain_voice_messages<S: TranscriptSession>(
                 let sent_newline = deliver_transcript(
                     &text,
                     source.label(),
-                    config.voice_send_mode,
+                    transcript_mode,
                     &mut io,
                     0,
-                    drop_note.as_deref(),
+                    delivery_note.as_deref(),
                 );
                 if sent_newline {
                     *last_enter_at = Some(now);
@@ -253,7 +268,7 @@ pub(crate) fn drain_voice_messages<S: TranscriptSession>(
                     PendingTranscript {
                         text,
                         source,
-                        mode: config.voice_send_mode,
+                        mode: transcript_mode,
                     },
                 );
                 status_state.queue_depth = pending_transcripts.len();
@@ -287,7 +302,7 @@ pub(crate) fn drain_voice_messages<S: TranscriptSession>(
                     let status = format!(
                         "Transcript queued ({}{})",
                         pending_transcripts.len(),
-                        drop_suffix
+                        queued_suffix
                     );
                     set_status(
                         writer_tx,

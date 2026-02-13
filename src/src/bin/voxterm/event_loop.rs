@@ -324,6 +324,7 @@ fn run_periodic_tasks(
     drain_voice_messages(
         &mut deps.voice_manager,
         &state.config,
+        &deps.voice_macros,
         &mut deps.session,
         &deps.writer_tx,
         &mut timers.status_clear_deadline,
@@ -1549,6 +1550,7 @@ pub(crate) fn run_event_loop(
                         drain_voice_messages(
                             &mut deps.voice_manager,
                             &state.config,
+                            &deps.voice_macros,
                             &mut deps.session,
                             &deps.writer_tx,
                             &mut timers.status_clear_deadline,

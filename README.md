@@ -87,6 +87,7 @@ All CLI output passes through unchanged.
 | **PTY passthrough** | CLI UI stays unchanged |
 | **Auto-voice** | Hands-free mode - no typing needed |
 | **Transcript queue** | Speak while CLI is busy, types when ready |
+| **Project voice macros** | Expand trigger phrases from `.voxterm/macros.yaml` before typing |
 | **Backends** | Codex + Claude supported; experimental presets for Gemini (not working), Aider, OpenCode |
 | **Themes** | 11 built-in themes including ChatGPT, Catppuccin, Dracula, Nord, Tokyo Night, Gruvbox |
 
