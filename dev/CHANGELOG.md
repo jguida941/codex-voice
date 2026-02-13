@@ -5,6 +5,8 @@ Note: Some historical entries reference internal documents that are not publishe
 
 ## [Unreleased]
 
+## [1.0.58] - 2026-02-13
+
 ### UX
 - Fix full-HUD duplication/stacking in JetBrains terminals (PyCharm/CLion) by using ANSI cursor save/restore semantics that preserve active scroll-region margins.
 

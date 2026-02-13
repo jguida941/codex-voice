@@ -360,6 +360,8 @@ debug log above is still the fastest way to confirm what your terminal emits.
 
 If you see stacked/repeated Full HUD frames in PyCharm/CLion/RustRover:
 
+This is fixed in `v1.0.58` and newer.
+
 1. Verify version is current:
    ```bash
    voxterm --version
