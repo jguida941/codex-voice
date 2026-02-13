@@ -36,6 +36,7 @@ pub(crate) struct EventLoopState {
     pub(crate) terminal_cols: u16,
     pub(crate) last_recording_duration: f32,
     pub(crate) processing_spinner_index: usize,
+    pub(crate) pending_pty_output: Option<Vec<u8>>,
 }
 
 pub(crate) struct EventLoopTimers {

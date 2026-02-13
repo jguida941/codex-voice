@@ -266,6 +266,7 @@ fn main() -> Result<()> {
         terminal_cols,
         last_recording_duration: 0.0_f32,
         processing_spinner_index: 0,
+        pending_pty_output: None,
     };
     let mut timers = EventLoopTimers {
         theme_picker_digit_deadline: None,

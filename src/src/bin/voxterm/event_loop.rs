@@ -1,6 +1,6 @@
 use std::time::{Duration, Instant};
 
-use crossbeam_channel::{select, TryRecvError};
+use crossbeam_channel::{never, select, TryRecvError, TrySendError};
 use crossterm::terminal::size as terminal_size;
 use voxterm::{log_debug, VoiceCaptureSource, VoiceCaptureTrigger};
 
@@ -51,6 +51,21 @@ const RECORDING_DURATION_UPDATE_MS: u64 = 200;
 const PROCESSING_SPINNER_TICK_MS: u64 = 120;
 const METER_DB_FLOOR: f32 = -60.0;
 const PTY_OUTPUT_BATCH_CHUNKS: usize = 8;
+
+fn flush_pending_pty_output(state: &mut EventLoopState, deps: &EventLoopDeps) -> bool {
+    let Some(pending) = state.pending_pty_output.take() else {
+        return true;
+    };
+    match deps.writer_tx.try_send(WriterMessage::PtyOutput(pending)) {
+        Ok(()) => true,
+        Err(TrySendError::Full(WriterMessage::PtyOutput(bytes))) => {
+            state.pending_pty_output = Some(bytes);
+            false
+        }
+        Err(TrySendError::Full(_)) => false,
+        Err(TrySendError::Disconnected(_)) => false,
+    }
+}
 
 fn run_periodic_tasks(
     state: &mut EventLoopState,
@@ -335,11 +350,22 @@ pub(crate) fn run_event_loop(
     let tick_interval = Duration::from_millis(EVENT_LOOP_IDLE_MS);
     let mut last_periodic_tick = Instant::now();
     while running {
+        if state.pending_pty_output.is_some() && !flush_pending_pty_output(state, deps) {
+            if state.pending_pty_output.is_none() {
+                running = false;
+            }
+        }
         let now = Instant::now();
         if now.duration_since(last_periodic_tick) >= tick_interval {
             run_periodic_tasks(state, timers, deps, now);
             last_periodic_tick = now;
         }
+        let output_guard = if state.pending_pty_output.is_some() {
+            Some(never::<Vec<u8>>())
+        } else {
+            None
+        };
+        let output_rx = output_guard.as_ref().unwrap_or(&deps.session.output_rx);
         select! {
             recv(deps.input_rx) -> event => {
                 match event {
@@ -1383,7 +1409,7 @@ pub(crate) fn run_event_loop(
                     }
                 }
             }
-            recv(deps.session.output_rx) -> chunk => {
+            recv(output_rx) -> chunk => {
                 match chunk {
                     Ok(mut data) => {
                         let mut output_disconnected = false;
@@ -1416,8 +1442,15 @@ pub(crate) fn run_event_loop(
                                 deps.transcript_idle_timeout,
                             );
                         }
-                        if deps.writer_tx.send(WriterMessage::PtyOutput(data)).is_err() {
-                            running = false;
+                        match deps.writer_tx.try_send(WriterMessage::PtyOutput(data)) {
+                            Ok(()) => {}
+                            Err(TrySendError::Full(WriterMessage::PtyOutput(bytes))) => {
+                                state.pending_pty_output = Some(bytes);
+                            }
+                            Err(TrySendError::Full(_)) => {}
+                            Err(TrySendError::Disconnected(_)) => {
+                                running = false;
+                            }
                         }
                         drain_voice_messages(
                             &mut deps.voice_manager,
@@ -1441,7 +1474,7 @@ pub(crate) fn run_event_loop(
                             deps.sound_on_complete,
                             deps.sound_on_error,
                         );
-                        if output_disconnected {
+                        if output_disconnected && state.pending_pty_output.is_none() {
                             running = false;
                         }
                     }

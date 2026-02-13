@@ -304,6 +304,7 @@ Preview tips:
 - When a transcript completes, a short preview snippet appears in quotes for a few seconds.
 - During recording, the status line shows a live waveform and the current dB level.
 - The live dB display is clamped to a `-60dB` floor to avoid misleading extreme values.
+- While backend output is streaming, HUD/settings interactions should remain responsive on current builds.
 
 ---
 
