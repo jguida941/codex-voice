@@ -17,9 +17,12 @@ Note: Some historical entries reference internal documents that are not publishe
 - Add `python3 dev/scripts/devctl.py hygiene` to audit archive naming, ADR status/index consistency, and `dev/scripts` documentation coverage.
 - Add archive retention and ADR supersession lifecycle policy updates across `AGENTS.md`, `dev/archive/README.md`, and `dev/adr/README.md`.
 
+## [1.0.54] - 2026-02-13
+
 ### UX
 - Expand Claude prompt-ready matching to recognize confirmation prompts (for example `[Y/n]`) in addition to bare `>` prompt lines.
 - Reserve the terminal scroll region above the HUD/overlay so long PTY output does not scroll through the bottom HUD rows.
+- Ensure terminal resize correctly resets stale scroll-region state when HUD reservation shrinks to zero.
 - Clear stale recording duration/meter/preview visuals when auto-voice is disabled, including the capture-cancel path.
 
 ### Tests

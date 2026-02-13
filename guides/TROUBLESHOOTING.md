@@ -9,6 +9,7 @@
 | Codex not responding | See [Codex Issues → Codex not responding](#codex-not-responding) |
 | Auto-voice not triggering | See [Codex Issues → Auto-voice not triggering](#auto-voice-not-triggering) |
 | Typing feels laggy while Codex is busy | See [Status Messages → Typing/Enter feels laggy while backend is thinking](#typingenter-feels-laggy-while-backend-is-thinking) |
+| HUD/overlay overlaps after terminal resize | See [Status Messages → HUD/overlay overlaps after terminal resize](#hudoverlay-overlaps-after-terminal-resize) |
 | Transcript stays queued in Claude review prompts | See [Status Messages → Transcript stays queued in Claude review prompts](#transcript-stays-queued-in-claude-review-prompts) |
 | Wrong version after update | [Install Issues → Wrong version after update](#wrong-version-after-update) |
 
@@ -90,6 +91,15 @@ while the backend was streaming output.
 1. Upgrade to the latest VoxTerm build
 2. Restart the session after upgrading
 3. If it still reproduces, run with logs (`voxterm --logs`) and capture a short sample around the lag window
+
+### HUD/overlay overlaps after terminal resize
+
+On older builds, a resize edge case could leave a stale terminal scroll region
+active after HUD reservation changed, causing bottom-row overlap artifacts.
+
+**Fixes:**
+1. Upgrade to the latest VoxTerm build
+2. Resize once more (or restart session) after upgrading to clear stale state
 
 ### REC timer or dB meter appears frozen while queued
 
