@@ -6,8 +6,8 @@
 - Deferred work lives in `dev/deferred/` and must be explicitly reactivated here before implementation.
 
 ## Status Snapshot (2026-02-13)
-- Last tagged release: `v1.0.58` (2026-02-13)
-- Current release target: `v1.0.59`
+- Last tagged release: `v1.0.59` (2026-02-13)
+- Current release target: `v1.0.60`
 - Active development branch: `develop`
 - Release branch: `master`
 - Strategic focus: visual HUD differentiation (telemetry richness, transitions, visualization modes)
