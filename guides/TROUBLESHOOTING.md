@@ -8,6 +8,7 @@
 | Voice not recording | See [Audio Setup → Check microphone permissions](#check-microphone-permissions) |
 | Codex not responding | See [Codex Issues → Codex not responding](#codex-not-responding) |
 | Auto-voice not triggering | See [Codex Issues → Auto-voice not triggering](#auto-voice-not-triggering) |
+| Typing feels laggy while Codex is busy | See [Status Messages → Typing/Enter feels laggy while backend is thinking](#typingenter-feels-laggy-while-backend-is-thinking) |
 | Wrong version after update | [Install Issues → Wrong version after update](#wrong-version-after-update) |
 
 Other sections: [Status Messages](#status-messages) · [Audio Setup](#audio-setup) ·
@@ -67,6 +68,16 @@ is idle for the transcript timeout). In auto mode, Enter is pressed for you.
 **Fixes:**
 1. Wait for the CLI to finish and return to a prompt
 2. If you need to send immediately, stop the current response (usually `Ctrl+C`) and try again
+
+### Typing/Enter feels laggy while backend is thinking
+
+On older builds, PTY write backpressure could briefly stall keyboard injection
+while the backend was streaming output.
+
+**Fixes:**
+1. Upgrade to the latest VoxTerm build
+2. Restart the session after upgrading
+3. If it still reproduces, run with logs (`voxterm --logs`) and capture a short sample around the lag window
 
 ### REC timer or dB meter appears frozen while queued
 

@@ -22,7 +22,7 @@ use super::counters::{
     record_wait_for_exit_poll, record_wait_for_exit_reap,
 };
 use super::counters::{read_output_elapsed, read_output_grace_elapsed, wait_for_exit_elapsed};
-use super::io::{spawn_passthrough_reader_thread, spawn_reader_thread, write_all};
+use super::io::{spawn_passthrough_reader_thread, spawn_reader_thread, try_write, write_all};
 
 /// Uses PTY to run a backend CLI in a proper terminal environment.
 pub struct PtyCliSession {
@@ -290,6 +290,11 @@ impl PtyOverlaySession {
     /// Write raw bytes to the PTY master.
     pub fn send_bytes(&mut self, bytes: &[u8]) -> Result<()> {
         write_all(self.master_fd, bytes)
+    }
+
+    /// Attempt a single non-blocking write to the PTY master.
+    pub fn try_send_bytes(&mut self, bytes: &[u8]) -> io::Result<usize> {
+        try_write(self.master_fd, bytes)
     }
 
     /// Write text to the PTY master.

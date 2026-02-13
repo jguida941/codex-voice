@@ -5,12 +5,21 @@ Note: Some historical entries reference internal documents that are not publishe
 
 ## [Unreleased]
 
+## [1.0.53] - 2026-02-13
+
 ### UX
 - Improve HUD/overlay responsiveness while CLI output is continuously streaming by reducing writer redraw wait thresholds and forcing redraw opportunities during PTY output flow.
 - Batch PTY output chunks in the event loop before forwarding to the writer to reduce message pressure and settings/HUD lag while Codex is busy.
 - Use non-blocking PTY-output dispatch with deferred backpressure handling so busy output no longer blocks input/settings event handling.
+- Queue and flush PTY input with non-blocking writes so typing and Enter forwarding remain responsive even when backend output is busy or PTY writes hit temporary backpressure.
 - Clear stale capture visuals (recording duration + dB waveform/meter) when capture exits recording mode so the HUD does not freeze with old timer/meter values.
 - Clamp live recording meter floor to `-60dB` for stable display semantics.
+
+### Tests
+- Add PTY write coverage for single-attempt non-blocking writes, including partial-write and `WouldBlock` behavior.
+
+### Documentation
+- Add troubleshooting guidance for delayed typing/Enter behavior under heavy backend output.
 
 ## [1.0.52] - 2026-02-13
 

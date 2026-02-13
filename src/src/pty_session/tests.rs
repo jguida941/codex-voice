@@ -275,6 +275,38 @@ fn write_all_writes_bytes() {
 }
 
 #[test]
+fn try_write_writes_bytes() {
+    let (read_fd, write_fd) = pipe_pair();
+    let written = try_write(write_fd, b"hello").unwrap();
+    assert_eq!(written, 5);
+    unsafe { libc::close(write_fd) };
+    let output = read_all(read_fd);
+    assert_eq!(output, b"hello");
+    unsafe { libc::close(read_fd) };
+}
+
+#[test]
+fn try_write_handles_short_writes() {
+    struct LimitReset;
+    impl Drop for LimitReset {
+        fn drop(&mut self) {
+            set_write_all_limit(None);
+        }
+    }
+
+    set_write_all_limit(Some(2));
+    let _reset = LimitReset;
+
+    let (read_fd, write_fd) = pipe_pair();
+    let written = try_write(write_fd, b"hello").unwrap();
+    assert_eq!(written, 2);
+    unsafe { libc::close(write_fd) };
+    let output = read_all(read_fd);
+    assert_eq!(output, b"he");
+    unsafe { libc::close(read_fd) };
+}
+
+#[test]
 fn write_all_handles_short_writes() {
     struct LimitReset;
     impl Drop for LimitReset {
@@ -292,6 +324,28 @@ fn write_all_handles_short_writes() {
     let output = read_all(read_fd);
     assert_eq!(output, b"hello");
     unsafe { libc::close(read_fd) };
+}
+
+#[cfg(unix)]
+#[test]
+fn try_write_reports_wouldblock() {
+    let (read_fd, write_fd) = pipe_pair();
+    set_nonblocking_fd(write_fd);
+
+    let fill = [0u8; 1024];
+    loop {
+        let written =
+            unsafe { libc::write(write_fd, fill.as_ptr() as *const libc::c_void, fill.len()) };
+        if written < 0 {
+            let err = io::Error::last_os_error();
+            assert_eq!(err.kind(), ErrorKind::WouldBlock);
+            break;
+        }
+    }
+
+    let err = try_write(write_fd, b"ping").unwrap_err();
+    assert_eq!(err.kind(), ErrorKind::WouldBlock);
+    close_fd_pair(read_fd, write_fd);
 }
 
 #[test]

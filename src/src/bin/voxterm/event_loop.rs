@@ -1,3 +1,4 @@
+use std::io::ErrorKind;
 use std::time::{Duration, Instant};
 
 use crossbeam_channel::{never, select, TryRecvError, TrySendError};
@@ -51,6 +52,8 @@ const RECORDING_DURATION_UPDATE_MS: u64 = 200;
 const PROCESSING_SPINNER_TICK_MS: u64 = 120;
 const METER_DB_FLOOR: f32 = -60.0;
 const PTY_OUTPUT_BATCH_CHUNKS: usize = 8;
+const PTY_INPUT_FLUSH_ATTEMPTS: usize = 16;
+const PTY_INPUT_MAX_BUFFER_BYTES: usize = 256 * 1024;
 
 fn flush_pending_pty_output(state: &mut EventLoopState, deps: &EventLoopDeps) -> bool {
     let Some(pending) = state.pending_pty_output.take() else {
@@ -65,6 +68,86 @@ fn flush_pending_pty_output(state: &mut EventLoopState, deps: &EventLoopDeps) ->
         Err(TrySendError::Full(_)) => false,
         Err(TrySendError::Disconnected(_)) => false,
     }
+}
+
+fn flush_pending_pty_input(state: &mut EventLoopState, deps: &mut EventLoopDeps) -> bool {
+    for _ in 0..PTY_INPUT_FLUSH_ATTEMPTS {
+        let Some(front_len) = state.pending_pty_input.front().map(Vec::len) else {
+            state.pending_pty_input_offset = 0;
+            state.pending_pty_input_bytes = 0;
+            return true;
+        };
+        if state.pending_pty_input_offset >= front_len {
+            state.pending_pty_input.pop_front();
+            state.pending_pty_input_offset = 0;
+            continue;
+        }
+        let write_result = {
+            let Some(front) = state.pending_pty_input.front() else {
+                state.pending_pty_input_offset = 0;
+                state.pending_pty_input_bytes = 0;
+                return true;
+            };
+            deps.session
+                .try_send_bytes(&front[state.pending_pty_input_offset..])
+                .map(|written| (written, front.len()))
+        };
+        match write_result {
+            Ok((written, front_len)) => {
+                state.pending_pty_input_bytes =
+                    state.pending_pty_input_bytes.saturating_sub(written);
+                state.pending_pty_input_offset += written;
+                if state.pending_pty_input_offset >= front_len {
+                    state.pending_pty_input.pop_front();
+                    state.pending_pty_input_offset = 0;
+                }
+            }
+            Err(err) => {
+                if err.kind() == ErrorKind::WouldBlock || err.kind() == ErrorKind::Interrupted {
+                    break;
+                }
+                log_debug(&format!("failed to flush PTY input queue: {err}"));
+                return false;
+            }
+        }
+    }
+    true
+}
+
+fn write_or_queue_pty_input(
+    state: &mut EventLoopState,
+    deps: &mut EventLoopDeps,
+    bytes: Vec<u8>,
+) -> bool {
+    if bytes.is_empty() {
+        return true;
+    }
+    if state.pending_pty_input.is_empty() {
+        match deps.session.try_send_bytes(&bytes) {
+            Ok(written) => {
+                if written < bytes.len() {
+                    state.pending_pty_input.push_back(bytes[written..].to_vec());
+                    state.pending_pty_input_bytes = state
+                        .pending_pty_input_bytes
+                        .saturating_add(bytes.len() - written);
+                }
+            }
+            Err(err) => {
+                if err.kind() == ErrorKind::WouldBlock || err.kind() == ErrorKind::Interrupted {
+                    state.pending_pty_input_bytes =
+                        state.pending_pty_input_bytes.saturating_add(bytes.len());
+                    state.pending_pty_input.push_back(bytes);
+                } else {
+                    log_debug(&format!("failed to write to PTY: {err}"));
+                    return false;
+                }
+            }
+        }
+    } else {
+        state.pending_pty_input_bytes = state.pending_pty_input_bytes.saturating_add(bytes.len());
+        state.pending_pty_input.push_back(bytes);
+    }
+    flush_pending_pty_input(state, deps)
 }
 
 fn run_periodic_tasks(
@@ -350,10 +433,15 @@ pub(crate) fn run_event_loop(
     let tick_interval = Duration::from_millis(EVENT_LOOP_IDLE_MS);
     let mut last_periodic_tick = Instant::now();
     while running {
-        if state.pending_pty_output.is_some() && !flush_pending_pty_output(state, deps) {
-            if state.pending_pty_output.is_none() {
-                running = false;
-            }
+        if !flush_pending_pty_input(state, deps) {
+            running = false;
+            continue;
+        }
+        if state.pending_pty_output.is_some()
+            && !flush_pending_pty_output(state, deps)
+            && state.pending_pty_output.is_none()
+        {
+            running = false;
         }
         let now = Instant::now();
         if now.duration_since(last_periodic_tick) >= tick_interval {
@@ -365,9 +453,15 @@ pub(crate) fn run_event_loop(
         } else {
             None
         };
+        let input_guard = if state.pending_pty_input_bytes >= PTY_INPUT_MAX_BUFFER_BYTES {
+            Some(never::<InputEvent>())
+        } else {
+            None
+        };
+        let input_rx = input_guard.as_ref().unwrap_or(&deps.input_rx);
         let output_rx = output_guard.as_ref().unwrap_or(&deps.session.output_rx);
         select! {
-            recv(deps.input_rx) -> event => {
+            recv(input_rx) -> event => {
                 match event {
                     Ok(evt) => {
                         if state.overlay_mode != OverlayMode::None {
@@ -1018,8 +1112,7 @@ pub(crate) fn run_event_loop(
                                 }
 
                                 state.status_state.hud_button_focus = None;
-                                if let Err(err) = deps.session.send_bytes(&bytes) {
-                                    log_debug(&format!("failed to write to PTY: {err:#}"));
+                                if !write_or_queue_pty_input(state, deps, bytes) {
                                     running = false;
                                 }
                             }
@@ -1230,8 +1323,7 @@ pub(crate) fn run_event_loop(
                                     }
                                 } else {
                                     // Forward Enter to PTY
-                                    if let Err(err) = deps.session.send_bytes(&[0x0d]) {
-                                        log_debug(&format!("failed to write Enter to PTY: {err:#}"));
+                                    if !write_or_queue_pty_input(state, deps, vec![0x0d]) {
                                         running = false;
                                     } else {
                                         timers.last_enter_at = Some(Instant::now());

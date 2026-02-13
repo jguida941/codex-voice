@@ -35,6 +35,7 @@
 - [x] MP-081 Emit structured `latency_audit|...` logs for analysis.
 - [x] MP-082 Add automated tests around latency calculation behavior.
 - [x] MP-097 Fix busy-output HUD responsiveness and stale meter/timer artifacts (settings lag under Codex output, stale REC duration/dB after capture, clamp meter floor to stable display bounds).
+- [x] MP-098 Eliminate blocking PTY input writes in the overlay event loop so queued/thinking backend output does not stall live typing responsiveness.
 - [ ] MP-083 Run and document baseline latency measurements with `latency_measurement` and `dev/scripts/tests/measure_latency.sh`.
 - [ ] MP-084 Add CI-friendly synthetic latency regression guardrails.
 

@@ -267,6 +267,9 @@ fn main() -> Result<()> {
         last_recording_duration: 0.0_f32,
         processing_spinner_index: 0,
         pending_pty_output: None,
+        pending_pty_input: VecDeque::new(),
+        pending_pty_input_offset: 0,
+        pending_pty_input_bytes: 0,
     };
     let mut timers = EventLoopTimers {
         theme_picker_digit_deadline: None,

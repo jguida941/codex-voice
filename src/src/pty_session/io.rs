@@ -175,6 +175,23 @@ pub(super) fn spawn_passthrough_reader_thread(
     })
 }
 
+/// Attempt to write a single chunk to the PTY master without retry loops.
+pub(super) fn try_write(fd: RawFd, data: &[u8]) -> io::Result<usize> {
+    if data.is_empty() {
+        return Ok(0);
+    }
+    let write_len = write_all_limit(data.len());
+    // SAFETY: fd is the PTY master, data is a live slice, and write_len <= data.len().
+    let written = unsafe { libc::write(fd, data.as_ptr() as *const libc::c_void, write_len) };
+    if written < 0 {
+        return Err(io::Error::last_os_error());
+    }
+    if written == 0 {
+        return Err(io::Error::new(ErrorKind::WriteZero, "PTY write returned 0"));
+    }
+    Ok(written as usize)
+}
+
 /// Write the entire buffer to the PTY master, retrying short writes.
 pub(super) fn write_all(fd: RawFd, mut data: &[u8]) -> Result<()> {
     #[cfg(any(test, feature = "mutants"))]
@@ -189,21 +206,19 @@ pub(super) fn write_all(fd: RawFd, mut data: &[u8]) -> Result<()> {
             assert!(guard_iters > prev);
             guard_loop(guard_start, guard_iters, 10_000, "write_all");
         }
-        let write_len = write_all_limit(data.len());
-        // SAFETY: fd is the PTY master, data is a live slice, and write_len <= data.len().
-        let written = unsafe { libc::write(fd, data.as_ptr() as *const libc::c_void, write_len) };
-        if written < 0 {
-            let err = io::Error::last_os_error();
-            if err.kind() == ErrorKind::Interrupted || err.kind() == ErrorKind::WouldBlock {
-                thread::sleep(Duration::from_millis(1));
-                continue;
+        let written = match try_write(fd, data) {
+            Ok(written) => written,
+            Err(err) => {
+                if err.kind() == ErrorKind::Interrupted || err.kind() == ErrorKind::WouldBlock {
+                    thread::sleep(Duration::from_millis(1));
+                    continue;
+                }
+                if err.kind() == ErrorKind::WriteZero {
+                    return Err(anyhow!("PTY write returned 0"));
+                }
+                return Err(anyhow!("PTY write failed: {err}"));
             }
-            return Err(anyhow!("PTY write failed: {err}"));
-        }
-        if written == 0 {
-            return Err(anyhow!("PTY write returned 0"));
-        }
-        let written = written as usize;
+        };
         data = if written <= data.len() {
             &data[written..]
         } else {
