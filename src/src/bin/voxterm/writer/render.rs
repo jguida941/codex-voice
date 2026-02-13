@@ -9,8 +9,10 @@ use crate::theme::Theme;
 use super::sanitize::{sanitize_status, truncate_status};
 use super::state::OverlayPanel;
 
-const SAVE_CURSOR: &[u8] = b"\x1b[s\x1b7";
-const RESTORE_CURSOR: &[u8] = b"\x1b[u\x1b8";
+// Use ANSI save/restore only. DEC restore (\x1b8) can restore scrolling
+// margins on some terminals, which would undo our HUD scroll region.
+const SAVE_CURSOR: &[u8] = b"\x1b[s";
+const RESTORE_CURSOR: &[u8] = b"\x1b[u";
 
 pub(super) fn set_scroll_region(
     stdout: &mut dyn Write,
@@ -267,7 +269,11 @@ mod tests {
         let mut buf = Vec::new();
         set_scroll_region(&mut buf, 40, 4).unwrap();
         let output = String::from_utf8_lossy(&buf);
+        assert!(output.contains("\u{1b}[s"));
         assert!(output.contains("\u{1b}[1;36r"));
+        assert!(output.contains("\u{1b}[u"));
+        assert!(!output.contains("\u{1b}7"));
+        assert!(!output.contains("\u{1b}8"));
     }
 
     #[test]
@@ -275,6 +281,10 @@ mod tests {
         let mut buf = Vec::new();
         reset_scroll_region(&mut buf).unwrap();
         let output = String::from_utf8_lossy(&buf);
+        assert!(output.contains("\u{1b}[s"));
         assert!(output.contains("\u{1b}[r"));
+        assert!(output.contains("\u{1b}[u"));
+        assert!(!output.contains("\u{1b}7"));
+        assert!(!output.contains("\u{1b}8"));
     }
 }

@@ -5,6 +5,12 @@ Note: Some historical entries reference internal documents that are not publishe
 
 ## [Unreleased]
 
+### UX
+- Fix full-HUD duplication/stacking in JetBrains terminals (PyCharm/CLion) by using ANSI cursor save/restore semantics that preserve active scroll-region margins.
+
+### Tests
+- Add writer scroll-region sequence assertions to ensure render paths avoid DEC cursor restore codes that can reset terminal scroll margins.
+
 ## [1.0.57] - 2026-02-13
 
 ### UX

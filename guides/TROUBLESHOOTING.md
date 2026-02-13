@@ -11,6 +11,7 @@
 | Minimal HUD has no telemetry chip | See [Status Messages → Minimal HUD right-panel chip is missing](#minimal-hud-right-panel-chip-is-missing) |
 | Startup splash lingers in IDE terminal | See [Startup Banner Lingers in IDE Terminal](#startup-banner-lingers-in-ide-terminal) |
 | Theme colors look muted in IDE terminal | See [Theme Colors Look Muted in IDE Terminal](#theme-colors-look-muted-in-ide-terminal) |
+| Full HUD appears multiple times in JetBrains terminal | See [HUD Duplicates in JetBrains Terminals](#hud-duplicates-in-jetbrains-terminals) |
 | Voice macro not expanding | See [Status Messages → Voice macro not expanding](#voice-macro-not-expanding) |
 | Voice macro expanded unexpectedly | See [Status Messages → Voice macro expanded unexpectedly](#voice-macro-expanded-unexpectedly) |
 | Wrong version after update | [Install Issues → Wrong version after update](#wrong-version-after-update) |
@@ -354,6 +355,21 @@ another (for example RustRover/PyCharm/WebStorm):
 VoxTerm now parses multiple mouse/arrow sequence variants used by different IDE
 terminal emulators (SGR, URXVT, X10, and parameterized CSI arrows), but the
 debug log above is still the fastest way to confirm what your terminal emits.
+
+### HUD Duplicates in JetBrains Terminals
+
+If you see stacked/repeated Full HUD frames in PyCharm/CLion/RustRover:
+
+1. Verify version is current:
+   ```bash
+   voxterm --version
+   ```
+2. Re-run once with logging:
+   ```bash
+   voxterm --logs
+   ```
+3. If it still reproduces, share `${TMPDIR}/voxterm_tui.log` so terminal escape
+   handling can be confirmed for your profile.
 
 ---
 
