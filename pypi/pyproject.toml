@@ -5,11 +5,11 @@ build-backend = "hatchling.build"
 [project]
 name = "voiceterm"
 version = "1.0.64"
-description = "Python launcher for the VoiceTerm native CLI"
+description = "Voice-first terminal HUD for Codex and Claude with local Whisper STT"
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "MIT" }
-authors = [{ name = "VoiceTerm Maintainers" }]
+authors = [{ name = "Justin Guida" }]
 keywords = ["voice", "terminal", "codex", "claude", "whisper", "cli"]
 classifiers = [
   "Development Status :: 4 - Beta",
@@ -26,6 +26,7 @@ classifiers = [
 [project.urls]
 Homepage = "https://github.com/jguida941/voiceterm"
 Repository = "https://github.com/jguida941/voiceterm"
+Documentation = "https://github.com/jguida941/voiceterm/blob/master/README.md"
 Issues = "https://github.com/jguida941/voiceterm/issues"
 
 [project.scripts]
@@ -33,4 +34,3 @@ voiceterm = "voiceterm.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/voiceterm"]
-
