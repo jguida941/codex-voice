@@ -9,12 +9,9 @@ concurrency:
   group: mutation-testing-${{ github.ref }}
   cancel-in-progress: true
 
-env:
-  SHARD_TOTAL: "8"
-
 jobs:
   mutants:
-    name: mutants shard ${{ matrix.shard }}/${{ env.SHARD_TOTAL }}
+    name: mutants shard ${{ matrix.shard }}/8
     runs-on: ubuntu-latest
     timeout-minutes: 150
     strategy:
@@ -55,7 +52,7 @@ jobs:
           cargo mutants \
             --baseline skip \
             --timeout 180 \
-            --shard ${{ matrix.shard }}/${{ env.SHARD_TOTAL }} \
+            --shard ${{ matrix.shard }}/8 \
             -o mutants.out \
             --json
 
