@@ -222,9 +222,9 @@ See the [Usage Guide](guides/USAGE.md) for full behavior and configuration detai
 | `Ctrl+Q` | Quit VoiceTerm |
 
 For full mode behavior and settings interactions, see the
-[Usage Guide](guides/USAGE.md#keyboard-shortcuts).
+[Keyboard Shortcuts reference](guides/USAGE.md#keyboard-shortcuts).
 
-### Voice Macros
+## Voice Macros
 
 Voice macros are project-local voice shortcuts defined in
 `.voiceterm/macros.yaml`.

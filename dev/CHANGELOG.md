@@ -16,6 +16,7 @@ Note: Some historical entries reference internal documents that are not publishe
 - Move the README voice recording image into a standalone section placed before supported AI CLI examples for a cleaner reading flow.
 - Remove hotkey labels from README UI section headings and keep keybind details in the controls table.
 - Move README `Install Options` directly below `Quick Start` and update quick-nav order so install paths are visible earlier.
+- Promote README `Voice Macros` to a top-level section and point controls help text directly to the Usage guide keyboard-shortcuts reference.
 
 ## [1.0.65] - 2026-02-14
 
