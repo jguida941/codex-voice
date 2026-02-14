@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="img/logo.svg" alt="VoiceTerm">
+  <img src="img/logo.svg" alt="VoiceTerm" width="900">
 </p>
 
 <p align="center">
