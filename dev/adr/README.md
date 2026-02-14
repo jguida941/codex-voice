@@ -44,6 +44,7 @@ without re-litigating old context. Keep them short, factual, and specific.
 | [0020](0020-action-registry-and-keybindings.md) | Action Registry and Keybindings | Proposed |
 | [0021](0021-history-storage-and-retention.md) | History Storage and Retention | Proposed |
 | [0022](0022-render-guarantees-and-layout-contract.md) | Render Guarantees and Layout Contract | Proposed |
+| [0023](0023-jetbrains-startup-handoff.md) | JetBrains Startup Handoff and Resize Ghost-Frame Cleanup | Accepted |
 
 ### Security and Privacy
 | ADR | Title | Status |
@@ -75,7 +76,7 @@ Status semantics:
 
 ## Process
 
-1. Copy the template and increment the number (next: 0023)
+1. Copy the template and increment the number (next: 0024)
 2. Fill in Context, Decision, and Consequences
 3. Add links to related docs or code
 4. If replacing an older decision, set old ADR status to `Superseded` and add `Superseded-by: ADR NNNN`

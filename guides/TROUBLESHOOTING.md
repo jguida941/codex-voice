@@ -360,7 +360,7 @@ debug log above is still the fastest way to confirm what your terminal emits.
 If you see stacked/repeated Full HUD frames in PyCharm/CLion/RustRover:
 
 This is addressed in `v1.0.62` and newer using the stable `v1.0.53`
-writer/render HUD path plus a one-column layout safety margin.
+writer/render HUD path plus writer-side stale-row cleanup on resize.
 
 Symptoms can include:
 - duplicated/staggered HUD borders
@@ -394,8 +394,10 @@ as an error during normal exit.
 
 ## Startup Banner Missing
 
-The startup splash is shown by default. If it does not appear, confirm the
-environment variable below is not set:
+The startup splash is shown by default in non-JetBrains terminals. In JetBrains
+IDE terminals, `v1.0.62+` auto-skips splash by design. If you expect splash in
+another terminal and it does not appear, confirm the environment variable below
+is not set:
 
 ```bash
 env | rg VOXTERM_NO_STARTUP_BANNER
@@ -412,11 +414,15 @@ VOXTERM_NO_STARTUP_BANNER=1 voxterm
 If the startup splash stays on screen in PyCharm/JetBrains terminals while it
 clears normally in Cursor/VS Code, use these checks:
 
-1. Run with a zero splash delay:
+1. Verify you are on `v1.0.62` or newer (JetBrains terminals auto-skip splash by default):
+   ```bash
+   voxterm --version
+   ```
+2. Run with a zero splash delay:
    ```bash
    VOXTERM_STARTUP_SPLASH_MS=0 voxterm
    ```
-2. If you prefer no splash in IDE terminals:
+3. If you prefer no splash in all terminals:
    ```bash
    VOXTERM_NO_STARTUP_BANNER=1 voxterm
    ```

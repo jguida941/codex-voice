@@ -397,7 +397,8 @@ intervals to avoid corrupting the backend's screen.
 - **Enhanced status line** is driven by `StatusLineState` (mode, pipeline, sensitivity, message, duration).
 - `StatusLineState` keeps bounded telemetry history buffers (meter + latency) for compact sparkline rendering.
 - Compact HUD rendering is context-aware (`recording`, `busy queue`, `idle`) and picks modules accordingly.
-- Full HUD rendering uses a conservative writer path (compatible with the `v1.0.53` draw model) and applies a one-column right-edge safety margin to reduce IDE terminal autowrap/duplication artifacts.
+- Full HUD rendering uses a conservative writer path (compatible with the `v1.0.53` draw model) and clears stale HUD/overlay rows on resize before redraw to prevent ghost frames in IDE terminals.
+- Startup splash is automatically skipped in JetBrains IDE terminals (PyCharm/IntelliJ/CLion/WebStorm) to avoid alternate-screen handoff artifacts.
 - **Theme selection** uses `--theme` with automatic fallback based on terminal color capability and `NO_COLOR`.
 - **Help overlay** is toggled with `?` and rendered by the writer thread above the status line.
 - **Mic meter output** (`--mic-meter`) renders a bar display for ambient/speech levels.

@@ -63,9 +63,11 @@ Startup splash behavior:
 - set `VOXTERM_NO_STARTUP_BANNER=1` to skip it entirely
 
 IDE terminal HUD compatibility (`v1.0.62`):
-- Full HUD uses the proven `v1.0.53` writer/render baseline plus a one-column
-  right-edge safety margin to avoid duplicated or wrapped rows in
-  Cursor/JetBrains terminals.
+- Full HUD uses the proven `v1.0.53` writer/render baseline and clears stale
+  HUD rows on resize so ghost frames do not remain after terminal geometry
+  changes in Cursor/JetBrains terminals.
+- Startup splash is auto-skipped in JetBrains IDE terminals (PyCharm/IntelliJ/
+  CLion/WebStorm) to avoid alternate-screen handoff artifacts.
 
 ## How It Works
 

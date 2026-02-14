@@ -153,6 +153,25 @@ impl WriterState {
                 }
             }
             WriterMessage::Resize { rows, cols } => {
+                if self.rows > 0 && (self.rows != rows || self.cols != cols) {
+                    // Clear HUD/overlay at the old terminal geometry before moving to the new one.
+                    // This prevents stale frames when startup rows are briefly reported incorrectly.
+                    if let Some(panel) = self.display.overlay_panel.as_ref() {
+                        let _ = clear_overlay_panel(&mut self.stdout, self.rows, panel.height);
+                    }
+                    if self.display.banner_height > 1 {
+                        let _ = clear_status_banner(
+                            &mut self.stdout,
+                            self.rows,
+                            self.display.banner_height,
+                        );
+                    } else if self.display.status.is_some()
+                        || self.display.enhanced_status.is_some()
+                    {
+                        let _ = clear_status_line(&mut self.stdout, self.rows, self.cols.max(1));
+                    }
+                    let _ = self.stdout.flush();
+                }
                 self.rows = rows;
                 self.cols = cols;
                 if self.display.has_any() || self.pending.has_any() {
@@ -241,8 +260,6 @@ impl WriterState {
         let flush_error = {
             let rows = self.rows;
             let cols = self.cols;
-            // Keep one safety column to avoid right-edge auto-wrap drift in IDE terminals.
-            let render_cols = cols.saturating_sub(1).max(1);
             let theme = self.theme;
             let (stdout, overlay_panel, enhanced_status, status, current_banner_height) = (
                 &mut self.stdout,
@@ -254,7 +271,7 @@ impl WriterState {
             if let Some(panel) = overlay_panel.as_ref() {
                 let _ = write_overlay_panel(stdout, panel, rows);
             } else if let Some(state) = enhanced_status.as_ref() {
-                let banner = format_status_banner(state, theme, render_cols as usize);
+                let banner = format_status_banner(state, theme, cols as usize);
                 let clear_height = (*current_banner_height).max(banner.height);
                 if clear_height > 0 {
                     let _ = clear_status_banner(stdout, rows, clear_height);
@@ -262,7 +279,7 @@ impl WriterState {
                 *current_banner_height = banner.height;
                 let _ = write_status_banner(stdout, &banner, rows);
             } else if let Some(text) = status.as_deref() {
-                let _ = write_status_line(stdout, text, rows, render_cols, theme);
+                let _ = write_status_line(stdout, text, rows, cols, theme);
             }
             stdout.flush().err()
         };

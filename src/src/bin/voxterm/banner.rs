@@ -194,8 +194,46 @@ pub fn format_minimal_banner(theme: Theme) -> String {
     )
 }
 
+fn is_jetbrains_terminal() -> bool {
+    const HINT_KEYS: &[&str] = &[
+        "PYCHARM_HOSTED",
+        "JETBRAINS_IDE",
+        "IDEA_INITIAL_DIRECTORY",
+        "IDEA_INITIAL_PROJECT",
+        "CLION_IDE",
+        "WEBSTORM_IDE",
+    ];
+
+    for key in HINT_KEYS {
+        if env::var(key).map(|v| !v.trim().is_empty()).unwrap_or(false) {
+            return true;
+        }
+    }
+
+    if let Ok(term_program) = env::var("TERM_PROGRAM") {
+        let value = term_program.to_lowercase();
+        if value.contains("jetbrains")
+            || value.contains("jediterm")
+            || value.contains("pycharm")
+            || value.contains("intellij")
+            || value.contains("idea")
+        {
+            return true;
+        }
+    }
+
+    if let Ok(terminal_emulator) = env::var("TERMINAL_EMULATOR") {
+        let value = terminal_emulator.to_lowercase();
+        if value.contains("jetbrains") || value.contains("jediterm") {
+            return true;
+        }
+    }
+
+    false
+}
+
 pub(crate) fn should_skip_banner(no_startup_banner: bool) -> bool {
-    no_startup_banner
+    no_startup_banner || is_jetbrains_terminal()
 }
 
 fn use_minimal_banner(cols: u16) -> bool {
@@ -230,23 +268,29 @@ mod tests {
     use super::*;
     use std::sync::{Mutex, OnceLock};
 
-    fn with_splash_env<T>(value: Option<&str>, f: impl FnOnce() -> T) -> T {
+    fn with_env_lock<T>(f: impl FnOnce() -> T) -> T {
         static ENV_GUARD: OnceLock<Mutex<()>> = OnceLock::new();
         let _guard = ENV_GUARD
             .get_or_init(|| Mutex::new(()))
             .lock()
             .unwrap_or_else(|e| e.into_inner());
-        let prev = std::env::var("VOXTERM_STARTUP_SPLASH_MS").ok();
-        match value {
-            Some(v) => std::env::set_var("VOXTERM_STARTUP_SPLASH_MS", v),
-            None => std::env::remove_var("VOXTERM_STARTUP_SPLASH_MS"),
-        }
-        let result = f();
-        match prev {
-            Some(v) => std::env::set_var("VOXTERM_STARTUP_SPLASH_MS", v),
-            None => std::env::remove_var("VOXTERM_STARTUP_SPLASH_MS"),
-        }
-        result
+        f()
+    }
+
+    fn with_splash_env<T>(value: Option<&str>, f: impl FnOnce() -> T) -> T {
+        with_env_lock(|| {
+            let prev = std::env::var("VOXTERM_STARTUP_SPLASH_MS").ok();
+            match value {
+                Some(v) => std::env::set_var("VOXTERM_STARTUP_SPLASH_MS", v),
+                None => std::env::remove_var("VOXTERM_STARTUP_SPLASH_MS"),
+            }
+            let result = f();
+            match prev {
+                Some(v) => std::env::set_var("VOXTERM_STARTUP_SPLASH_MS", v),
+                None => std::env::remove_var("VOXTERM_STARTUP_SPLASH_MS"),
+            }
+            result
+        })
     }
 
     #[test]
@@ -288,8 +332,48 @@ mod tests {
 
     #[test]
     fn should_skip_banner_matches_flags() {
-        assert!(!should_skip_banner(false));
-        assert!(should_skip_banner(true));
+        with_env_lock(|| {
+            let keys = [
+                "PYCHARM_HOSTED",
+                "JETBRAINS_IDE",
+                "IDEA_INITIAL_DIRECTORY",
+                "IDEA_INITIAL_PROJECT",
+                "CLION_IDE",
+                "WEBSTORM_IDE",
+                "TERM_PROGRAM",
+                "TERMINAL_EMULATOR",
+            ];
+            let prev: Vec<(String, Option<String>)> = keys
+                .iter()
+                .map(|key| ((*key).to_string(), std::env::var(key).ok()))
+                .collect();
+            for key in keys {
+                std::env::remove_var(key);
+            }
+
+            assert!(!should_skip_banner(false));
+            assert!(should_skip_banner(true));
+
+            for (key, value) in prev {
+                match value {
+                    Some(v) => std::env::set_var(key, v),
+                    None => std::env::remove_var(key),
+                }
+            }
+        });
+    }
+
+    #[test]
+    fn should_skip_banner_in_jetbrains_env() {
+        with_env_lock(|| {
+            let prev = std::env::var("PYCHARM_HOSTED").ok();
+            std::env::set_var("PYCHARM_HOSTED", "1");
+            assert!(should_skip_banner(false));
+            match prev {
+                Some(v) => std::env::set_var("PYCHARM_HOSTED", v),
+                None => std::env::remove_var("PYCHARM_HOSTED"),
+            }
+        });
     }
 
     #[test]

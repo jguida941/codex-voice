@@ -5,14 +5,20 @@ Note: Some historical entries reference internal documents that are not publishe
 
 ## [Unreleased]
 
-## [1.0.62] - 2026-02-13
+## [1.0.62] - 2026-02-14
 
 ### UX
 - Revert the post-`v1.0.61` scroll-region protection change that caused severe Full HUD redraw corruption/duplication in active Codex sessions.
-- Re-publish the known-good Full HUD writer/render baseline (the `v1.0.53`-derived path with one-column safety margin) as the current stable release.
+- Re-publish the known-good Full HUD writer/render baseline (the `v1.0.53`-derived path) as the current stable release.
+- Clear stale HUD/overlay rows on resize before redraw so ghost top/bottom frames are removed when terminal geometry changes during startup/runtime.
+- Auto-skip startup splash in JetBrains IDE terminals (PyCharm/IntelliJ/CLion/WebStorm) to avoid alternate-screen handoff artifacts.
+
+### Tests
+- Add startup-banner coverage for JetBrains environment detection and skip behavior.
 
 ### Documentation
 - Clarify release history: `v1.0.62` supersedes the first `v1.0.61` tag for HUD stability.
+- Update troubleshooting and architecture notes for JetBrains startup behavior and resize ghost-frame cleanup.
 
 ## [1.0.61] - 2026-02-13
 

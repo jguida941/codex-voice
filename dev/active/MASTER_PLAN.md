@@ -5,7 +5,7 @@
 - `dev/active/overlay.md` is reference research only (market/competitor + UX audit), not an execution plan.
 - Deferred work lives in `dev/deferred/` and must be explicitly reactivated here before implementation.
 
-## Status Snapshot (2026-02-13)
+## Status Snapshot (2026-02-14)
 - Last tagged release: `v1.0.61` (2026-02-13)
 - Current release target: `v1.0.62`
 - Active development branch: `develop`
@@ -62,6 +62,7 @@
 - [x] MP-118 Harden cross-terminal HUD rendering and PTY teardown paths (universal one-column HUD safety margin, writer-side row clipping to terminal width, and benign PTY-exit write error suppression on shutdown).
 - [x] MP-119 Restore the stable `v1.0.53` writer/render baseline for Full HUD while retaining the one-column layout safety margin to recover reliable IDE terminal rendering.
 - [x] MP-120 Revert unstable post-release scroll-region protection changes that reintroduced severe Full HUD duplication/corruption during active Codex output.
+- [x] MP-121 Harden JetBrains startup/render handoff by auto-skipping splash in IDE terminals and clearing stale HUD/overlay rows on resize before redraw.
 - [ ] MP-104 Add explicit voice-state visualization (idle/listening/processing/responding) with clear transitions.
 - [ ] MP-055 Quick theme switcher in settings.
 - [ ] MP-102 Add toast notification center with auto-dismiss, severity, and history review.
