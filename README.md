@@ -22,11 +22,11 @@ Runs Whisper locally with ~250ms latency. No cloud, no API keys.
 ## Quick Nav
 
 - [Quick Start](#quick-start)
+- [Install Options](#install-options)
 - [How It Works](#how-it-works)
 - [Requirements](#requirements)
 - [Supported AI CLIs](#supported-ai-clis)
 - [UI Tour](#ui-tour)
-- [Install Options](#install-options)
 - [Documentation](#documentation)
 - [Support](#support)
 
@@ -63,6 +63,47 @@ See [Whisper docs](guides/WHISPER.md) for details.
 Startup splash and IDE terminal behavior can be tuned with
 `VOICETERM_STARTUP_SPLASH_MS` and `VOICETERM_NO_STARTUP_BANNER`.
 For details, see [Usage](guides/USAGE.md) and [Troubleshooting](guides/TROUBLESHOOTING.md).
+
+## Install Options
+
+<details>
+<summary><strong>Homebrew (recommended)</strong></summary>
+
+```bash
+brew tap jguida941/voiceterm
+brew install voiceterm
+```
+</details>
+
+<details>
+<summary><strong>PyPI (pipx/pip)</strong></summary>
+
+```bash
+pipx install voiceterm
+# or: python3 -m pip install --user voiceterm
+```
+
+The PyPI package installs a launcher and bootstraps the native binary on first run
+(`git` + `cargo` required).
+</details>
+
+<details>
+<summary><strong>From source</strong></summary>
+
+```bash
+git clone https://github.com/jguida941/voiceterm.git
+cd voiceterm
+./scripts/install.sh
+```
+</details>
+
+<details>
+<summary><strong>macOS App</strong></summary>
+
+Double-click `app/macos/VoiceTerm.app`, pick a folder, it opens Terminal with VoiceTerm running.
+
+![Folder Picker](https://raw.githubusercontent.com/jguida941/voiceterm/master/img/folder-picker.png)
+</details>
 
 ## How It Works
 
@@ -200,47 +241,6 @@ When it runs:
 
 See [Project Voice Macros](guides/USAGE.md#project-voice-macros) for the file
 format, templates, and matching rules.
-
-## Install Options
-
-<details>
-<summary><strong>Homebrew (recommended)</strong></summary>
-
-```bash
-brew tap jguida941/voiceterm
-brew install voiceterm
-```
-</details>
-
-<details>
-<summary><strong>PyPI (pipx/pip)</strong></summary>
-
-```bash
-pipx install voiceterm
-# or: python3 -m pip install --user voiceterm
-```
-
-The PyPI package installs a launcher and bootstraps the native binary on first run
-(`git` + `cargo` required).
-</details>
-
-<details>
-<summary><strong>From source</strong></summary>
-
-```bash
-git clone https://github.com/jguida941/voiceterm.git
-cd voiceterm
-./scripts/install.sh
-```
-</details>
-
-<details>
-<summary><strong>macOS App</strong></summary>
-
-Double-click `app/macos/VoiceTerm.app`, pick a folder, it opens Terminal with VoiceTerm running.
-
-![Folder Picker](https://raw.githubusercontent.com/jguida941/voiceterm/master/img/folder-picker.png)
-</details>
 
 ## Documentation
 
