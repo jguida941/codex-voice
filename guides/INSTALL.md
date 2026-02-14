@@ -120,6 +120,9 @@ Then run:
 voiceterm --version
 ```
 
+PyPI project page:
+- https://pypi.org/project/voiceterm/
+
 PyPI launcher note:
 - The package installs a Python launcher named `voiceterm`.
 - On first run it bootstraps the native Rust binary into

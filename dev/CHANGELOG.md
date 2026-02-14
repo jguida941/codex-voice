@@ -5,6 +5,12 @@ Note: Some historical entries reference internal documents that are not publishe
 
 ## [Unreleased]
 
+## [1.0.65] - 2026-02-14
+
+### Packaging
+- Publish a PyPI metadata refresh so the project page uses product-style VoiceTerm messaging instead of launcher-only wording.
+- Update PyPI metadata author to **Justin Guida** and improve package description/links for consistency with the main repository docs.
+
 ## [1.0.64] - 2026-02-14
 
 ### Branding
