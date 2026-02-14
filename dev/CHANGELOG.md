@@ -23,6 +23,7 @@ Note: Some historical entries reference internal documents that are not publishe
 - Reformat README install flow with collapsible per-method blocks (Homebrew/PyPI/source/macOS app) while keeping a single unified onboarding section.
 - Add `Controls` to README quick navigation so users can jump directly to that section.
 - Refine README install layout to avoid mixed numbered steps around collapsibles (clean method blocks with the recommended path expanded by default).
+- Split README AI CLI prerequisite snippet into explicit Codex and Claude install blocks before the VoiceTerm install step.
 
 ## [1.0.65] - 2026-02-14
 
