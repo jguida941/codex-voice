@@ -34,7 +34,7 @@ The mic recorded but no voice was heard above the threshold.
 **Fixes:**
 1. Speak louder or closer to the mic
 2. Lower the threshold: press `Ctrl+\` (or `Ctrl+/`) to make it more sensitive
-3. Run `voxterm --mic-meter` to calibrate for your environment
+3. Run `voiceterm --mic-meter` to calibrate for your environment
 
 ### Voice capture failed (see log)
 
@@ -44,18 +44,18 @@ The mic couldn't start recording.
 
 **Fixes:**
 1. Check mic permissions for your terminal app
-2. Run `voxterm --list-input-devices` to see available mics
-3. Try a specific device: `voxterm --input-device "Your Mic Name"`
-4. Enable logs to see details: `voxterm --logs`
+2. Run `voiceterm --list-input-devices` to see available mics
+3. Try a specific device: `voiceterm --input-device "Your Mic Name"`
+4. Enable logs to see details: `voiceterm --logs`
 
 ### Voice capture error (see log)
 
 Something went wrong during recording or transcription.
 
 **Fixes:**
-1. Enable logs: `voxterm --logs`
-2. Check the log at `${TMPDIR}/voxterm_tui.log`
-3. Restart `voxterm`
+1. Enable logs: `voiceterm --logs`
+2. Check the log at `${TMPDIR}/voiceterm_tui.log`
+3. Restart `voiceterm`
 
 ### Processing... (stuck)
 
@@ -63,12 +63,12 @@ Transcription is taking too long.
 
 **Fixes:**
 1. Wait up to 60 seconds (large audio takes time)
-2. If still stuck, press `Ctrl+C` then restart `voxterm`
+2. If still stuck, press `Ctrl+C` then restart `voiceterm`
 3. Try a smaller Whisper model
 
 ### Transcript queued (N)
 
-The CLI is still streaming output, so VoxTerm queued your transcript.
+The CLI is still streaming output, so VoiceTerm queued your transcript.
 It will inject into the terminal when the next prompt appears (or after output
 is idle for the transcript timeout). In auto mode, Enter is pressed for you.
 
@@ -78,17 +78,17 @@ is idle for the transcript timeout). In auto mode, Enter is pressed for you.
 
 ### Voice macro not expanding
 
-VoxTerm loads macros from `.voxterm/macros.yaml` in your current working
+VoiceTerm loads macros from `.voiceterm/macros.yaml` in your current working
 directory. If the file is missing, malformed, or the trigger does not match,
 the transcript is sent as-is.
 
 **Fixes:**
-1. Confirm path: `<project>/.voxterm/macros.yaml`
+1. Confirm path: `<project>/.voiceterm/macros.yaml`
 2. Validate YAML shape:
    - `macros:`
    - trigger as key, string expansion or `{ template: ..., mode: auto|insert }`
 3. Match trigger text exactly (case-insensitive, whitespace-insensitive)
-4. Restart VoxTerm after editing the macro file
+4. Restart VoiceTerm after editing the macro file
 
 ### Voice macro expanded unexpectedly
 
@@ -122,12 +122,12 @@ The HUD latency badge represents post-capture processing time (mainly STT), not
 the full time you spent talking. Recording duration is shown separately while
 you are speaking.
 
-If VoxTerm does not have enough metrics to estimate latency reliably, the badge
+If VoiceTerm does not have enough metrics to estimate latency reliably, the badge
 is hidden instead of showing a misleading number.
 
 **Audit steps:**
-1. Run with logs enabled: `voxterm --logs`
-2. Reproduce one recording and inspect `${TMPDIR}/voxterm_tui.log`
+1. Run with logs enabled: `voiceterm --logs`
+2. Reproduce one recording and inspect `${TMPDIR}/voiceterm_tui.log`
 3. Look for `latency_audit|display_ms=...|elapsed_ms=...|capture_ms=...|stt_ms=...`
 4. For deeper profiling, run `./dev/scripts/tests/measure_latency.sh --voice-only --synthetic`
 
@@ -178,17 +178,17 @@ If missing:
 ### List and select audio devices
 
 ```bash
-voxterm --list-input-devices
+voiceterm --list-input-devices
 ```
 
 Use a specific device:
 ```bash
-voxterm --input-device "MacBook Pro Microphone"
+voiceterm --input-device "MacBook Pro Microphone"
 ```
 
 ### Microphone changed or unplugged
 
-Restart `voxterm` after plugging in a new mic. Devices are detected at startup.
+Restart `voiceterm` after plugging in a new mic. Devices are detected at startup.
 
 ---
 
@@ -201,7 +201,7 @@ Repeat until background noise stops triggering recordings.
 
 Or set it at startup:
 ```bash
-voxterm --voice-vad-threshold-db -30
+voiceterm --voice-vad-threshold-db -30
 ```
 
 ### Not sensitive enough (misses your voice)
@@ -210,14 +210,14 @@ Press `Ctrl+\` (or `Ctrl+/`) to lower the threshold (more sensitive).
 
 Or set it at startup:
 ```bash
-voxterm --voice-vad-threshold-db -50
+voiceterm --voice-vad-threshold-db -50
 ```
 
 ### Find the right threshold
 
 Run the mic meter to measure your environment:
 ```bash
-voxterm --mic-meter
+voiceterm --mic-meter
 ```
 
 It samples ambient noise and your speech, then suggests a threshold.
@@ -244,11 +244,11 @@ If you're using Claude Code, substitute `claude` wherever you see `codex` below.
    ```
    Or run:
    ```bash
-   voxterm --login --codex
-   voxterm --login --claude
+   voiceterm --login --codex
+   voiceterm --login --claude
    ```
 
-3. If the session is stuck, restart `voxterm`.
+3. If the session is stuck, restart `voiceterm`.
 
 ---
 
@@ -260,17 +260,17 @@ leftover processes, verify the binary version and check for true orphans.
 
 1. Confirm version:
    ```bash
-   voxterm --version
+   voiceterm --version
    ```
 2. List orphaned backend processes:
    ```bash
    ps -axo ppid,pid,command | egrep '(^ *1 .*\\b(codex|claude)\\b)'
    ```
-3. If orphaned entries remain after exiting VoxTerm, file an issue with:
-   - `voxterm --version`
+3. If orphaned entries remain after exiting VoiceTerm, file an issue with:
+   - `voiceterm --version`
    - terminal/IDE name and version
    - exact launch command
-   - relevant `${TMPDIR}/voxterm_tui.log` lines
+   - relevant `${TMPDIR}/voiceterm_tui.log` lines
 
 ---
 
@@ -282,7 +282,7 @@ If detection fails (especially on Claude with a custom prompt):
 #### Override prompt detection
 
 ```bash
-voxterm --prompt-regex '^codex> $'
+voiceterm --prompt-regex '^codex> $'
 ```
 
 Adjust the regex to match your actual prompt.
@@ -290,7 +290,7 @@ Adjust the regex to match your actual prompt.
 #### Enable prompt logging
 
 ```bash
-voxterm --prompt-log /tmp/voxterm_prompt.log
+voiceterm --prompt-log /tmp/voiceterm_prompt.log
 ```
 
 Check the log to see what lines are being detected.
@@ -301,10 +301,10 @@ Check the log to see what lines are being detected.
 
 ### Homebrew link conflict
 
-If `brew install voxterm` fails because the command already exists:
+If `brew install voiceterm` fails because the command already exists:
 
 ```bash
-brew link --overwrite voxterm
+brew link --overwrite voiceterm
 ```
 
 ### Wrong version after update
@@ -312,49 +312,49 @@ brew link --overwrite voxterm
 Start with a normal update:
 ```bash
 brew update
-brew upgrade voxterm
+brew upgrade voiceterm
 ```
 
 If Homebrew still shows the old version, force a tap refresh:
 ```bash
-brew untap jguida941/voxterm 2>/dev/null || true
-brew untap jguida941/homebrew-voxterm 2>/dev/null || true
-brew tap jguida941/voxterm
+brew untap jguida941/voiceterm 2>/dev/null || true
+brew untap jguida941/homebrew-voiceterm 2>/dev/null || true
+brew tap jguida941/voiceterm
 brew update
-brew info voxterm
+brew info voiceterm
 ```
 
 If it still will not update, clear the cache and reinstall:
 ```bash
-rm -f "$(brew --cache)"/voxterm--*
-brew reinstall voxterm
+rm -f "$(brew --cache)"/voiceterm--*
+brew reinstall voiceterm
 ```
 
-If `voxterm --version` still looks old, check for duplicate installs earlier in PATH:
+If `voiceterm --version` still looks old, check for duplicate installs earlier in PATH:
 ```bash
-which -a voxterm
+which -a voiceterm
 ```
 
-Remove or rename the old one (often `~/.local/bin/voxterm` from `./scripts/install.sh`):
+Remove or rename the old one (often `~/.local/bin/voiceterm` from `./scripts/install.sh`):
 ```bash
-mv ~/.local/bin/voxterm ~/.local/bin/voxterm.bak
+mv ~/.local/bin/voiceterm ~/.local/bin/voiceterm.bak
 hash -r
 ```
 
 If you used a local install previously, also check for:
 ```bash
-ls -l ~/voxterm/bin/voxterm 2>/dev/null
+ls -l ~/voiceterm/bin/voiceterm 2>/dev/null
 ```
 
 Relink Homebrew and clear shell caches:
 ```bash
-brew unlink voxterm && brew link --overwrite voxterm
+brew unlink voiceterm && brew link --overwrite voiceterm
 hash -r
 ```
 
 Verify the Homebrew binary directly (bypasses the wrapper):
 ```bash
-$(brew --prefix)/opt/voxterm/libexec/src/target/release/voxterm --version
+$(brew --prefix)/opt/voiceterm/libexec/src/target/release/voiceterm --version
 ```
 
 ---
@@ -368,13 +368,13 @@ another (for example RustRover/PyCharm/WebStorm):
    shortcuts still work.
 2. Capture input diagnostics:
    ```bash
-   voxterm --logs
-   VOXTERM_DEBUG_INPUT=1 voxterm --logs
+   voiceterm --logs
+   VOICETERM_DEBUG_INPUT=1 voiceterm --logs
    ```
-3. Reproduce one failed click/arrow action and inspect `${TMPDIR}/voxterm_tui.log`
+3. Reproduce one failed click/arrow action and inspect `${TMPDIR}/voiceterm_tui.log`
    for `input bytes (...)` and `input events: ...` lines.
 
-VoxTerm now parses multiple mouse/arrow sequence variants used by different IDE
+VoiceTerm now parses multiple mouse/arrow sequence variants used by different IDE
 terminal emulators (SGR, URXVT, X10, and parameterized CSI arrows), but the
 debug log above is still the fastest way to confirm what your terminal emits.
 
@@ -382,7 +382,7 @@ debug log above is still the fastest way to confirm what your terminal emits.
 
 If you see stacked/repeated Full HUD frames in PyCharm/CLion/RustRover:
 
-This is addressed in `v1.0.63` and newer using the stable `v1.0.53`
+This is addressed in `v1.0.64` and newer using the stable `v1.0.53`
 writer/render HUD path plus writer-side stale-row cleanup on resize.
 
 Symptoms can include:
@@ -392,13 +392,13 @@ Symptoms can include:
 
 1. Verify version is current:
    ```bash
-   voxterm --version
+   voiceterm --version
    ```
 2. Re-run once with logging:
    ```bash
-   voxterm --logs
+   voiceterm --logs
    ```
-3. If it still reproduces, share `${TMPDIR}/voxterm_tui.log` so terminal escape
+3. If it still reproduces, share `${TMPDIR}/voiceterm_tui.log` so terminal escape
    handling can be confirmed for your profile.
 
 ### Overlay Flickers in JetBrains Terminals
@@ -416,13 +416,13 @@ unchanged shortcut rows are not repainted every meter tick.
 
 1. Check version/build:
    ```bash
-   voxterm --version
+   voiceterm --version
    ```
 2. Reproduce once with logging:
    ```bash
-   voxterm --logs
+   voiceterm --logs
    ```
-3. If it still flickers, share `${TMPDIR}/voxterm_tui.log` and include terminal
+3. If it still flickers, share `${TMPDIR}/voiceterm_tui.log` and include terminal
    app/version so resize event patterns can be compared.
 
 ### PTY Exit Write Error in Logs
@@ -442,18 +442,18 @@ as an error during normal exit.
 ## Startup Banner Missing
 
 The startup splash is shown by default in non-JetBrains terminals. In JetBrains
-IDE terminals, `v1.0.63+` auto-skips splash by design. If you expect splash in
+IDE terminals, `v1.0.64+` auto-skips splash by design. If you expect splash in
 another terminal and it does not appear, confirm the environment variable below
 is not set:
 
 ```bash
-env | rg VOXTERM_NO_STARTUP_BANNER
+env | rg VOICETERM_NO_STARTUP_BANNER
 ```
 
 To explicitly hide it (useful in scripts), set:
 
 ```bash
-VOXTERM_NO_STARTUP_BANNER=1 voxterm
+VOICETERM_NO_STARTUP_BANNER=1 voiceterm
 ```
 
 ### Startup Banner Lingers in IDE Terminal
@@ -461,17 +461,17 @@ VOXTERM_NO_STARTUP_BANNER=1 voxterm
 If the startup splash stays on screen in PyCharm/JetBrains terminals while it
 clears normally in Cursor/VS Code, use these checks:
 
-1. Verify you are on `v1.0.63` or newer (JetBrains terminals auto-skip splash by default):
+1. Verify you are on `v1.0.64` or newer (JetBrains terminals auto-skip splash by default):
    ```bash
-   voxterm --version
+   voiceterm --version
    ```
 2. Run with a zero splash delay:
    ```bash
-   VOXTERM_STARTUP_SPLASH_MS=0 voxterm
+   VOICETERM_STARTUP_SPLASH_MS=0 voiceterm
    ```
 3. If you prefer no splash in all terminals:
    ```bash
-   VOXTERM_NO_STARTUP_BANNER=1 voxterm
+   VOICETERM_NO_STARTUP_BANNER=1 voiceterm
    ```
 
 ### Theme Colors Look Muted in IDE Terminal
@@ -487,7 +487,7 @@ themes look like ANSI fallbacks.
 2. Ensure `NO_COLOR` is not set.
 3. Force truecolor for a quick A/B check:
    ```bash
-   COLORTERM=truecolor voxterm --theme catppuccin
+   COLORTERM=truecolor voiceterm --theme catppuccin
    ```
 
 If forced truecolor fixes appearance, you can keep using that override for that
@@ -504,40 +504,40 @@ Logs are disabled by default for privacy.
 ### Enable debug logging
 
 ```bash
-voxterm --logs
+voiceterm --logs
 ```
 
 ### Include transcript snippets in logs
 
 ```bash
-voxterm --logs --log-content
+voiceterm --logs --log-content
 ```
 
 ### Log file location
 
-Debug log: system temp dir (for example `${TMPDIR}/voxterm_tui.log` on macOS or
-`/tmp/voxterm_tui.log` on Linux)
+Debug log: system temp dir (for example `${TMPDIR}/voiceterm_tui.log` on macOS or
+`/tmp/voiceterm_tui.log` on Linux)
 
 Trace log (JSON, written when `--logs` is enabled): system temp dir (for example
-`${TMPDIR}/voxterm_trace.jsonl` on macOS or `/tmp/voxterm_trace.jsonl` on Linux).
-Override with `VOXTERM_TRACE_LOG`.
+`${TMPDIR}/voiceterm_trace.jsonl` on macOS or `/tmp/voiceterm_trace.jsonl` on Linux).
+Override with `VOICETERM_TRACE_LOG`.
 
 Crash log (panic only, written when `--logs` is enabled; metadata unless
-`--log-content`): system temp dir (for example `${TMPDIR}/voxterm_crash.log`
-on macOS or `/tmp/voxterm_crash.log` on Linux)
+`--log-content`): system temp dir (for example `${TMPDIR}/voiceterm_crash.log`
+on macOS or `/tmp/voiceterm_crash.log` on Linux)
 
 ### Disable all logging
 
 ```bash
-voxterm --no-logs
+voiceterm --no-logs
 ```
 
 ---
 
 ## Getting Help
 
-- **Collect diagnostics:** Run `voxterm --doctor` and include the output in your issue.
-- **Report bugs:** [GitHub Issues](https://github.com/jguida941/voxterm/issues)
+- **Collect diagnostics:** Run `voiceterm --doctor` and include the output in your issue.
+- **Report bugs:** [GitHub Issues](https://github.com/jguida941/voiceterm/issues)
 - **Check known issues:** [Master Plan](../dev/active/MASTER_PLAN.md)
 
 ---
@@ -546,10 +546,10 @@ voxterm --no-logs
 
 ### What languages does Whisper support?
 
-Whisper supports many languages. VoxTerm has been tested with English (`en`).
+Whisper supports many languages. VoiceTerm has been tested with English (`en`).
 
 Other languages should work but are untested. Use `--lang auto` for automatic
-detection, or specify a language code: `voxterm --lang es`
+detection, or specify a language code: `voiceterm --lang es`
 
 Full list: [Whisper supported languages](https://github.com/openai/whisper#available-models-and-languages)
 
@@ -559,11 +559,11 @@ Only Codex and Claude Code are tested. Other presets exist but are experimental.
 
 | Backend | Install | Run | Status |
 |---------|---------|-----|--------|
-| Codex | `npm install -g @openai/codex` | `voxterm` | Tested |
-| Claude Code | `curl -fsSL https://claude.ai/install.sh \| bash` | `voxterm --claude` | Tested |
-| Gemini CLI | See vendor docs | `voxterm --gemini` | Experimental (currently not working) |
-| Aider | See vendor docs | `voxterm --backend aider` | Experimental (untested) |
-| OpenCode | See vendor docs | `voxterm --backend opencode` | Experimental (untested) |
+| Codex | `npm install -g @openai/codex` | `voiceterm` | Tested |
+| Claude Code | `curl -fsSL https://claude.ai/install.sh \| bash` | `voiceterm --claude` | Tested |
+| Gemini CLI | See vendor docs | `voiceterm --gemini` | Experimental (currently not working) |
+| Aider | See vendor docs | `voiceterm --backend aider` | Experimental (untested) |
+| OpenCode | See vendor docs | `voiceterm --backend opencode` | Experimental (untested) |
 
 ### Which Whisper model should I use?
 
@@ -572,30 +572,30 @@ See the full [Whisper guide](WHISPER.md) for model comparison and language suppo
 Quick answer: Start with `base` (142 MB, fast). Use `small` or `medium` for better accuracy.
 
 ```bash
-voxterm --whisper-model base
+voiceterm --whisper-model base
 ```
 
-### Can I use VoxTerm without Codex?
+### Can I use VoiceTerm without Codex?
 
 Yes. Use Claude Code:
 ```bash
-voxterm --claude
+voiceterm --claude
 ```
 
-### Does VoxTerm send my voice to the cloud?
+### Does VoiceTerm send my voice to the cloud?
 
 No. All speech-to-text happens locally via Whisper. Your audio never leaves your machine.
 
-### How do I update VoxTerm?
+### How do I update VoiceTerm?
 
 **Homebrew:**
 ```bash
-brew update && brew upgrade voxterm
+brew update && brew upgrade voiceterm
 ```
 
 **From source:**
 ```bash
-cd voxterm && git pull && ./scripts/install.sh
+cd voiceterm && git pull && ./scripts/install.sh
 ```
 
 ---

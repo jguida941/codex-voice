@@ -19,7 +19,7 @@ Adopt a JetBrains-specific startup/render hardening strategy:
 1. Auto-skip startup splash in JetBrains terminal environments by detecting IDE-specific env markers (`PYCHARM_HOSTED`, `JETBRAINS_IDE`, `IDEA_*`, `CLION_IDE`, `WEBSTORM_IDE`) and JetBrains-like terminal identifiers.
 2. On writer resize events, clear previously rendered HUD/overlay rows at the old geometry before drawing at the new geometry.
 
-`VOXTERM_NO_STARTUP_BANNER=1` remains available as a global override for all terminals.
+`VOICETERM_NO_STARTUP_BANNER=1` remains available as a global override for all terminals.
 
 ## Consequences
 
@@ -44,6 +44,6 @@ Adopt a JetBrains-specific startup/render hardening strategy:
 
 ## Links
 
-- `src/src/bin/voxterm/banner.rs`
-- `src/src/bin/voxterm/writer/state.rs`
+- `src/src/bin/voiceterm/banner.rs`
+- `src/src/bin/voiceterm/writer/state.rs`
 - `guides/TROUBLESHOOTING.md`

@@ -185,7 +185,7 @@ def transcribe(path: str, whisper_cmd: str, lang: str, model: str, *, model_path
         A tuple of the transcript text and the path to the generated `.txt` file.
     """
     _require(whisper_cmd)
-    tmpdir = Path(tmpdir or tempfile.mkdtemp(prefix="voxterm_"))
+    tmpdir = Path(tmpdir or tempfile.mkdtemp(prefix="voiceterm_"))
     base = tmpdir / "transcript"
     exe = Path(whisper_cmd).name.lower()
 
@@ -363,9 +363,9 @@ class PipelineResult:
 def _prepare_tmp_dir(keep_audio: bool) -> tuple[Path, bool, Callable[[], None]]:
     """Return a temporary directory, a retention flag, and a cleanup callback."""
     if keep_audio:
-        path = Path(tempfile.mkdtemp(prefix="voxterm_"))
+        path = Path(tempfile.mkdtemp(prefix="voiceterm_"))
         return path, True, lambda: None
-    tmp = tempfile.TemporaryDirectory(prefix="voxterm_")
+    tmp = tempfile.TemporaryDirectory(prefix="voiceterm_")
     path = Path(tmp.name)
 
     def _cleanup():

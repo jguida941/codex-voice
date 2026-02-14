@@ -9,7 +9,7 @@ from .config import DEFAULT_CI_LIMIT, DEFAULT_MEM_ITERATIONS, DEFAULT_MUTANTS_TI
 
 def build_parser() -> argparse.ArgumentParser:
     """Create the top-level argparse parser for devctl."""
-    parser = argparse.ArgumentParser(description="VoxTerm Dev CLI")
+    parser = argparse.ArgumentParser(description="VoiceTerm Dev CLI")
     sub = parser.add_subparsers(dest="command", required=True)
 
     # check

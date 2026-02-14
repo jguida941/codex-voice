@@ -1,6 +1,6 @@
 # CLI Flags
 
-All flags for the `voxterm` command. Run `voxterm --help` for the live output.
+All flags for the `voiceterm` command. Run `voiceterm --help` for the live output.
 
 ## Contents
 
@@ -22,15 +22,15 @@ All flags for the `voxterm` command. Run `voxterm --help` for the live output.
 Most common flags:
 
 ```bash
-voxterm --codex                   # Use Codex (default)
-voxterm --claude                  # Use Claude Code
-voxterm --login --codex           # Run Codex login before starting
-voxterm --login --claude          # Run Claude login before starting
-voxterm --auto-voice              # Hands-free mode
-voxterm --theme dracula           # Change theme
-voxterm --voice-vad-threshold-db -50  # Adjust mic sensitivity
-voxterm --mic-meter               # Calibrate mic threshold
-voxterm --logs                    # Enable debug logging
+voiceterm --codex                   # Use Codex (default)
+voiceterm --claude                  # Use Claude Code
+voiceterm --login --codex           # Run Codex login before starting
+voiceterm --login --claude          # Run Claude login before starting
+voiceterm --auto-voice              # Hands-free mode
+voiceterm --theme dracula           # Change theme
+voiceterm --voice-vad-threshold-db -50  # Adjust mic sensitivity
+voiceterm --mic-meter               # Calibrate mic threshold
+voiceterm --logs                    # Enable debug logging
 ```
 
 ---
@@ -68,10 +68,10 @@ have a CLI flag.
 
 **Examples:**
 ```bash
-voxterm --codex               # Use Codex (default)
-voxterm --claude              # Use Claude Code
-voxterm --login --codex       # Login to Codex CLI
-voxterm --login --claude      # Login to Claude CLI
+voiceterm --codex               # Use Codex (default)
+voiceterm --claude              # Use Claude Code
+voiceterm --login --codex       # Login to Codex CLI
+voiceterm --login --claude      # Login to Claude CLI
 ```
 
 **Notes:**
@@ -150,7 +150,7 @@ voxterm --login --claude      # Login to Claude CLI
 **HUD styles:**
 - `full`: 4-row banner with borders, mode indicator, dB meter, and shortcuts
 - `minimal`: Single-line strip with optional compact right-panel visualization chip
-- `hidden`: Branded launcher row when idle (`VoxTerm` + `Ctrl+U` hint + clickable open button); shows dim "REC" indicator while recording
+- `hidden`: Branded launcher row when idle (`VoiceTerm` + `Ctrl+U` hint + clickable open button); shows dim "REC" indicator while recording
 - Full HUD border style can be overridden with `--hud-border-style` (`theme`, `single`, `rounded`, `double`, `heavy`, `none`)
 - To disable the right-side waveform/pulse panel, set `--hud-right-panel off`
 
@@ -162,7 +162,7 @@ stale rows on resize to avoid ghost/duplicate artifacts in IDE terminals;
 there is no CLI flag for this behavior.
 For this behavior, prefer `v1.0.62` or newer.
 
-**Theme defaults:** If `--theme` is not provided, VoxTerm selects a backend-
+**Theme defaults:** If `--theme` is not provided, VoiceTerm selects a backend-
 appropriate default. Claude → `claude`, Codex → `codex`, others → `coral`.
 
 ---
@@ -176,11 +176,11 @@ appropriate default. Claude → `claude`, Codex → `codex`, others → `coral`.
 | `--log-content` | Include transcript snippets in logs | off |
 | `--log-timings` | Verbose timing information | off |
 
-**Log location:** `$TMPDIR/voxterm_tui.log` (macOS) or
-`/tmp/voxterm_tui.log` (Linux)
+**Log location:** `$TMPDIR/voiceterm_tui.log` (macOS) or
+`/tmp/voiceterm_tui.log` (Linux)
 
-**Trace log (JSON):** `$TMPDIR/voxterm_trace.jsonl` (macOS) or
-`/tmp/voxterm_trace.jsonl` (Linux). Override with `VOXTERM_TRACE_LOG`.
+**Trace log (JSON):** `$TMPDIR/voiceterm_trace.jsonl` (macOS) or
+`/tmp/voiceterm_trace.jsonl` (Linux). Override with `VOICETERM_TRACE_LOG`.
 
 ---
 
@@ -207,20 +207,20 @@ appropriate default. Claude → `claude`, Codex → `codex`, others → `coral`.
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `VOXTERM_CWD` | Run CLI in this directory | current directory |
-| `VOXTERM_MODEL_DIR` | Whisper model storage path (used by install/start scripts) | `whisper_models/` or `~/.local/share/voxterm/models` |
-| `VOXTERM_INSTALL_DIR` | Override install location | unset |
-| `VOXTERM_NO_STARTUP_BANNER` | Skip the startup splash screen | unset |
-| `VOXTERM_STARTUP_SPLASH_MS` | Splash dwell time in milliseconds (0 = immediate, max 30000) | 1500 |
-| `VOXTERM_PROMPT_REGEX` | Override prompt detection | unset |
-| `VOXTERM_PROMPT_LOG` | Prompt detection log path | unset |
-| `VOXTERM_LOGS` | Enable logging (same as `--logs`) | unset |
-| `VOXTERM_NO_LOGS` | Disable logging | unset |
-| `VOXTERM_LOG_CONTENT` | Allow content in logs | unset |
-| `VOXTERM_TRACE_LOG` | Structured trace log path | unset |
-| `VOXTERM_DEBUG_INPUT` | Log raw input bytes/events (for terminal compatibility debugging) | unset |
+| `VOICETERM_CWD` | Run CLI in this directory | current directory |
+| `VOICETERM_MODEL_DIR` | Whisper model storage path (used by install/start scripts) | `whisper_models/` or `~/.local/share/voiceterm/models` |
+| `VOICETERM_INSTALL_DIR` | Override install location | unset |
+| `VOICETERM_NO_STARTUP_BANNER` | Skip the startup splash screen | unset |
+| `VOICETERM_STARTUP_SPLASH_MS` | Splash dwell time in milliseconds (0 = immediate, max 30000) | 1500 |
+| `VOICETERM_PROMPT_REGEX` | Override prompt detection | unset |
+| `VOICETERM_PROMPT_LOG` | Prompt detection log path | unset |
+| `VOICETERM_LOGS` | Enable logging (same as `--logs`) | unset |
+| `VOICETERM_NO_LOGS` | Disable logging | unset |
+| `VOICETERM_LOG_CONTENT` | Allow content in logs | unset |
+| `VOICETERM_TRACE_LOG` | Structured trace log path | unset |
+| `VOICETERM_DEBUG_INPUT` | Log raw input bytes/events (for terminal compatibility debugging) | unset |
 | `CLAUDE_CMD` | Override Claude CLI path | unset |
-| `VOXTERM_PROVIDER` | IPC default provider (`codex` or `claude`) | unset |
+| `VOICETERM_PROVIDER` | IPC default provider (`codex` or `claude`) | unset |
 | `NO_COLOR` | Disable colors (standard) | unset |
 
 ---

@@ -2,7 +2,7 @@
 //!
 //! This mirrors the logic from the legacy TUI entrypoint so integration tests can drive
 //! the UI without pulling in all of the overlay stack. The multi-backend overlay lives
-//! under `src/bin/voxterm/`.
+//! under `src/bin/voiceterm/`.
 
 use crate::log_debug;
 use crate::terminal_restore::TerminalRestoreGuard;

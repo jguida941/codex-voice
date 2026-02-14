@@ -14,13 +14,13 @@
 ## Project structure
 
 ```
-voxterm/
+voiceterm/
 ├── .github/
 │   ├── CONTRIBUTING.md   # Contribution guidelines
 │   ├── SECURITY.md       # Security policy
 │   └── workflows/        # CI workflows
 ├── app/
-│   ├── macos/VoxTerm.app # macOS double-click launcher
+│   ├── macos/VoiceTerm.app # macOS double-click launcher
 │   └── windows/          # Windows launcher (planned placeholder)
 ├── AGENTS.md             # SDLC policy and release checklist
 ├── QUICK_START.md        # Fast setup and commands
@@ -39,6 +39,7 @@ voxterm/
 │   ├── adr/                # Architecture decision records
 │   └── scripts/            # Developer scripts
 │       ├── release.sh         # GitHub release script
+│       ├── publish-pypi.sh    # PyPI build/publish helper
 │       ├── update-homebrew.sh # Homebrew tap update
 │       ├── check_mutation_score.py # Mutation score helper
 │       └── tests/             # Test scripts
@@ -46,19 +47,19 @@ voxterm/
 ├── Makefile             # Developer tasks
 ├── src/                 # Rust overlay + voice pipeline
 │   └── src/
-│       ├── bin/voxterm/main.rs # Overlay entry point
-│       ├── bin/voxterm/banner.rs # Startup splash + banner config
-│       ├── bin/voxterm/help.rs # Shortcut overlay rendering
-│       ├── bin/voxterm/terminal.rs # Terminal sizing + signal handling
-│       ├── bin/voxterm/audio_meter/ # Mic meter UI (`--mic-meter`)
-│       ├── bin/voxterm/hud/ # HUD modules and right panel visuals
-│       ├── bin/voxterm/status_line/ # Status line layout + formatting
-│       ├── bin/voxterm/settings/ # Settings overlay
-│       ├── bin/voxterm/transcript/ # Transcript queue + delivery
-│       ├── bin/voxterm/voice_control/ # Voice capture lifecycle
-│       ├── bin/voxterm/input/ # Input parsing + events
-│       ├── bin/voxterm/writer/ # Output writer + overlays
-│       ├── bin/voxterm/theme/ # Theme definitions
+│       ├── bin/voiceterm/main.rs # Overlay entry point
+│       ├── bin/voiceterm/banner.rs # Startup splash + banner config
+│       ├── bin/voiceterm/help.rs # Shortcut overlay rendering
+│       ├── bin/voiceterm/terminal.rs # Terminal sizing + signal handling
+│       ├── bin/voiceterm/audio_meter/ # Mic meter UI (`--mic-meter`)
+│       ├── bin/voiceterm/hud/ # HUD modules and right panel visuals
+│       ├── bin/voiceterm/status_line/ # Status line layout + formatting
+│       ├── bin/voiceterm/settings/ # Settings overlay
+│       ├── bin/voiceterm/transcript/ # Transcript queue + delivery
+│       ├── bin/voiceterm/voice_control/ # Voice capture lifecycle
+│       ├── bin/voiceterm/input/ # Input parsing + events
+│       ├── bin/voiceterm/writer/ # Output writer + overlays
+│       ├── bin/voiceterm/theme/ # Theme definitions
 │       ├── legacy_tui/   # Codex TUI state + logging (legacy)
 │       ├── audio/       # CPAL recording, VAD, resample
 │       ├── backend/     # AI CLI backend presets (overlay)
@@ -90,7 +91,7 @@ Note: `src/` is the Rust workspace root and the crate lives under `src/src/`. Th
 
 ```bash
 # Rust overlay
-cd src && cargo build --release --bin voxterm
+cd src && cargo build --release --bin voiceterm
 
 # Rust backend (optional dev binary)
 cd src && cargo build --release
@@ -103,7 +104,7 @@ cd src && cargo build --release
 cd src && cargo test
 
 # Overlay tests
-cd src && cargo test --bin voxterm
+cd src && cargo test --bin voiceterm
 
 # Perf smoke (voice metrics)
 cd src && cargo test --no-default-features legacy_tui::tests::perf_smoke_emits_voice_metrics -- --nocapture
@@ -271,7 +272,7 @@ cargo mutants --timeout 300 -o mutants.out --json
 python3 ../dev/scripts/check_mutation_score.py --glob "mutants.out/**/outcomes.json" --threshold 0.80
 ```
 
-**Check CI status:** [GitHub Actions](https://github.com/jguida941/voxterm/actions)
+**Check CI status:** [GitHub Actions](https://github.com/jguida941/voiceterm/actions)
 
 ## Releasing
 
@@ -298,11 +299,18 @@ gh release create vX.Y.Z --title "vX.Y.Z" --notes "See CHANGELOG.md"
 ./dev/scripts/update-homebrew.sh X.Y.Z
 ```
 
+### Publish PyPI package
+
+```bash
+# Build + upload package to PyPI
+./dev/scripts/publish-pypi.sh --upload
+```
+
 This automatically fetches the SHA256 and updates the formula.
 
 Users can then upgrade:
 ```bash
-brew update && brew upgrade voxterm
+brew update && brew upgrade voiceterm
 ```
 
 See `scripts/README.md` for full script documentation.
@@ -311,14 +319,14 @@ See `scripts/README.md` for full script documentation.
 
 **Test with different backends:**
 ```bash
-voxterm              # Codex (default)
-voxterm --claude     # Claude Code
-voxterm --gemini     # Gemini CLI (experimental; not fully validated)
+voiceterm              # Codex (default)
+voiceterm --claude     # Claude Code
+voiceterm --gemini     # Gemini CLI (experimental; not fully validated)
 ```
 
 **Debug logging:**
 ```bash
-voxterm --logs                    # Enable debug log
-tail -f $TMPDIR/voxterm_tui.log   # Watch log output
-tail -f $TMPDIR/voxterm_trace.jsonl  # Watch structured trace output (JSON)
+voiceterm --logs                    # Enable debug log
+tail -f $TMPDIR/voiceterm_tui.log   # Watch log output
+tail -f $TMPDIR/voiceterm_trace.jsonl  # Watch structured trace output (JSON)
 ```

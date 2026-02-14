@@ -4,12 +4,12 @@ use std::process::Command;
 
 #[test]
 fn main_lists_input_devices() {
-    let bin = env!("CARGO_BIN_EXE_voxterm");
+    let bin = env!("CARGO_BIN_EXE_voiceterm");
     let output = Command::new(bin)
         .arg("--list-input-devices")
-        .env("VOXTERM_TEST_DEVICES", "Mic A,Mic B")
+        .env("VOICETERM_TEST_DEVICES", "Mic A,Mic B")
         .output()
-        .expect("run voxterm");
+        .expect("run voiceterm");
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("Available audio input devices:"));
@@ -19,12 +19,12 @@ fn main_lists_input_devices() {
 
 #[test]
 fn main_reports_no_input_devices() {
-    let bin = env!("CARGO_BIN_EXE_voxterm");
+    let bin = env!("CARGO_BIN_EXE_voiceterm");
     let output = Command::new(bin)
         .arg("--list-input-devices")
-        .env("VOXTERM_TEST_DEVICES", "")
+        .env("VOICETERM_TEST_DEVICES", "")
         .output()
-        .expect("run voxterm");
+        .expect("run voiceterm");
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("No audio input devices detected."));

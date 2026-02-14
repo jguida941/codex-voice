@@ -1,17 +1,17 @@
 # User Scripts
 
-Scripts for installing and running VoxTerm.
+Scripts for installing and running VoiceTerm.
 
 | Script | Purpose | Usage |
 |--------|---------|-------|
 | `install.sh` | One-time installer | `./scripts/install.sh` |
-| `start.sh` | Launch VoxTerm | `./scripts/start.sh` |
+| `start.sh` | Launch VoiceTerm | `./scripts/start.sh` |
 | `setup.sh` | Download Whisper models | `./scripts/setup.sh models --base` |
 | `python_fallback.py` | Fallback STT pipeline | Used automatically |
 
 ## install.sh
 
-Builds VoxTerm and installs the `voxterm` command.
+Builds VoiceTerm and installs the `voiceterm` command.
 
 ```bash
 ./scripts/install.sh
@@ -24,7 +24,7 @@ Pick a model size during install:
 
 ## start.sh
 
-Launches VoxTerm directly (downloads model if needed).
+Launches VoiceTerm directly (downloads model if needed).
 
 ```bash
 ./scripts/start.sh

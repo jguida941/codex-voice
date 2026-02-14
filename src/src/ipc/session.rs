@@ -104,7 +104,7 @@ impl IpcState {
         let codex_cli_backend = Arc::new(CodexCliBackend::new(config.clone()));
 
         // Allow env override so wrappers can pin provider without extra flags.
-        let default_provider = env::var("VOXTERM_PROVIDER")
+        let default_provider = env::var("VOICETERM_PROVIDER")
             .ok()
             .and_then(|s| Provider::from_str(&s))
             .unwrap_or(Provider::Codex);

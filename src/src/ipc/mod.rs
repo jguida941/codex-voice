@@ -1,4 +1,4 @@
-//! JSON IPC entrypoints so external UIs can drive VoxTerm without embedding TUI code.
+//! JSON IPC entrypoints so external UIs can drive VoiceTerm without embedding TUI code.
 //!
 //! This module provides a non-blocking JSON-lines protocol over stdin/stdout
 //! so that external frontends can drive the voice + provider pipeline.

@@ -25,7 +25,7 @@ This adds significant complexity to the audio pipeline.
 Do not implement device hotplug recovery:
 - Audio device is selected at startup and used for the session
 - If the device disconnects, capture fails with an error
-- User must restart `voxterm` to select a different device
+- User must restart `voiceterm` to select a different device
 - Python fallback may still work (ffmpeg handles devices differently)
 
 Document this limitation clearly in:

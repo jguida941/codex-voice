@@ -1,6 +1,6 @@
 # Whisper Speech-to-Text
 
-VoxTerm uses [Whisper](https://github.com/openai/whisper) for local speech-to-text.
+VoiceTerm uses [Whisper](https://github.com/openai/whisper) for local speech-to-text.
 All transcription happens on your machine - no audio is sent to the cloud.
 
 ## Contents
@@ -13,7 +13,7 @@ All transcription happens on your machine - no audio is sent to the cloud.
 
 ## How It Works
 
-1. **You speak** → VoxTerm captures audio from your microphone
+1. **You speak** → VoiceTerm captures audio from your microphone
 2. **Voice Activity Detection (VAD)** → Detects when you start/stop speaking
 3. **Whisper transcribes** → Converts speech to text locally using whisper.cpp
 4. **Text typed into CLI** → Transcript is injected into your AI CLI terminal
@@ -38,7 +38,7 @@ The entire pipeline runs locally with ~250ms latency on modern hardware.
 - **Use `tiny`** only for testing or very low-end hardware
 
 **Note:** The CLI flag `--whisper-model` defaults to `small`, but the installer and
-`scripts/start.sh` download `base` by default unless you choose another size. VoxTerm
+`scripts/start.sh` download `base` by default unless you choose another size. VoiceTerm
 auto-detects whichever model file is present.
 
 ### Switching Models
@@ -53,26 +53,26 @@ Download a different model:
 
 Or specify at runtime:
 ```bash
-voxterm --whisper-model base
-voxterm --whisper-model-path /path/to/ggml-medium.en.bin
+voiceterm --whisper-model base
+voiceterm --whisper-model-path /path/to/ggml-medium.en.bin
 ```
 
 ## Language Support
 
-Whisper supports many languages. VoxTerm defaults to English but works with any supported language.
+Whisper supports many languages. VoiceTerm defaults to English but works with any supported language.
 
 ### Setting Your Language
 
 ```bash
 # Explicit language (faster, more accurate)
-voxterm --lang es        # Spanish
-voxterm --lang fr        # French
-voxterm --lang de        # German
-voxterm --lang ja        # Japanese
-voxterm --lang zh        # Chinese
+voiceterm --lang es        # Spanish
+voiceterm --lang fr        # French
+voiceterm --lang de        # German
+voiceterm --lang ja        # Japanese
+voiceterm --lang zh        # Chinese
 
 # Auto-detect (slightly slower)
-voxterm --lang auto
+voiceterm --lang auto
 ```
 
 ### Language-Specific Models
@@ -117,16 +117,16 @@ curl -L https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.b
 
 ### Model Locations
 
-VoxTerm (the binary) looks for models in this order:
+VoiceTerm (the binary) looks for models in this order:
 1. Path specified via `--whisper-model-path`
 2. `whisper_models/` in the project directory
 
-The install/start scripts also check `~/.local/share/voxterm/models/` and pass it
+The install/start scripts also check `~/.local/share/voiceterm/models/` and pass it
 via `--whisper-model-path` when found.
 
 Override with environment variable (used by install/start scripts):
 ```bash
-export VOXTERM_MODEL_DIR=/path/to/models
+export VOICETERM_MODEL_DIR=/path/to/models
 ```
 
 ## Performance Tips

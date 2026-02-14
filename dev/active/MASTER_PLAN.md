@@ -6,8 +6,8 @@
 - Deferred work lives in `dev/deferred/` and must be explicitly reactivated here before implementation.
 
 ## Status Snapshot (2026-02-14)
-- Last tagged release: `v1.0.61` (2026-02-13)
-- Current release target: `v1.0.62`
+- Last tagged release: `v1.0.63` (2026-02-14)
+- Current release target: `v1.0.64`
 - Active development branch: `develop`
 - Release branch: `master`
 - Strategic focus: visual HUD differentiation (telemetry richness, transitions, visualization modes)
@@ -26,7 +26,7 @@
 - [x] MP-074 Update docs for HUD/input behavior changes and debug guidance.
 - [x] MP-075 Finalize latency display semantics to avoid misleading values.
 - [x] MP-076 Add latency audit logging and regression tests for displayed latency behavior.
-- [x] MP-077 Run release verification (`cargo build --release --bin voxterm`, tests, docs-check).
+- [x] MP-077 Run release verification (`cargo build --release --bin voiceterm`, tests, docs-check).
 - [x] MP-078 Finalize release notes, bump version, tag, push, GitHub release, and Homebrew tap update.
 - [x] MP-096 Expand SDLC agent governance: post-push audit loop, testing matrix by change type, CI expansion policy, and per-push docs sync requirements.
 - [x] MP-099 Consolidate overlay research into a single reference source (`dev/active/overlay.md`) and mirror candidate execution items in this plan.
@@ -44,11 +44,11 @@
 - [x] MP-122 Prevent mutation-lane timeout by sharding scheduled `cargo mutants` runs and enforcing one aggregated score across shards.
 
 ## Phase 2 - Overlay Quick Wins
-- [x] MP-085 Voice macros and custom triggers (`.voxterm/macros.yaml`).
+- [x] MP-085 Voice macros and custom triggers (`.voiceterm/macros.yaml`).
 - [x] MP-086 Runtime macros ON/OFF toggle (settings state + transcript transform gate).
 - [x] MP-087 Restore baseline send-mode semantics (`auto`/`insert`) without an extra review-first gate.
 - [x] MP-112 Add CI voice-mode regression lane for macros-toggle and send-mode behavior (`.github/workflows/voice_mode_guard.yml`).
-- [ ] MP-088 Persistent user config (`~/.config/voxterm/config.toml`) for core preferences (deferred until visual sprint is complete).
+- [ ] MP-088 Persistent user config (`~/.config/voiceterm/config.toml`) for core preferences (deferred until visual sprint is complete).
 
 ## Phase 2A - Visual HUD Sprint (Current Priority)
 - [x] MP-101 Add richer HUD telemetry visuals (sparkline/chart/gauge) with bounded data retention.
@@ -67,6 +67,7 @@
 - [x] MP-123 Harden PTY/IPC backend teardown to signal process groups and reap child processes, with regression tests that verify descendant cleanup.
 - [x] MP-124 Add Full-HUD border-style customization (including borderless mode) and keep right-panel telemetry explicitly user-toggleable to `Off`.
 - [x] MP-125 Fix HUD right-panel `Anim only` behavior so idle state keeps a static panel visible instead of hiding the panel until recording.
+- [x] MP-126 Complete product/distribution naming rebrand to VoiceTerm across code/docs/scripts/app launcher, and add a PyPI launcher package scaffold (`pypi/`) for `voiceterm`.
 - [ ] MP-104 Add explicit voice-state visualization (idle/listening/processing/responding) with clear transitions.
 - [ ] MP-055 Quick theme switcher in settings.
 - [ ] MP-102 Add toast notification center with auto-dismiss, severity, and history review.
@@ -105,7 +106,8 @@
 3. Verification pass for change scope
 4. Tag + push from `master`
 5. GitHub release creation
-6. Homebrew tap formula update + push
+6. PyPI package publish
+7. Homebrew tap formula update + push
 
 ## Execution Gate (Every Feature)
 1. Create or link an MP item before implementation.

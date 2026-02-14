@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Integration test for VoxTerm IPC protocol
+# Integration test for VoiceTerm IPC protocol
 # Tests the end-to-end flow between IPC clients and the Rust backend
 #
 
@@ -8,7 +8,7 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
-RUST_BINARY="$PROJECT_ROOT/src/target/release/voxterm"
+RUST_BINARY="$PROJECT_ROOT/src/target/release/voiceterm"
 
 # Colors
 RED='\033[0;31m'
@@ -44,7 +44,7 @@ skip() {
 
 echo ""
 echo -e "${BLUE}╔══════════════════════════════════════════════════════════════╗${NC}"
-echo -e "${BLUE}║${NC}           VoxTerm Integration Tests                      ${BLUE}║${NC}"
+echo -e "${BLUE}║${NC}           VoiceTerm Integration Tests                      ${BLUE}║${NC}"
 echo -e "${BLUE}╚══════════════════════════════════════════════════════════════╝${NC}"
 echo ""
 

@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="img/logo.svg" alt="VoxTerm">
+  <img src="img/logo.svg" alt="VoiceTerm">
 </p>
 
 <p align="center">
@@ -7,13 +7,13 @@
   <img src="https://img.shields.io/badge/Whisper-Voice_Input-8B5CF6?style=for-the-badge&logo=audacity&logoColor=white" alt="Whisper">
   <img src="https://img.shields.io/badge/macOS-000000?style=for-the-badge&logo=apple&logoColor=white" alt="macOS">
   <img src="https://img.shields.io/badge/Linux-FCC624?style=for-the-badge&logo=linux&logoColor=black" alt="Linux">
-  <a href="dev/CHANGELOG.md"><img src="https://img.shields.io/github/v/tag/jguida941/voxterm?style=for-the-badge&label=Version" alt="Version"></a>
+  <a href="dev/CHANGELOG.md"><img src="https://img.shields.io/github/v/tag/jguida941/voiceterm?style=for-the-badge&label=Version" alt="Version"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue?style=for-the-badge" alt="MIT License"></a>
 </p>
 
 <p align="center">
-  <a href="https://github.com/jguida941/voxterm/actions/workflows/rust_ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/jguida941/voxterm/rust_ci.yml?branch=master&style=for-the-badge&label=CI&logo=github" alt="CI"></a>
-  <a href="https://github.com/jguida941/voxterm/actions/workflows/mutation-testing.yml"><img src="https://img.shields.io/github/actions/workflow/status/jguida941/voxterm/mutation-testing.yml?branch=master&style=for-the-badge&label=Mutation&logo=github" alt="Mutation Testing"></a>
+  <a href="https://github.com/jguida941/voiceterm/actions/workflows/rust_ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/jguida941/voiceterm/rust_ci.yml?branch=master&style=for-the-badge&label=CI&logo=github" alt="CI"></a>
+  <a href="https://github.com/jguida941/voiceterm/actions/workflows/mutation-testing.yml"><img src="https://img.shields.io/github/actions/workflow/status/jguida941/voiceterm/mutation-testing.yml?branch=master&style=for-the-badge&label=Mutation&logo=github" alt="Mutation Testing"></a>
 </p>
 
 Voice input for AI CLIs. Talk instead of type.
@@ -36,19 +36,22 @@ Runs Whisper locally with ~250ms latency. No cloud, no API keys.
 # Install Codex CLI (default backend)
 npm install -g @openai/codex
 
-# Install VoxTerm via Homebrew
-brew tap jguida941/voxterm
-brew install voxterm
+# Install VoiceTerm via Homebrew
+brew tap jguida941/voiceterm
+brew install voiceterm
 
 # Run it
 cd ~/your-project
-voxterm
+voiceterm
+
+# Alternative install via PyPI
+pipx install voiceterm
 ```
 
 If you haven't authenticated yet:
 ```bash
-voxterm --login --codex
-voxterm --login --claude
+voiceterm --login --codex
+voiceterm --login --claude
 ```
 
 First run downloads a Whisper model (install/start scripts default to base ~142 MB; CLI default is small ~466 MB). To choose a different size:
@@ -58,11 +61,11 @@ First run downloads a Whisper model (install/start scripts default to base ~142 
 See [Whisper docs](guides/WHISPER.md) for details.
 
 Startup splash behavior:
-- default dwell is short (`VOXTERM_STARTUP_SPLASH_MS=1500`)
-- set `VOXTERM_STARTUP_SPLASH_MS=0` for immediate clear
-- set `VOXTERM_NO_STARTUP_BANNER=1` to skip it entirely
+- default dwell is short (`VOICETERM_STARTUP_SPLASH_MS=1500`)
+- set `VOICETERM_STARTUP_SPLASH_MS=0` for immediate clear
+- set `VOICETERM_NO_STARTUP_BANNER=1` to skip it entirely
 
-IDE terminal HUD compatibility (`v1.0.63`):
+IDE terminal HUD compatibility (`v1.0.64`):
 - Full HUD uses the proven `v1.0.53` writer/render baseline and clears stale
   HUD rows on resize so ghost frames do not remain after terminal geometry
   changes in Cursor/JetBrains terminals.
@@ -80,7 +83,7 @@ graph TD
     E --> F["Terminal Output"]
 ```
 
-VoxTerm wraps your AI CLI in a PTY and adds voice input.
+VoiceTerm wraps your AI CLI in a PTY and adds voice input.
 You talk → Whisper transcribes locally → text gets typed into the CLI.
 All CLI output passes through unchanged.
 
@@ -99,7 +102,7 @@ All CLI output passes through unchanged.
 | **PTY passthrough** | CLI UI stays unchanged |
 | **Auto-voice** | Hands-free mode - no typing needed |
 | **Transcript queue** | Speak while CLI is busy, types when ready |
-| **Project voice macros** | Expand trigger phrases from `.voxterm/macros.yaml` before typing |
+| **Project voice macros** | Expand trigger phrases from `.voiceterm/macros.yaml` before typing |
 | **Macros toggle** | Runtime ON/OFF control for macro expansion from Settings |
 | **Adaptive HUD telemetry** | Compact meter/latency trend chips that adapt to recording, busy, and idle states |
 | **Backends** | Codex + Claude supported; experimental presets for Gemini (not working), Aider, OpenCode |
@@ -107,7 +110,7 @@ All CLI output passes through unchanged.
 
 ## Supported AI CLIs
 
-VoxTerm is optimized for Codex and Claude Code. Experimental presets exist for
+VoiceTerm is optimized for Codex and Claude Code. Experimental presets exist for
 Gemini, Aider, and OpenCode, plus custom command strings via `--backend`. Gemini
 is currently nonfunctional, and Aider/OpenCode are untested.
 
@@ -115,41 +118,41 @@ is currently nonfunctional, and Aider/OpenCode are untested.
 
 ```bash
 npm install -g @openai/codex
-voxterm
-voxterm --codex   # explicit (optional)
-voxterm --login --codex
+voiceterm
+voiceterm --codex   # explicit (optional)
+voiceterm --login --codex
 ```
 
-![Codex Backend](https://raw.githubusercontent.com/jguida941/voxterm/master/img/codex-backend.png)
+![Codex Backend](https://raw.githubusercontent.com/jguida941/voiceterm/master/img/codex-backend.png)
 
 ### Claude Code
 
 ```bash
 curl -fsSL https://claude.ai/install.sh | bash
-voxterm --claude
-voxterm --login --claude
+voiceterm --claude
+voiceterm --login --claude
 ```
 
-![Claude Backend](https://raw.githubusercontent.com/jguida941/voxterm/master/img/claude-backend.png)
+![Claude Backend](https://raw.githubusercontent.com/jguida941/voiceterm/master/img/claude-backend.png)
 
 ### Experimental presets
 
 These presets exist but are not part of the primary support matrix:
-- Gemini CLI (`voxterm --gemini`)
-- Aider (`voxterm --backend aider`)
-- OpenCode (`voxterm --backend opencode`)
+- Gemini CLI (`voiceterm --gemini`)
+- Aider (`voiceterm --backend aider`)
+- OpenCode (`voiceterm --backend opencode`)
 Gemini is currently not working; Aider/OpenCode are untested.
 
 ## UI Tour
 
 ### Theme Picker (Ctrl+Y)
 
-![Theme Picker](https://raw.githubusercontent.com/jguida941/voxterm/master/img/theme-picker.png)
+![Theme Picker](https://raw.githubusercontent.com/jguida941/voiceterm/master/img/theme-picker.png)
 Use ↑/↓ to move and Enter to select, or type the theme number.
 
 ### Settings Menu (Ctrl+O)
 
-![Settings](https://raw.githubusercontent.com/jguida941/voxterm/master/img/settings.png)
+![Settings](https://raw.githubusercontent.com/jguida941/voiceterm/master/img/settings.png)
 
 Mouse control is on by default (toggle it off in Settings).
 You can click HUD buttons or use ←/→ to focus and Enter to activate.
@@ -164,7 +167,7 @@ See the [Usage Guide](guides/USAGE.md) for details.
 
 ### Voice Recording
 
-![Recording](https://raw.githubusercontent.com/jguida941/voxterm/master/img/recording.png)
+![Recording](https://raw.githubusercontent.com/jguida941/voiceterm/master/img/recording.png)
 
 ## Controls
 
@@ -184,7 +187,7 @@ See the [Usage Guide](guides/USAGE.md) for details.
 | `Ctrl+C` | Send interrupt to CLI |
 
 Macro behavior is controlled by Settings -> `Macros`:
-- `ON`: apply `.voxterm/macros.yaml` expansions before injection.
+- `ON`: apply `.voiceterm/macros.yaml` expansions before injection.
 - `OFF`: inject raw transcripts unchanged.
 
 ## Install Options
@@ -193,17 +196,29 @@ Macro behavior is controlled by Settings -> `Macros`:
 <summary><strong>Homebrew (recommended)</strong></summary>
 
 ```bash
-brew tap jguida941/voxterm
-brew install voxterm
+brew tap jguida941/voiceterm
+brew install voiceterm
 ```
+</details>
+
+<details>
+<summary><strong>PyPI (pipx/pip)</strong></summary>
+
+```bash
+pipx install voiceterm
+# or: python3 -m pip install --user voiceterm
+```
+
+The PyPI package installs a launcher and bootstraps the native binary on first run
+(`git` + `cargo` required).
 </details>
 
 <details>
 <summary><strong>From source</strong></summary>
 
 ```bash
-git clone https://github.com/jguida941/voxterm.git
-cd voxterm
+git clone https://github.com/jguida941/voiceterm.git
+cd voiceterm
 ./scripts/install.sh
 ```
 </details>
@@ -211,9 +226,9 @@ cd voxterm
 <details>
 <summary><strong>macOS App</strong></summary>
 
-Double-click `app/macos/VoxTerm.app`, pick a folder, it opens Terminal with VoxTerm running.
+Double-click `app/macos/VoiceTerm.app`, pick a folder, it opens Terminal with VoiceTerm running.
 
-![Folder Picker](https://raw.githubusercontent.com/jguida941/voxterm/master/img/folder-picker.png)
+![Folder Picker](https://raw.githubusercontent.com/jguida941/voiceterm/master/img/folder-picker.png)
 </details>
 
 ## Documentation
@@ -230,7 +245,7 @@ Double-click `app/macos/VoxTerm.app`, pick a folder, it opens Terminal with VoxT
 ## Support
 
 - Troubleshooting: [guides/TROUBLESHOOTING.md](guides/TROUBLESHOOTING.md)
-- Bug reports and feature requests: [GitHub Issues](https://github.com/jguida941/voxterm/issues)
+- Bug reports and feature requests: [GitHub Issues](https://github.com/jguida941/voiceterm/issues)
 - Security concerns: [.github/SECURITY.md](.github/SECURITY.md)
 
 ## Contributing

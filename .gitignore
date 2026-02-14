@@ -91,7 +91,7 @@ project.md
 # dev/archive/ is tracked
 **/PROJECT_OVERVIEW.md
 **/master_index.md
-!AGENTS.md
+/AGENTS.md
 src/mutants.out*
 claudeaudit.md
 

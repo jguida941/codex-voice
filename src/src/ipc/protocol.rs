@@ -20,7 +20,7 @@ pub enum IpcEvent {
     Capabilities {
         /// Unique runtime session id for event correlation.
         session_id: String,
-        /// VoxTerm semantic version.
+        /// VoiceTerm semantic version.
         version: String,
         /// Whether microphone capture is currently available.
         mic_available: bool,

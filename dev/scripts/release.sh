@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# VoxTerm Release Script
+# VoiceTerm Release Script
 # Usage: ./dev/scripts/release.sh <version>
 # Example: ./dev/scripts/release.sh 1.0.33
 #
@@ -24,7 +24,7 @@ REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 CARGO_TOML="$REPO_ROOT/src/Cargo.toml"
 CHANGELOG="$REPO_ROOT/dev/CHANGELOG.md"
 
-echo "=== VoxTerm Release $TAG ==="
+echo "=== VoiceTerm Release $TAG ==="
 
 # Safety checks: enforce branch + clean working tree + version alignment.
 # Check we're on master
@@ -75,5 +75,6 @@ echo "=== Tag $TAG pushed ==="
 echo ""
 echo "Next steps:"
 echo "1. Create GitHub release: gh release create $TAG --title '$TAG' --notes 'See CHANGELOG.md'"
-echo "2. Run: ./dev/scripts/update-homebrew.sh $VERSION"
+echo "2. Run: ./dev/scripts/publish-pypi.sh --upload"
+echo "3. Run: ./dev/scripts/update-homebrew.sh $VERSION"
 echo ""

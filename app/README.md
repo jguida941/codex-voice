@@ -1,15 +1,15 @@
 # App Launchers
 
-Platform-specific application launchers for VoxTerm.
+Platform-specific application launchers for VoiceTerm.
 
 ## macOS
 
-`macos/VoxTerm.app` - Double-click app that opens a folder picker and launches VoxTerm in Terminal.
+`macos/VoiceTerm.app` - Double-click app that opens a folder picker and launches VoiceTerm in Terminal.
 
 **Usage:**
-1. Double-click `VoxTerm.app`
+1. Double-click `VoiceTerm.app`
 2. Select your project folder
-3. Terminal opens with VoxTerm running in that folder
+3. Terminal opens with VoiceTerm running in that folder
 
 **Building:** The app is a simple AppleScript wrapper. No build step required.
 

@@ -39,9 +39,9 @@ impl DoctorReport {
     }
 }
 
-/// Build the baseline doctor report shared by all VoxTerm binaries.
+/// Build the baseline doctor report shared by all VoiceTerm binaries.
 pub fn base_doctor_report(config: &AppConfig, binary_name: &str) -> DoctorReport {
-    let mut report = DoctorReport::new("VoxTerm Doctor");
+    let mut report = DoctorReport::new("VoiceTerm Doctor");
     report.push_kv("version", env!("CARGO_PKG_VERSION"));
     report.push_kv("binary", binary_name);
     report.push_kv("os", format!("{}/{}", env::consts::OS, env::consts::ARCH));

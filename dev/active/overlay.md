@@ -1,7 +1,7 @@
 # Overlay Strategy Research (2026-02-13)
 
 This document consolidates competitor analysis and overlay enhancement research
-for VoxTerm's "voice + AI CLI" strategy. It is intended for product positioning
+for VoiceTerm's "voice + AI CLI" strategy. It is intended for product positioning
 and roadmap prioritization.
 
 ## Plan status
@@ -11,24 +11,24 @@ and roadmap prioritization.
 
 ## Summary
 
-- VoxTerm is strongest when users need terminal-native workflow control:
+- VoiceTerm is strongest when users need terminal-native workflow control:
   PTY passthrough, transcript queueing while CLI is busy, prompt-aware auto-voice,
   and Codex+Claude support.
 - The largest competitive pressure is from "voice everywhere" tools that also
   work in terminals but are not deeply PTY/session aware.
 - **No competitor currently combines voice input with AI command generation
   in the terminal.** Warp has AI but no voice; Voxtype/Wispr have voice but no
-  AI preprocessing. This is VoxTerm's biggest expansion opportunity.
+  AI preprocessing. This is VoiceTerm's biggest expansion opportunity.
 - 2026 is trending as "Year of Voice" — OpenAI reorganizing for audio AI,
   "vibe coding" (voice + AI) going mainstream, terminal AI agents maturing.
 - 5-10% of software engineers have RSI; accessibility-focused voice tooling
-  for terminals is an underserved niche VoxTerm can own.
+  for terminals is an underserved niche VoiceTerm can own.
 
 ## Comparison Matrix — Direct Competitors
 
-| Product | Terminal support | Engine / privacy | AI-CLI depth | Relative to VoxTerm |
+| Product | Terminal support | Engine / privacy | AI-CLI depth | Relative to VoiceTerm |
 |---|---|---|---|---|
-| VoxTerm | Native PTY wrapper around CLI | Local Whisper; no cloud by default | Codex + Claude first-class; prompt-aware queue + send modes + HUD/settings | Deep terminal orchestration with explicit CLI-state handling |
+| VoiceTerm | Native PTY wrapper around CLI | Local Whisper; no cloud by default | Codex + Claude first-class; prompt-aware queue + send modes + HUD/settings | Deep terminal orchestration with explicit CLI-state handling |
 | Dictto | Terminal-adjacent via hotkeys + Claude workflows | Markets local/on-device processing on Mac | Strong Claude Code integration and voice-agent mode | Strong for Claude-only workflows; weaker as a multi-CLI PTY layer |
 | Fisper | Yes, includes terminal auto-submit mode | Local/on-device on Apple Silicon | System-wide dictation + cursor insertion | Lightweight and fast; less explicit CLI prompt/session orchestration |
 | Speech2Type | Yes, injects into focused terminal app | Uses external API key flow (Deepgram) | Generic voice typing across apps | Simpler OSS path but less local/private and less CLI-aware |
@@ -46,7 +46,7 @@ direction.
 
 | Product | Category | Voice? | AI? | Terminal-native? | Notes |
 |---|---|---|---|---|---|
-| Warp AI | AI-powered terminal | **No** | GPT-powered NL→command | Full terminal replacement | Biggest gap: no voice input. If Warp adds voice, it threatens VoxTerm |
+| Warp AI | AI-powered terminal | **No** | GPT-powered NL→command | Full terminal replacement | Biggest gap: no voice input. If Warp adds voice, it threatens VoiceTerm |
 | shell-gpt (SGPT) | CLI AI assistant | **No** | GPT-4 NL→shell commands | Shell command tool | Popular (10K+ stars); voice would make it dangerous |
 | aichat | Multi-LLM CLI | **No** | 20+ providers, RAG, agents | Chat REPL + shell assistant | Most flexible AI CLI; no voice |
 | GitHub Copilot CLI | AI CLI assistant | **No** | `gh copilot suggest/explain` | Works in any terminal | GitHub ecosystem lock-in; no voice |
@@ -56,15 +56,15 @@ direction.
 | Cursorless | Structural voice editing | Via Talon | No | VS Code only | Spoken language for code navigation; amazing but narrow scope |
 | SuperWhisper | macOS dictation | Local Whisper | Modes/formatting | System-wide | Polished UX; mode switching concept worth studying |
 
-## Market Gaps — Where VoxTerm Can Dominate
+## Market Gaps — Where VoiceTerm Can Dominate
 
-VoxTerm sits at an unoccupied intersection. No tool today combines voice +
+VoiceTerm sits at an unoccupied intersection. No tool today combines voice +
 AI command generation + terminal-native orchestration:
 
 ```
                     Voice Input
                         |
-          Voxtype ------+------- VoxTerm  <-- current position
+          Voxtype ------+------- VoiceTerm  <-- current position
           Wispr Flow    |           |
                         |           |  (no competitor here)
                         |           v
@@ -80,7 +80,7 @@ AI command generation + terminal-native orchestration:
 ### Unmet needs (no tool addresses these today)
 
 1. **Voice → AI command generation in terminal** — Warp has AI (no voice);
-   dictation tools have voice (no AI). VoxTerm can bridge both.
+   dictation tools have voice (no AI). VoiceTerm can bridge both.
 2. **Voice macros for terminal workflows** — VoiceMacro (100K+ users) proves
    demand for general apps; nothing exists for terminal-specific triggers.
 3. **Real-time voice overlay for tmux/neovim** — overlay tools exist for
@@ -106,7 +106,7 @@ AI command generation + terminal-native orchestration:
 Users define voice shortcuts that expand to commands. Pattern-match against
 transcripts before PTY injection. Per-project macro files supported.
 ```yaml
-# .voxterm/macros.yaml
+# .voiceterm/macros.yaml
 macros:
   "run tests": "cargo test --all-features"
   "deploy staging": "git push origin staging"
@@ -135,14 +135,14 @@ Voice → Whisper transcription → LLM preprocessing → optimized command →
 confirmation UI → PTY injection. Example flow:
 ```
 User says: "find all TypeScript files changed this week with functions over 50 lines"
-VoxTerm:
+VoiceTerm:
   1. Whisper transcribes natural language
   2. Local LLM (Ollama) or API (Claude/OpenAI) generates shell command
   3. Preview: find . -name "*.ts" -mtime -7 -exec ...
   4. User confirms [Y/n/edit]
   5. Injects into PTY
 ```
-Add `--llm-assist` flag with provider config. Optional — keeps VoxTerm usable
+Add `--llm-assist` flag with provider config. Optional — keeps VoiceTerm usable
 without any cloud dependency.
 
 **5. Voice Terminal Navigation**
@@ -157,15 +157,15 @@ Go beyond dictation to actual terminal control via voice:
 Leverages existing PTY access to send control sequences.
 
 **6. Persistent Config & Transcript History**
-- Save preferences to `~/.config/voxterm/config.toml` (theme, thresholds,
+- Save preferences to `~/.config/voiceterm/config.toml` (theme, thresholds,
   mode, macros, default backend)
-- Searchable transcript history (`voxterm --history` or Ctrl+H in overlay)
+- Searchable transcript history (`voiceterm --history` or Ctrl+H in overlay)
 - Session replay for debugging missed transcriptions
 
 ### Phase 3 — Advanced Features (2-3 months)
 
 **7. Neovim / Tmux Integration**
-- Neovim plugin: `:VoxTermStart`, voice in command mode, voice nav
+- Neovim plugin: `:VoiceTermStart`, voice in command mode, voice nav
 - Tmux awareness: detect active pane, voice pane switching
 - VS Code integrated terminal panel support
 
@@ -254,7 +254,7 @@ themselves; implementation priority and status are tracked in `MASTER_PLAN.md`.
 | 9 | Fig-style autocomplete | Hard | Medium | Useful but positioning constraints in PTY wrapper |
 | 10 | Block-based output | Hard | High | High upside but highest architecture risk |
 
-## VoxTerm Current Strengths (Audit Summary, 2026-02-12)
+## VoiceTerm Current Strengths (Audit Summary, 2026-02-12)
 
 - **Architecture**: Clean PTY passthrough; bounded crossbeam channels; serialized
   writer thread prevents output corruption; multi-backend registry.
@@ -279,7 +279,7 @@ themselves; implementation priority and status are tracked in `MASTER_PLAN.md`.
 - event_loop.rs is oversized (~82K LOC)
 - No AI preprocessing layer for voice input
 
-## VoxTerm Evidence (Repo)
+## VoiceTerm Evidence (Repo)
 
 - PTY + local Whisper + unchanged CLI output: `README.md`
 - Local privacy claim and feature table: `README.md`
@@ -364,7 +364,7 @@ themselves; implementation priority and status are tracked in `MASTER_PLAN.md`.
 - Some competitor details (especially CLI-state awareness) are inferred from
   public positioning and may need direct product testing for strict validation.
 - Some overlay UX references are pattern-level inspiration and should be tested
-  directly against VoxTerm's PTY passthrough model before implementation.
+  directly against VoiceTerm's PTY passthrough model before implementation.
 - The broader landscape table captures tools that do not directly compete
   today but could add voice (Warp, shell-gpt) or terminal support (Wispr,
   Talon) and become threats. Monitor quarterly.

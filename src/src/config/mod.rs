@@ -18,9 +18,9 @@ pub use defaults::{
     MIN_MIC_METER_SAMPLE_MS,
 };
 
-/// CLI options for the VoxTerm TUI. Validated values keep downstream subprocesses safe.
+/// CLI options for the VoiceTerm TUI. Validated values keep downstream subprocesses safe.
 #[derive(Debug, Parser, Clone)]
-#[command(about = "VoxTerm TUI", author, version)]
+#[command(about = "VoiceTerm TUI", author, version)]
 pub struct AppConfig {
     /// Path to the Codex CLI binary
     #[arg(long, default_value = "codex")]
@@ -88,17 +88,17 @@ pub struct AppConfig {
     pub persistent_codex: bool,
 
     /// Enable file logging (debug)
-    #[arg(long = "logs", env = "VOXTERM_LOGS", default_value_t = false)]
+    #[arg(long = "logs", env = "VOICETERM_LOGS", default_value_t = false)]
     pub logs: bool,
 
     /// Disable all file logging (overrides --logs and log env vars)
-    #[arg(long = "no-logs", env = "VOXTERM_NO_LOGS", default_value_t = false)]
+    #[arg(long = "no-logs", env = "VOICETERM_NO_LOGS", default_value_t = false)]
     pub no_logs: bool,
 
     /// Allow logging prompt/content snippets (debug log only)
     #[arg(
         long = "log-content",
-        env = "VOXTERM_LOG_CONTENT",
+        env = "VOICETERM_LOG_CONTENT",
         default_value_t = false
     )]
     pub log_content: bool,

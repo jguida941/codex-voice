@@ -1,16 +1,16 @@
-# VoxTerm Developer Makefile
+# VoiceTerm Developer Makefile
 # Run `make help` to see available commands
 
 .PHONY: help build run doctor fmt fmt-check lint check test test-bin test-perf test-mem test-mem-loop bench ci prepush mutants mutants-all mutants-audio mutants-config mutants-voice mutants-pty mutants-results mutants-raw dev-check dev-ci dev-prepush dev-mutants dev-mutants-results dev-mutation-score dev-docs-check dev-hygiene dev-list dev-status dev-report release homebrew model-base model-small model-tiny clean clean-tests
 
 # Default target
 help:
-	@echo "VoxTerm Developer Commands"
+	@echo "VoiceTerm Developer Commands"
 	@echo ""
 	@echo "Building:"
 	@echo "  make build        Build release binary"
-	@echo "  make run          Build and run voxterm"
-	@echo "  make doctor       Run voxterm --doctor diagnostics"
+	@echo "  make run          Build and run voiceterm"
+	@echo "  make doctor       Run voiceterm --doctor diagnostics"
 	@echo ""
 	@echo "Code Quality:"
 	@echo "  make fmt          Format code"
@@ -66,13 +66,13 @@ help:
 # =============================================================================
 
 build:
-	cd src && cargo build --release --bin voxterm
+	cd src && cargo build --release --bin voiceterm
 
 run: build
-	./src/target/release/voxterm
+	./src/target/release/voiceterm
 
 doctor: build
-	./src/target/release/voxterm --doctor
+	./src/target/release/voiceterm --doctor
 
 # =============================================================================
 # Code Quality
@@ -97,11 +97,11 @@ test:
 	cd src && cargo test --workspace --all-features
 
 test-bin:
-	cd src && cargo test --bin voxterm
+	cd src && cargo test --bin voiceterm
 
 test-perf:
 	cd src && cargo test --no-default-features legacy_tui::tests::perf_smoke_emits_voice_metrics -- --nocapture
-	@LOG_PATH=$$(python3 -c "import os, tempfile; print(os.path.join(tempfile.gettempdir(), 'voxterm_tui.log'))"); \
+	@LOG_PATH=$$(python3 -c "import os, tempfile; print(os.path.join(tempfile.gettempdir(), 'voiceterm_tui.log'))"); \
 	echo "Inspecting $$LOG_PATH"; \
 	if ! grep -q "voice_metrics|" "$$LOG_PATH"; then \
 		echo "voice_metrics log missing from log" >&2; \

@@ -47,5 +47,5 @@ Serialize all terminal output through a dedicated writer thread:
 
 ## Links
 
-- `src/src/bin/voxterm/main.rs:50` - Channel capacity constant
-- `src/src/bin/voxterm/writer.rs` - Writer thread implementation
+- `src/src/bin/voiceterm/main.rs:50` - Channel capacity constant
+- `src/src/bin/voiceterm/writer.rs` - Writer thread implementation

@@ -1,8 +1,8 @@
 [package]
-name = "voxterm"
-version = "1.0.63"
+name = "voiceterm"
+version = "1.0.64"
 edition = "2021"
-default-run = "voxterm"
+default-run = "voiceterm"
 autobins = false
 
 [features]
@@ -36,8 +36,8 @@ rubato = { version = "0.12", optional = true }
 earshot = { version = "0.1", optional = true }
 
 [[bin]]
-name = "voxterm"
-path = "src/bin/voxterm/main.rs"
+name = "voiceterm"
+path = "src/bin/voiceterm/main.rs"
 
 [[bin]]
 name = "voice_benchmark"

@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# VoxTerm Installer (overlay mode)
+# VoiceTerm Installer (overlay mode)
 # Run: ./scripts/install.sh
 #
 

@@ -96,4 +96,4 @@ Implement a modular visual styling system with these components:
 
 - [NO_COLOR Standard](https://no-color.org/)
 - [Catppuccin Theme](https://github.com/catppuccin/catppuccin)
-- `src/src/bin/voxterm/` - Implementation location
+- `src/src/bin/voiceterm/` - Implementation location

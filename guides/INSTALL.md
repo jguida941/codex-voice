@@ -1,7 +1,7 @@
 # Installation
 
 This doc covers install options and model setup.
-Recommended: Homebrew on macOS/Linux for a global `voxterm` command.
+Recommended: Homebrew on macOS/Linux for a global `voiceterm` command.
 
 ## Platform Support
 
@@ -15,9 +15,10 @@ Recommended: Homebrew on macOS/Linux for a global `voxterm` command.
 
 - [Prerequisites](#prerequisites)
 - [Option A: Homebrew (recommended)](#option-a-homebrew-recommended)
-- [Option B: Install from source](#option-b-install-from-source)
-- [Option C: macOS App (folder picker)](#option-c-macos-app-folder-picker)
-- [Option D: Manual run (no install)](#option-d-manual-run-no-install)
+- [Option B: PyPI](#option-b-pypi)
+- [Option C: Install from source](#option-c-install-from-source)
+- [Option D: macOS App (folder picker)](#option-d-macos-app-folder-picker)
+- [Option E: Manual run (no install)](#option-e-manual-run-no-install)
 - [Using with your own projects](#using-with-your-own-projects)
 - [Windows](#windows)
 - [See Also](#see-also)
@@ -33,8 +34,8 @@ Recommended: Homebrew on macOS/Linux for a global `voxterm` command.
 
 Authenticate once after installing your CLI:
 ```bash
-voxterm --login --codex
-voxterm --login --claude
+voiceterm --login --codex
+voiceterm --login --claude
 ```
 
 **Other requirements:**
@@ -56,38 +57,38 @@ Install Homebrew (if needed):
 Tap and install:
 
 ```bash
-brew tap jguida941/voxterm
-brew install voxterm
+brew tap jguida941/voiceterm
+brew install voiceterm
 ```
 
 Run from any project (first run downloads the model if missing):
 
 ```bash
 cd ~/my-project
-voxterm
+voiceterm
 ```
 
-Model storage defaults to `~/.local/share/voxterm/models` for Homebrew installs
+Model storage defaults to `~/.local/share/voiceterm/models` for Homebrew installs
 (or when the repo directory is not writable). The install/start scripts honor
-`VOXTERM_MODEL_DIR` for a custom path.
+`VOICETERM_MODEL_DIR` for a custom path.
 
 Optional pre-download:
 
 ```bash
-$(brew --prefix)/opt/voxterm/libexec/scripts/setup.sh models --base
+$(brew --prefix)/opt/voiceterm/libexec/scripts/setup.sh models --base
 ```
 
 ### Homebrew update
 
 ```bash
 brew update
-brew upgrade voxterm
+brew upgrade voiceterm
 ```
 
-If Homebrew still shows an older version or `voxterm` runs an older binary, see
+If Homebrew still shows an older version or `voiceterm` runs an older binary, see
 [Troubleshooting: Wrong version after update](TROUBLESHOOTING.md#wrong-version-after-update).
 
-After upgrading, run `voxterm --version` and open Settings (`Ctrl+O`) once to
+After upgrading, run `voiceterm --version` and open Settings (`Ctrl+O`) once to
 confirm runtime options such as `Macros`, `Send mode`, and `Latency display`
 (`Off`, `Nms`, `Latency: Nms`) are present.
 If you use Minimal HUD, also verify the right-panel visualization chip appears
@@ -97,23 +98,51 @@ If you use Full HUD in IDE terminals, confirm the banner redraws as a single
 frame without duplicated/wrapped rows.
 For this Full HUD stability behavior, use `v1.0.62` or newer.
 JetBrains IDE terminals now auto-skip the startup splash; use
-`VOXTERM_NO_STARTUP_BANNER=1` if you want the same behavior everywhere.
+`VOICETERM_NO_STARTUP_BANNER=1` if you want the same behavior everywhere.
 
-## Option B: Install from source
+## Option B: PyPI
 
-Recommended if you want a local build or plan to hack on VoxTerm.
+Install with pipx (recommended for isolated CLI tools):
 
 ```bash
-git clone https://github.com/jguida941/voxterm.git
-cd voxterm
+pipx install voiceterm
+```
+
+Or with pip:
+
+```bash
+python3 -m pip install --user voiceterm
+```
+
+Then run:
+
+```bash
+voiceterm --version
+```
+
+PyPI launcher note:
+- The package installs a Python launcher named `voiceterm`.
+- On first run it bootstraps the native Rust binary into
+  `~/.local/share/voiceterm/native/bin/voiceterm`.
+- Bootstrap requires `git` and `cargo` on PATH.
+- If you already have a native binary installed, set:
+  `VOICETERM_NATIVE_BIN=/absolute/path/to/voiceterm`.
+
+## Option C: Install from source
+
+Recommended if you want a local build or plan to hack on VoiceTerm.
+
+```bash
+git clone https://github.com/jguida941/voiceterm.git
+cd voiceterm
 ./scripts/install.sh
 ```
 
-The installer builds the overlay, installs the `voxterm` wrapper, and downloads
+The installer builds the overlay, installs the `voiceterm` wrapper, and downloads
 a Whisper model to the correct path for the CLI.
 
-To suppress the startup splash screen, set `VOXTERM_NO_STARTUP_BANNER=1`.
-To keep it but shorten/disable dwell time, set `VOXTERM_STARTUP_SPLASH_MS`
+To suppress the startup splash screen, set `VOICETERM_NO_STARTUP_BANNER=1`.
+To keep it but shorten/disable dwell time, set `VOICETERM_STARTUP_SPLASH_MS`
 (`0` = immediate clear, default `1500`).
 
 Example output:
@@ -130,51 +159,51 @@ To choose a model size during install:
 
 ### PATH notes
 
-If `voxterm` is not found, the installer used the first writable directory in
+If `voiceterm` is not found, the installer used the first writable directory in
 this order: `/opt/homebrew/bin`, `/usr/local/bin`, `~/.local/bin`, or
-`/path/to/voxterm/bin`.
+`/path/to/voiceterm/bin`.
 
-Add that directory to PATH or set `VOXTERM_INSTALL_DIR` before running
+Add that directory to PATH or set `VOICETERM_INSTALL_DIR` before running
 `./scripts/install.sh`.
 
-If a `voxterm` command already exists in `/opt/homebrew/bin` or
+If a `voiceterm` command already exists in `/opt/homebrew/bin` or
 `/usr/local/bin`, the installer skips that location to avoid clobbering
 system/Homebrew installs. In `~/.local/bin` or the repo `bin/` directory it
-will overwrite. Remove the conflicting binary or set `VOXTERM_INSTALL_DIR`
+will overwrite. Remove the conflicting binary or set `VOICETERM_INSTALL_DIR`
 to override.
 
-## Option C: macOS App (folder picker)
+## Option D: macOS App (folder picker)
 
-1. Double-click **app/macos/VoxTerm.app**.
+1. Double-click **app/macos/VoiceTerm.app**.
 2. Pick your project folder.
 3. A Terminal window opens and runs the overlay inside that folder.
 
 ![Folder Picker](../img/folder-picker.png)
 
-## Option D: Manual run (no install)
+## Option E: Manual run (no install)
 
 Run from any project folder:
 
 ```bash
-VOXTERM_CWD="$(pwd)" /path/to/voxterm/scripts/start.sh
+VOICETERM_CWD="$(pwd)" /path/to/voiceterm/scripts/start.sh
 ```
 
 `scripts/start.sh` handles model download and setup when needed.
 
 ## Using with your own projects
 
-VoxTerm works with any codebase. Run from your project directory or set
-`VOXTERM_CWD` to force the working directory.
+VoiceTerm works with any codebase. Run from your project directory or set
+`VOICETERM_CWD` to force the working directory.
 
 ```bash
 cd ~/my-project
-voxterm
+voiceterm
 ```
 
 To target Claude instead of Codex:
 
 ```bash
-voxterm --claude
+voiceterm --claude
 ```
 
 ## Windows

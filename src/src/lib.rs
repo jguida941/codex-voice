@@ -1,4 +1,4 @@
-//! Shared VoxTerm library exports that keep binaries aligned on common behavior.
+//! Shared VoiceTerm library exports that keep binaries aligned on common behavior.
 
 pub mod audio;
 pub mod auth;

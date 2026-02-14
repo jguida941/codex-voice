@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Update Homebrew tap for VoxTerm
+# Update Homebrew tap for VoiceTerm
 # Usage: ./dev/scripts/update-homebrew.sh <version>
 # Example: ./dev/scripts/update-homebrew.sh 1.0.33
 #
@@ -17,20 +17,20 @@ TAG="v$VERSION"
 
 # Resolve the tap repo path (env override -> brew repo -> fallback path).
 resolve_homebrew_repo() {
-    if [[ -n "${HOMEBREW_VOXTERM_PATH:-}" ]]; then
-        echo "$HOMEBREW_VOXTERM_PATH"
+    if [[ -n "${HOMEBREW_VOICETERM_PATH:-}" ]]; then
+        echo "$HOMEBREW_VOICETERM_PATH"
         return 0
     fi
 
     if command -v brew >/dev/null 2>&1; then
         local repo
-        repo="$(brew --repo jguida941/voxterm 2>/dev/null || true)"
+        repo="$(brew --repo jguida941/voiceterm 2>/dev/null || true)"
         if [[ -n "$repo" && -d "$repo" ]]; then
             echo "$repo"
             return 0
         fi
 
-        repo="$(brew --repo jguida941/homebrew-voxterm 2>/dev/null || true)"
+        repo="$(brew --repo jguida941/homebrew-voiceterm 2>/dev/null || true)"
         if [[ -n "$repo" && -d "$repo" ]]; then
             echo "$repo"
             return 0
@@ -38,11 +38,11 @@ resolve_homebrew_repo() {
     fi
 
     # Last-resort fallback for local dev setups.
-    echo "$HOME/testing_upgrade/homebrew-voxterm"
+    echo "$HOME/testing_upgrade/homebrew-voiceterm"
 }
 
 HOMEBREW_REPO="$(resolve_homebrew_repo)"
-FORMULA="$HOMEBREW_REPO/Formula/voxterm.rb"
+FORMULA="$HOMEBREW_REPO/Formula/voiceterm.rb"
 README="$HOMEBREW_REPO/README.md"
 
 echo "=== Updating Homebrew tap for $TAG ==="
@@ -50,12 +50,12 @@ echo "=== Updating Homebrew tap for $TAG ==="
 # Check Homebrew repo exists
 if [[ ! -d "$HOMEBREW_REPO" ]]; then
     echo "Error: Homebrew repo not found at $HOMEBREW_REPO"
-    echo "Set HOMEBREW_VOXTERM_PATH or clone the repo first."
+    echo "Set HOMEBREW_VOICETERM_PATH or clone the repo first."
     exit 1
 fi
 
 # Get SHA256 of release tarball
-TARBALL_URL="https://github.com/jguida941/voxterm/archive/refs/tags/$TAG.tar.gz"
+TARBALL_URL="https://github.com/jguida941/voiceterm/archive/refs/tags/$TAG.tar.gz"
 echo "Fetching SHA256 for $TARBALL_URL..."
 SHA256=$(curl -sL "$TARBALL_URL" | shasum -a 256 | cut -d' ' -f1)
 
@@ -72,15 +72,15 @@ echo "Updating $FORMULA..."
 cd "$HOMEBREW_REPO"
 
 # Update version
-sed -i '' "s|url \"https://github.com/jguida941/voxterm/archive/refs/tags/v[0-9.]*\.tar\.gz\"|url \"$TARBALL_URL\"|" "$FORMULA"
+sed -i '' "s|url \"https://github.com/jguida941/voiceterm/archive/refs/tags/v[0-9.]*\.tar\.gz\"|url \"$TARBALL_URL\"|" "$FORMULA"
 sed -i '' "s|version \"[0-9.]*\"|version \"$VERSION\"|" "$FORMULA"
 sed -i '' "s|sha256 \"[a-f0-9]*\"|sha256 \"$SHA256\"|" "$FORMULA"
 
 # Update README version + model path if present
 if [[ -f "$README" ]]; then
     sed -i '' "s/^Current: v[0-9.]*$/Current: v$VERSION/" "$README"
-    sed -i '' 's|ls \$(brew --prefix).*models/|ls ~/.local/share/voxterm/models/|g' "$README"
-    sed -i '' "s|/opt/voxterm/libexec/models/|~/.local/share/voxterm/models/|g" "$README"
+    sed -i '' 's|ls \$(brew --prefix).*models/|ls ~/.local/share/voiceterm/models/|g' "$README"
+    sed -i '' "s|/opt/voiceterm/libexec/models/|~/.local/share/voiceterm/models/|g" "$README"
 fi
 
 # Show diff
@@ -118,11 +118,11 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
     git push origin main
     echo ""
     echo "=== Homebrew tap updated ==="
-    echo "Users can now run: brew update && brew upgrade voxterm"
+    echo "Users can now run: brew update && brew upgrade voiceterm"
 else
     echo "Changes not committed. Run manually:"
     echo "  cd $HOMEBREW_REPO"
-    echo "  git add Formula/voxterm.rb"
+    echo "  git add Formula/voiceterm.rb"
     echo "  git commit -m 'Update to v$VERSION'"
     echo "  git push origin main"
 fi

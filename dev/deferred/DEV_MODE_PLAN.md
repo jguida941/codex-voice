@@ -1,4 +1,4 @@
-# VoxTerm Dev Mode - Design Document
+# VoiceTerm Dev Mode - Design Document
 
 ## Overview
 
@@ -28,16 +28,16 @@ A separate developer overlay panel activated by `--dev-mode` flag that provides 
 ## Activation
 
 ```bash
-voxterm --dev-mode
+voiceterm --dev-mode
 # or
-voxterm -D
+voiceterm -D
 
 # proposed logging + storage controls
-voxterm --dev-mode --dev-log
-voxterm --dev-mode --dev-log --dev-path ~/.voxterm/dev
+voiceterm --dev-mode --dev-log
+voiceterm --dev-mode --dev-log --dev-path ~/.voiceterm/dev
 
 # proposed offline analysis entrypoint
-voxterm dev
+voiceterm dev
 ```
 
 When active, a dedicated dev panel appears (toggleable with `Ctrl+D`) that shows real-time metrics without interfering with the main HUD. Logging stays in-memory unless `--dev-log` is set.
@@ -55,7 +55,7 @@ Planned capabilities:
 
 - Core data pipeline lives in `src/src/devtools/` (events, storage, search, stats).
 - UI components consume `DevModeStats` via a small interface so overlay and offline tool share the same renderer.
-- `voxterm` overlay only wires events + toggles; avoid one-off `dev_mode.rs` / `dev_panel.rs` files in the bin.
+- `voiceterm` overlay only wires events + toggles; avoid one-off `dev_mode.rs` / `dev_panel.rs` files in the bin.
 
 ---
 
@@ -63,7 +63,7 @@ Planned capabilities:
 
 ```
 ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-┃ VoxTerm DevTools                                        [×] ^D to close   ┃
+┃ VoiceTerm DevTools                                        [×] ^D to close   ┃
 ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
 ┃                                                                           ┃
 ┃  ┌─ Audio Quality ─────────────┐  ┌─ Session ─────────────────────────┐   ┃
@@ -111,7 +111,7 @@ Planned capabilities:
 
 | Metric | Description |
 |--------|-------------|
-| **Uptime** | Time since voxterm started |
+| **Uptime** | Time since voiceterm started |
 | **Transcripts** | Total successful transcriptions |
 | **Words** | Total words transcribed |
 | **Avg Latency** | Mean transcription latency |
@@ -247,7 +247,7 @@ pub struct AudioMetrics {
 
 ## Export Formats
 
-### Session JSONL (events) (`~/.voxterm/dev/sessions/session-2026-02-02-19h30.jsonl`)
+### Session JSONL (events) (`~/.voiceterm/dev/sessions/session-2026-02-02-19h30.jsonl`)
 
 Each line is a single `DevEvent` with a stable schema version.
 
@@ -256,18 +256,18 @@ Each line is a single `DevEvent` with a stable schema version.
 {"type":"audio_metrics","ts":"2026-02-02T19:30:15Z","snr_db":24.1,"rms_db":-14.1}
 ```
 
-### Session CSV (summary) (`~/.voxterm/dev/sessions/session-2026-02-02-19h30.summary.csv`)
+### Session CSV (summary) (`~/.voiceterm/dev/sessions/session-2026-02-02-19h30.summary.csv`)
 
 ```
 timestamp,text,latency_ms,confidence,tags,bookmarked,duration_ms
 2026-02-02T19:30:15Z,"Hello this is a test",342,0.94,"debug;smoke",false,3200
 ```
 
-### Session Markdown (`~/.voxterm/dev/sessions/session-2026-02-02-19h30.md`)
+### Session Markdown (`~/.voiceterm/dev/sessions/session-2026-02-02-19h30.md`)
 
 ```markdown
 ---
-session_id: voxterm-2026-02-02-19h30
+session_id: voiceterm-2026-02-02-19h30
 started: 2026-02-02T19:30:00Z
 ended: 2026-02-02T20:53:45Z
 duration_minutes: 83
@@ -280,7 +280,7 @@ peak_hold_db: -4.2
 noise_floor_db: -52.3
 ---
 
-# VoxTerm Session - Feb 2, 2026
+# VoiceTerm Session - Feb 2, 2026
 
 ## Summary
 
@@ -318,11 +318,11 @@ noise_floor_db: -52.3
 [... more transcripts ...]
 ```
 
-### Session JSON (`~/.voxterm/dev/sessions/session-2026-02-02-19h30.json`)
+### Session JSON (`~/.voiceterm/dev/sessions/session-2026-02-02-19h30.json`)
 
 ```json
 {
-  "session_id": "voxterm-2026-02-02-19h30",
+  "session_id": "voiceterm-2026-02-02-19h30",
   "started": "2026-02-02T19:30:00Z",
   "ended": "2026-02-02T20:53:45Z",
   "stats": {
@@ -360,7 +360,7 @@ noise_floor_db: -52.3
 ### Phase 0: Architecture + Modularization (Priority: High)
 - [ ] Create `devtools` module in `src/src/devtools/` with clear boundaries (config, events, storage, search, ui).
 - [ ] Define stable `DevEvent` schema + versioning.
-- [ ] Add a thin bridge in `voxterm` to avoid one-off "mode" files.
+- [ ] Add a thin bridge in `voiceterm` to avoid one-off "mode" files.
 
 ### Phase 1: Flags + Data Pipeline (Priority: High)
 - [ ] Add `--dev-mode` / `-D` to enable overlay only.
@@ -379,7 +379,7 @@ noise_floor_db: -52.3
 - [ ] Session list + compare view (diff key metrics).
 
 ### Phase 4: Offline Analysis Tool (Priority: Medium)
-- [ ] `voxterm dev` subcommand to browse saved sessions without live audio.
+- [ ] `voiceterm dev` subcommand to browse saved sessions without live audio.
 - [ ] Batch export commands for JSON/CSV/MD with filters.
 
 ### Phase 5: Export + Retention (Priority: Low)
@@ -401,9 +401,9 @@ noise_floor_db: -52.3
 | `src/src/devtools/search.rs` | CREATE | Fuzzy search + filters |
 | `src/src/devtools/panel.rs` | CREATE | Dev panel rendering (shared) |
 | `src/src/devtools/export.rs` | CREATE | MD/JSON/CSV exporters |
-| `src/bin/voxterm/main.rs` | MODIFY | Wire devtools bridge + flags |
-| `src/bin/voxterm/config.rs` | MODIFY | CLI flags |
-| `src/bin/voxterm/input.rs` | MODIFY | Keybindings |
+| `src/bin/voiceterm/main.rs` | MODIFY | Wire devtools bridge + flags |
+| `src/bin/voiceterm/config.rs` | MODIFY | CLI flags |
+| `src/bin/voiceterm/input.rs` | MODIFY | Keybindings |
 | `src/src/legacy_ui.rs` | MODIFY | Shared rendering hooks (if needed) |
 
 ---
@@ -411,7 +411,7 @@ noise_floor_db: -52.3
 ## Open Questions
 
 1. **Panel Position**: Full screen overlay or side panel?
-2. **Offline Tool Name**: `voxterm dev` vs `voxterm analyze`?
+2. **Offline Tool Name**: `voiceterm dev` vs `voiceterm analyze`?
 3. **Search Implementation**: Simple fuzzy matcher vs full-text index?
 4. **Storage Format**: JSONL only, or JSONL + SQLite for queries?
 5. **Audio Storage**: Should short audio clips be supported (explicit opt-in)?

@@ -12,11 +12,11 @@ use clap::Parser;
 use std::sync::mpsc::TryRecvError;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
-use voxterm::audio;
-use voxterm::codex::{CodexCliBackend, CodexEventKind, CodexJobRunner, CodexRequest};
-use voxterm::config::AppConfig;
-use voxterm::stt;
-use voxterm::voice::{self, VoiceJobMessage};
+use voiceterm::audio;
+use voiceterm::codex::{CodexCliBackend, CodexEventKind, CodexJobRunner, CodexRequest};
+use voiceterm::config::AppConfig;
+use voiceterm::stt;
+use voiceterm::voice::{self, VoiceJobMessage};
 
 /// Measure end-to-end latency for voice→Codex pipeline
 #[derive(Debug, Parser)]
@@ -377,7 +377,7 @@ fn wait_for_voice_job(mut job: voice::VoiceJob) -> Result<VoiceJobMessage> {
     }
 }
 
-fn wait_for_codex_job(mut job: voxterm::codex::CodexJob) -> Result<String> {
+fn wait_for_codex_job(mut job: voiceterm::codex::CodexJob) -> Result<String> {
     let mut output_lines = Vec::new();
 
     loop {
@@ -429,7 +429,7 @@ fn extract_voice_timings(total_ms: u64) -> (u64, u64) {
 
     // Try to parse actual timings from log file
     if let Ok(log_path) = std::env::var("TMPDIR") {
-        let log_file = std::path::Path::new(&log_path).join("voxterm_tui.log");
+        let log_file = std::path::Path::new(&log_path).join("voiceterm_tui.log");
         if let Ok(file) = File::open(log_file) {
             let reader = BufReader::new(file);
             // Collect last 100 lines and search in reverse
@@ -551,15 +551,15 @@ fn check_latency_bounds(
     Ok(())
 }
 
-fn create_vad_engine(cfg: &voxterm::config::VoicePipelineConfig) -> Box<dyn audio::VadEngine> {
-    use voxterm::config::VadEngineKind;
+fn create_vad_engine(cfg: &voiceterm::config::VoicePipelineConfig) -> Box<dyn audio::VadEngine> {
+    use voiceterm::config::VadEngineKind;
 
     match cfg.vad_engine {
         VadEngineKind::Simple => Box::new(audio::SimpleThresholdVad::new(cfg.vad_threshold_db)),
         VadEngineKind::Earshot => {
             #[cfg(feature = "vad_earshot")]
             {
-                Box::new(voxterm::vad_earshot::EarshotVad::from_config(cfg))
+                Box::new(voiceterm::vad_earshot::EarshotVad::from_config(cfg))
             }
             #[cfg(not(feature = "vad_earshot"))]
             {

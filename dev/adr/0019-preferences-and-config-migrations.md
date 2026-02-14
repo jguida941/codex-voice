@@ -13,7 +13,7 @@ or silently misconfigure behavior. CLI flags must continue to override defaults.
 
 Adopt a versioned preferences file with explicit migrations:
 
-- Store preferences at `~/.config/voxterm/preferences.toml`.
+- Store preferences at `~/.config/voiceterm/preferences.toml`.
 - Include a `schema_version` field.
 - On load, migrate older versions to the current schema.
 - CLI flags override persisted preferences at runtime.

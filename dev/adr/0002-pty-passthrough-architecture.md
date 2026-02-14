@@ -5,7 +5,7 @@ Date: 2026-01-29
 
 ## Context
 
-VoxTerm needs to add voice input to the Codex CLI while preserving its full TUI
+VoiceTerm needs to add voice input to the Codex CLI while preserving its full TUI
 experience. Two main approaches exist:
 
 1. **TUI replacement**: Build a custom terminal UI that renders Codex output and adds
@@ -56,4 +56,4 @@ Use PTY passthrough architecture:
 
 - [Architecture docs](../ARCHITECTURE.md)
 - `src/src/pty_session/` - PTY implementation
-- `src/src/bin/voxterm/main.rs` - Overlay entry point
+- `src/src/bin/voiceterm/main.rs` - Overlay entry point

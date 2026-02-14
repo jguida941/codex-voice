@@ -127,7 +127,7 @@ pub fn run_mic_meter(config: &AppConfig) -> Result<()> {
 
     let (suggested, warning) = recommend_threshold(ambient.rms_db, speech.rms_db);
     println!("\nSuggested --voice-vad-threshold-db: {suggested:.1}");
-    println!("Example: voxterm --voice-vad-threshold-db {suggested:.1}");
+    println!("Example: voiceterm --voice-vad-threshold-db {suggested:.1}");
 
     if let Some(message) = warning {
         println!("Note: {message}");

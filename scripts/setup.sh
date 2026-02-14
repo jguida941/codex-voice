@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# VoxTerm Setup Script
+# VoiceTerm Setup Script
 # Downloads Whisper models and verifies dependencies
 #
 # Supported platforms: macOS (Intel/Apple Silicon), Linux (x86_64/arm64)
@@ -27,15 +27,15 @@ esac
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 DEFAULT_MODELS_DIR="$PROJECT_ROOT/whisper_models"
-FALLBACK_MODELS_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/voxterm/models"
+FALLBACK_MODELS_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/voiceterm/models"
 
 IS_HOMEBREW=0
 case "$PROJECT_ROOT" in
     /opt/homebrew/Cellar/*|/usr/local/Cellar/*) IS_HOMEBREW=1 ;;
 esac
 
-if [ -n "${VOXTERM_MODEL_DIR:-}" ]; then
-    MODELS_DIR="$VOXTERM_MODEL_DIR"
+if [ -n "${VOICETERM_MODEL_DIR:-}" ]; then
+    MODELS_DIR="$VOICETERM_MODEL_DIR"
 elif [ "$IS_HOMEBREW" -eq 1 ]; then
     MODELS_DIR="$FALLBACK_MODELS_DIR"
 else
@@ -67,7 +67,7 @@ print_banner() {
 }
 
 print_header() {
-    print_banner "VoxTerm Setup"
+    print_banner "VoiceTerm Setup"
 }
 
 print_step() {
@@ -182,7 +182,7 @@ build_rust_overlay() {
 
     cd "$PROJECT_ROOT/src"
 
-    if cargo build --release --bin voxterm; then
+    if cargo build --release --bin voiceterm; then
         print_success "Rust overlay built successfully"
         return 0
     else
@@ -195,9 +195,9 @@ install_wrapper() {
     local install_dir=""
     local wrapper_path=""
 
-    if [ -n "${VOXTERM_INSTALL_DIR:-}" ]; then
-        install_dir="$VOXTERM_INSTALL_DIR"
-        wrapper_path="$install_dir/voxterm"
+    if [ -n "${VOICETERM_INSTALL_DIR:-}" ]; then
+        install_dir="$VOICETERM_INSTALL_DIR"
+        wrapper_path="$install_dir/voiceterm"
     else
         local candidates=(
             "/opt/homebrew/bin"
@@ -208,7 +208,7 @@ install_wrapper() {
 
         for candidate in "${candidates[@]}"; do
             if mkdir -p "$candidate" 2>/dev/null && [ -w "$candidate" ]; then
-                local candidate_path="$candidate/voxterm"
+                local candidate_path="$candidate/voiceterm"
                 if [ -e "$candidate_path" ]; then
                     case "$candidate" in
                         "$HOME/.local/bin"|"$PROJECT_ROOT/bin")
@@ -231,18 +231,18 @@ install_wrapper() {
 
     if [ -z "$install_dir" ]; then
         print_error "No writable install directory found."
-        print_warning "Set VOXTERM_INSTALL_DIR to a writable path and rerun."
+        print_warning "Set VOICETERM_INSTALL_DIR to a writable path and rerun."
         return 1
     fi
 
-    wrapper_path="${wrapper_path:-$install_dir/voxterm}"
+    wrapper_path="${wrapper_path:-$install_dir/voiceterm}"
 
-    print_step "Installing voxterm wrapper into $install_dir"
+    print_step "Installing voiceterm wrapper into $install_dir"
 
     mkdir -p "$install_dir"
 cat > "$wrapper_path" <<EOF
 #!/bin/bash
-export VOXTERM_CWD="\$(pwd)"
+export VOICETERM_CWD="\$(pwd)"
 exec "$PROJECT_ROOT/scripts/start.sh" "\$@"
 EOF
     chmod 0755 "$wrapper_path"
@@ -252,7 +252,7 @@ EOF
     case ":$PATH:" in
         *":$install_dir:"*) ;;
         *)
-            print_warning "Add $install_dir to PATH to run 'voxterm' from anywhere."
+            print_warning "Add $install_dir to PATH to run 'voiceterm' from anywhere."
             echo "         Example: echo 'export PATH=\"$install_dir:\$PATH\"' >> ~/.zshrc"
             ;;
     esac
@@ -308,7 +308,7 @@ main() {
             print_banner "✓ Install Complete!"
             echo ""
             echo "Run from any project:"
-            echo "  voxterm"
+            echo "  voiceterm"
             echo ""
             ;;
 
@@ -327,7 +327,7 @@ main() {
 
             print_banner "✓ Overlay Ready!"
             echo ""
-            echo "To start VoxTerm:"
+            echo "To start VoiceTerm:"
             echo "  ./scripts/start.sh"
             echo ""
             ;;

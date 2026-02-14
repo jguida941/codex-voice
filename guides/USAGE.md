@@ -1,10 +1,10 @@
 # Usage Guide
 
-This guide explains how to use VoxTerm for hands-free coding with the Codex CLI
+This guide explains how to use VoiceTerm for hands-free coding with the Codex CLI
 or Claude Code. Experimental presets exist for Gemini, Aider, and OpenCode, but
 Gemini is currently nonfunctional and Aider/OpenCode are untested.
 
-![VoxTerm](../img/logo.svg)
+![VoiceTerm](../img/logo.svg)
 
 ## Contents
 
@@ -22,49 +22,49 @@ Gemini is currently nonfunctional and Aider/OpenCode are untested.
 
 **Already installed?** Here's how to start talking to the CLI:
 
-1. **Launch**: Run `voxterm` in your project folder
+1. **Launch**: Run `voiceterm` in your project folder
 2. **Speak**: Press `Ctrl+R`, say your request, then pause
-3. **Done**: VoxTerm types your words into the terminal for you. In auto mode
+3. **Done**: VoiceTerm types your words into the terminal for you. In auto mode
    it also presses Enter; in insert mode you press `Enter` yourself when ready.
 
 That's it! Read on for more control over how voice input works.
 
-**Backend note:** By default, `voxterm` launches the Codex CLI.
+**Backend note:** By default, `voiceterm` launches the Codex CLI.
 To use Claude Code:
-- `voxterm --claude`
+- `voiceterm --claude`
 
 If you have not logged in yet:
-- `voxterm --login --codex`
-- `voxterm --login --claude`
+- `voiceterm --login --codex`
+- `voiceterm --login --claude`
 
 Experimental presets (untested):
-- `voxterm --gemini` (currently not working)
-- `voxterm --backend aider`
-- `voxterm --backend opencode`
+- `voiceterm --gemini` (currently not working)
+- `voiceterm --backend aider`
+- `voiceterm --backend opencode`
 
 ---
 
 ## How Voice Input Works
 
-VoxTerm turns your voice into keystrokes. It does **not** talk to any AI
+VoiceTerm turns your voice into keystrokes. It does **not** talk to any AI
 directly - it just types into the terminal, exactly like you would.
 
-1. **Record** - you speak, VoxTerm listens until you stop
+1. **Record** - you speak, VoiceTerm listens until you stop
 2. **Transcribe** - Whisper converts speech to text locally (nothing leaves your machine)
-3. **Expand (optional)** - if `.voxterm/macros.yaml` matches your transcript trigger, VoxTerm expands it first
+3. **Expand (optional)** - if `.voiceterm/macros.yaml` matches your transcript trigger, VoiceTerm expands it first
 4. **Type** - the final text is typed into the terminal automatically
 
 That's it. The only difference between the two send modes is what happens
 after the text is typed:
 
-- **Auto** - VoxTerm also presses Enter, so the CLI processes it right away
+- **Auto** - VoiceTerm also presses Enter, so the CLI processes it right away
 - **Insert** - the text appears on the command line and you press `Enter`
   yourself (handy if you want to review or edit first)
 
 UI label note: the HUD/Settings shortcut for insert behavior is shown as
 `edit` to make the "review before Enter" behavior explicit.
 
-![Recording Mode](https://raw.githubusercontent.com/jguida941/voxterm/master/img/recording.png)
+![Recording Mode](https://raw.githubusercontent.com/jguida941/voiceterm/master/img/recording.png)
 
 You control **when** recording starts and **what happens** after transcription.
 
@@ -100,7 +100,7 @@ Press `Ctrl+O` to open the settings overlay.
 Navigate with **↑/↓**, adjust values with **←/→**, and press **Enter** to toggle
 or activate the selected row. `Esc` closes the menu.
 
-![Settings Menu](https://raw.githubusercontent.com/jguida941/voxterm/master/img/settings.png)
+![Settings Menu](https://raw.githubusercontent.com/jguida941/voiceterm/master/img/settings.png)
 
 The menu surfaces the most common controls (auto-voice, send mode,
 macros, mic sensitivity, theme, latency display) plus backend and pipeline
@@ -123,9 +123,9 @@ Left/Right selects a HUD button and Enter activates it (even if Mouse is OFF).
 
 Three controls shape voice behavior:
 
-- **Auto-voice** (`Ctrl+V`) - when ON, VoxTerm listens automatically. When OFF, you press `Ctrl+R` each time.
+- **Auto-voice** (`Ctrl+V`) - when ON, VoiceTerm listens automatically. When OFF, you press `Ctrl+R` each time.
 - **Send mode** (`Ctrl+T`) - **auto** types your words and presses Enter. **Insert** types your words but lets you press Enter yourself.
-- **Macros** (Settings -> Macros) - **ON** applies `.voxterm/macros.yaml` expansions before injection. **OFF** injects raw transcripts.
+- **Macros** (Settings -> Macros) - **ON** applies `.voiceterm/macros.yaml` expansions before injection. **OFF** injects raw transcripts.
 
 ### Auto-voice × send mode combinations
 
@@ -146,7 +146,7 @@ Macros toggle is orthogonal to this table:
   transcribes faster. Press `Enter` again to send.
 - **Auto-voice ON** keeps listening after each transcript - you never need
   to press `Ctrl+R`.
-- **When the CLI is busy**: VoxTerm waits, then types when the prompt returns.
+- **When the CLI is busy**: VoiceTerm waits, then types when the prompt returns.
 - **Prompt detection**: if auto-voice doesn't re-trigger after the CLI
   finishes, it falls back to an idle timer. Set `--prompt-regex` if your
   prompt is unusual (especially with Claude).
@@ -174,65 +174,65 @@ The status line shows the current threshold (e.g., "Mic sensitivity: -35 dB").
 Hotkey range: -80 dB (very sensitive) to -10 dB (less sensitive). Default: -55 dB.
 The CLI flag accepts a wider range (-120 dB to 0 dB).
 
-**Tip**: Run `voxterm --mic-meter` to measure your environment and get a suggested threshold.
+**Tip**: Run `voiceterm --mic-meter` to measure your environment and get a suggested threshold.
 
 ### Check which audio device is being used
 
 ```bash
-voxterm --list-input-devices
+voiceterm --list-input-devices
 ```
 
 To use a specific device:
 ```bash
-voxterm --input-device "MacBook Pro Microphone"
+voiceterm --input-device "MacBook Pro Microphone"
 ```
 
 ### Run diagnostics
 
 ```bash
-voxterm --doctor
+voiceterm --doctor
 ```
 
 ### Tune auto-voice timing
 
 ```bash
 # Idle time before auto-voice starts listening
-voxterm --auto-voice-idle-ms 1200
+voiceterm --auto-voice-idle-ms 1200
 
 # Idle time before queued transcripts flush
-voxterm --transcript-idle-ms 250
+voiceterm --transcript-idle-ms 250
 ```
 
 ### Tune startup splash timing
 
 ```bash
 # Keep splash but clear immediately
-VOXTERM_STARTUP_SPLASH_MS=0 voxterm
+VOICETERM_STARTUP_SPLASH_MS=0 voiceterm
 
 # Keep splash longer/shorter (milliseconds, max 30000)
-VOXTERM_STARTUP_SPLASH_MS=900 voxterm
+VOICETERM_STARTUP_SPLASH_MS=900 voiceterm
 
 # Disable splash entirely
-VOXTERM_NO_STARTUP_BANNER=1 voxterm
+VOICETERM_NO_STARTUP_BANNER=1 voiceterm
 ```
 
 ### Notification sounds
 
 ```bash
 # Enable all sounds
-voxterm --sounds
+voiceterm --sounds
 
 # Only completion or error beeps
-voxterm --sound-on-complete
-voxterm --sound-on-error
+voiceterm --sound-on-complete
+voiceterm --sound-on-error
 ```
 
 ---
 
 ## Project Voice Macros
 
-You can define project-local voice triggers in `.voxterm/macros.yaml`.
-VoxTerm loads this file from your current working directory and expands
+You can define project-local voice triggers in `.voiceterm/macros.yaml`.
+VoiceTerm loads this file from your current working directory and expands
 matching transcripts before typing into the CLI.
 
 Example:
@@ -271,16 +271,16 @@ Sections (left to right):
 Latency badge behavior:
 - When available, latency is shown as post-capture processing time (mainly STT).
 - Recording duration while you speak is shown separately.
-- If latency metrics are incomplete, VoxTerm hides the latency badge rather than
+- If latency metrics are incomplete, VoiceTerm hides the latency badge rather than
   showing an unreliable value.
 
 When recording or processing, the mode label includes a pipeline tag
 (e.g., `REC R` or `… PY`).
 
 Visual updates:
-- VoxTerm keeps bounded telemetry history for meter/latency and renders sparkline-style trends in compact HUD space.
+- VoiceTerm keeps bounded telemetry history for meter/latency and renders sparkline-style trends in compact HUD space.
 - Full HUD rendering uses a conservative writer path (`v1.0.53` baseline) and clears stale HUD rows on resize to avoid duplicated/ghost rows in IDE terminals.
-- `v1.0.63` is the current stable tag for this Full HUD path.
+- `v1.0.64` is the current stable tag for this Full HUD path.
 - JetBrains IDE terminals auto-skip the startup splash to avoid alternate-screen handoff artifacts.
 - Compact HUD modules adapt by context:
   - recording: meter + latency + queue (space permitting)
@@ -305,7 +305,7 @@ Visual updates:
 
 Press `Ctrl+Y` to open the theme picker:
 
-![Theme Picker](https://raw.githubusercontent.com/jguida941/voxterm/master/img/theme-picker.png)
+![Theme Picker](https://raw.githubusercontent.com/jguida941/voiceterm/master/img/theme-picker.png)
 
 Use ↑/↓ to move and Enter to select, or type the theme number.
 With Mouse enabled (on by default), click a theme row to select it and click [×]
@@ -325,27 +325,27 @@ Available themes:
 - `none`
 
 Theme tips:
-- `voxterm --theme catppuccin` to start with a specific theme.
-- If `--theme` is not set, VoxTerm picks a backend default (Claude → `claude`,
+- `voiceterm --theme catppuccin` to start with a specific theme.
+- If `--theme` is not set, VoiceTerm picks a backend default (Claude → `claude`,
   Codex → `codex`, others → `coral`).
-- `voxterm --no-color` or `NO_COLOR=1` to disable colors entirely.
+- `voiceterm --no-color` or `NO_COLOR=1` to disable colors entirely.
 
 ### HUD Styles
 
-For users who prefer less UI clutter, VoxTerm offers three HUD styles:
+For users who prefer less UI clutter, VoiceTerm offers three HUD styles:
 
 | Style | Flag | Description |
 |-------|------|-------------|
 | **Full** | (default) | 4-row banner with borders, shortcuts, and detailed info |
 | **Minimal** | `--hud-style minimal` or `--minimal-hud` | Single-line strip |
-| **Hidden** | `--hud-style hidden` | `VoxTerm` launcher row with `Ctrl+U` hint when idle; shows dim `REC` while recording |
+| **Hidden** | `--hud-style hidden` | `VoiceTerm` launcher row with `Ctrl+U` hint when idle; shows dim `REC` while recording |
 
 Examples of the Minimal strip: `◉ AUTO · Ready`, `● REC · -55dB`.
 Full HUD border style is configurable via `--hud-border-style`:
 `theme`, `single`, `rounded`, `double`, `heavy`, `none`.
 In Full HUD, status text (for example `Ready`) remains visible even with a
 right-panel visualization enabled.
-In Full HUD idle state, VoxTerm uses concise labels for visual stability:
+In Full HUD idle state, VoiceTerm uses concise labels for visual stability:
 - manual mode label is shown as `PTT`
 - success/info idle messages collapse to `Ready`
 - queued state is shown in the shortcuts row badge (`Q:n`) without repeating
@@ -368,24 +368,24 @@ Idle status text in Minimal HUD is intentionally compact to keep layout stable:
 
 Minimal HUD (recording example):
 
-![Minimal HUD](https://raw.githubusercontent.com/jguida941/voxterm/master/img/minimal-hud.png)
+![Minimal HUD](https://raw.githubusercontent.com/jguida941/voiceterm/master/img/minimal-hud.png)
 
 Hidden HUD (idle example):
 
-![Hidden HUD](https://raw.githubusercontent.com/jguida941/voxterm/master/img/hidden-hud.png)
+![Hidden HUD](https://raw.githubusercontent.com/jguida941/voiceterm/master/img/hidden-hud.png)
 
 ```bash
 # Minimal HUD - just a colored mode indicator
-voxterm --minimal-hud
+voiceterm --minimal-hud
 
 # Hidden HUD - launcher row while idle, dim REC indicator while recording
-voxterm --hud-style hidden
+voiceterm --hud-style hidden
 
 # Full HUD without a border frame
-voxterm --hud-style full --hud-border-style none
+voiceterm --hud-style full --hud-border-style none
 
 # Disable right-side waveform/pulse panel
-voxterm --hud-right-panel off
+voiceterm --hud-right-panel off
 ```
 
 You can also change HUD style at runtime via the settings menu (`Ctrl+O`).
@@ -404,25 +404,25 @@ Common startup configurations:
 
 ```bash
 # Use Claude Code
-voxterm --claude
+voiceterm --claude
 
 # Hands-free capture + auto-send
-voxterm --auto-voice
+voiceterm --auto-voice
 
 # Hands-free with insert mode (manual Enter send)
-voxterm --auto-voice --voice-send-mode insert
+voiceterm --auto-voice --voice-send-mode insert
 
 # Specific microphone
-voxterm --input-device "USB Microphone"
+voiceterm --input-device "USB Microphone"
 
 # Custom sensitivity
-voxterm --voice-vad-threshold-db -35
+voiceterm --voice-vad-threshold-db -35
 
 # Force Whisper language
-voxterm --lang en
+voiceterm --lang en
 
 # Enable notification sounds
-voxterm --sounds
+voiceterm --sounds
 ```
 
 ---

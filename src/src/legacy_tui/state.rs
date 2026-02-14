@@ -1,6 +1,6 @@
 //! Legacy Codex TUI state that coordinates rendering, input, and voice jobs.
 //!
-//! The multi-backend overlay lives under `src/bin/voxterm/`.
+//! The multi-backend overlay lives under `src/bin/voiceterm/`.
 
 use std::{
     io::Read,

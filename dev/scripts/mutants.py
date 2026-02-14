@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-VoxTerm Mutation Testing Helper
+VoiceTerm Mutation Testing Helper
 
 Interactive script for running mutation tests on specific modules.
 Outputs results in AI-readable format (JSON/markdown).
@@ -69,7 +69,7 @@ MODULES = {
     },
     "overlay": {
         "desc": "Overlay binary (main, writer, status)",
-        "files": ["src/bin/voxterm/**"],
+        "files": ["src/bin/voiceterm/**"],
         "timeout": 180,
     },
 }
@@ -175,7 +175,7 @@ def list_modules():
 
 def select_modules_interactive():
     """Interactive module selection."""
-    print("\n=== VoxTerm Mutation Testing ===\n")
+    print("\n=== VoiceTerm Mutation Testing ===\n")
     print("Select modules to test (comma-separated numbers, or 'all'):\n")
 
     module_list = list(MODULES.keys())
@@ -494,7 +494,7 @@ Outcomes: {outcomes_path}
 
 def main():
     """CLI entrypoint for the mutation testing helper."""
-    parser = argparse.ArgumentParser(description="VoxTerm Mutation Testing Helper")
+    parser = argparse.ArgumentParser(description="VoiceTerm Mutation Testing Helper")
     parser.add_argument("--all", action="store_true", help="Test all modules")
     parser.add_argument("--module", "-m", help="Specific module to test")
     parser.add_argument("--list", "-l", action="store_true", help="List available modules")

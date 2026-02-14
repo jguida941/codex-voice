@@ -23,12 +23,12 @@ static LOG_STATE: OnceLock<Mutex<LogState>> = OnceLock::new();
 
 /// Path to the temp log file we rotate between runs.
 pub fn log_file_path() -> PathBuf {
-    env::temp_dir().join("voxterm_tui.log")
+    env::temp_dir().join("voiceterm_tui.log")
 }
 
 /// Path to the crash log file (metadata only).
 pub fn crash_log_path() -> PathBuf {
-    env::temp_dir().join("voxterm_crash.log")
+    env::temp_dir().join("voiceterm_crash.log")
 }
 
 struct LogWriter {

@@ -16,6 +16,7 @@ make prepush  # All push/PR checks (ci + perf smoke + memory guard)
 |--------|---------|-------|
 | `release.sh` | Create GitHub release tag | `./dev/scripts/release.sh 1.0.33` |
 | `update-homebrew.sh` | Update Homebrew formula | `./dev/scripts/update-homebrew.sh 1.0.33` |
+| `publish-pypi.sh` | Build/publish PyPI package | `./dev/scripts/publish-pypi.sh --upload` |
 | `devctl.py` | Unified dev CLI (checks, mutants, release, report) | `python3 dev/scripts/devctl.py` |
 | `mutants.py` | Interactive mutation testing | `python3 dev/scripts/mutants.py` |
 | `check_mutation_score.py` | Verify mutation score | Used by CI |
@@ -40,6 +41,18 @@ Updates the Homebrew tap formula with new version and SHA256.
 
 ```bash
 ./dev/scripts/update-homebrew.sh 1.0.33
+```
+
+## publish-pypi.sh
+
+Builds the `pypi/` package and optionally uploads to PyPI.
+
+```bash
+# Build + validate artifacts only
+./dev/scripts/publish-pypi.sh
+
+# Build + upload (requires PyPI credentials configured for twine)
+./dev/scripts/publish-pypi.sh --upload
 ```
 
 ## mutants.py
@@ -202,7 +215,10 @@ git add -A && git commit -m "Release v1.0.33"
 # 5. Create GitHub release
 gh release create v1.0.33 --title "v1.0.33" --notes "See CHANGELOG.md"
 
-# 6. Update Homebrew
+# 6. Publish PyPI package
+./dev/scripts/publish-pypi.sh --upload
+
+# 7. Update Homebrew
 ./dev/scripts/update-homebrew.sh 1.0.33
 ```
 

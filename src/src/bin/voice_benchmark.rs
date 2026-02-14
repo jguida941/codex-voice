@@ -6,8 +6,8 @@ use std::f32::consts::PI;
 use anyhow::bail;
 use anyhow::Result;
 use clap::Parser;
-use voxterm::audio::{self, VadEngine};
-use voxterm::config::{
+use voiceterm::audio::{self, VadEngine};
+use voiceterm::config::{
     default_vad_engine, VadEngineKind, VoicePipelineConfig, DEFAULT_VOICE_BUFFER_MS,
     DEFAULT_VOICE_CHANNEL_CAPACITY, DEFAULT_VOICE_LOOKBACK_MS, DEFAULT_VOICE_MAX_CAPTURE_MS,
     DEFAULT_VOICE_MIN_SPEECH_MS, DEFAULT_VOICE_SAMPLE_RATE, DEFAULT_VOICE_SILENCE_TAIL_MS,
@@ -15,7 +15,7 @@ use voxterm::config::{
     DEFAULT_VOICE_VAD_THRESHOLD_DB,
 };
 #[cfg(feature = "vad_earshot")]
-use voxterm::vad_earshot;
+use voiceterm::vad_earshot;
 
 /// Synthetic benchmark harness for voice capture latency.
 #[derive(Debug, Parser)]

@@ -66,7 +66,7 @@ def run(args) -> int:
         if not skip_build:
             add_step(
                 "build-release",
-                ["cargo", "build", "--release", "--bin", "voxterm"],
+                ["cargo", "build", "--release", "--bin", "voiceterm"],
                 cwd=SRC_DIR,
             )
         if with_perf:
@@ -87,7 +87,7 @@ def run(args) -> int:
                     [
                         "python3",
                         "-c",
-                        "import os, tempfile; print(os.path.join(tempfile.gettempdir(), 'voxterm_tui.log'))",
+                        "import os, tempfile; print(os.path.join(tempfile.gettempdir(), 'voiceterm_tui.log'))",
                     ],
                     text=True,
                 ).strip()

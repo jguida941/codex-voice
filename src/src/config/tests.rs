@@ -553,7 +553,7 @@ fn outside_dir(repo_root: &Path, prefix: &str) -> Option<std::path::PathBuf> {
 #[test]
 fn canonicalize_within_repo_rejects_outside_path() {
     let repo_root = canonical_repo_root().unwrap();
-    let Some(outside_dir) = outside_dir(&repo_root, "voxterm_outside") else {
+    let Some(outside_dir) = outside_dir(&repo_root, "voiceterm_outside") else {
         eprintln!("skipping: unable to create outside path");
         return;
     };

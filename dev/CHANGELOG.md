@@ -5,10 +5,23 @@ Note: Some historical entries reference internal documents that are not publishe
 
 ## [Unreleased]
 
+## [1.0.64] - 2026-02-14
+
+### Branding
+- Complete project rebrand to **VoiceTerm** across the codebase, CLI help text, startup banner/UI copy, docs, scripts, and macOS app bundle path (`app/macos/VoiceTerm.app`).
+- Rename Rust package/binary defaults to `voiceterm` and move overlay source path to `src/src/bin/voiceterm/`.
+
+### Packaging
+- Add a PyPI package scaffold under `pypi/` (`name = "voiceterm"`) with a launcher entrypoint.
+- Add `dev/scripts/publish-pypi.sh` to build/check PyPI artifacts and optionally upload with `--upload`.
+
+### Documentation
+- Update install/readme docs with `voiceterm` command usage and add PyPI install guidance (`pipx install voiceterm` / `pip install --user voiceterm`).
+
 ## [1.0.63] - 2026-02-14
 
 ### UX
-- Harden PTY teardown and resize signaling so VoxTerm targets the full backend process group (wrapper + descendants), not just the direct child PID, reducing orphan `codex`/`claude` processes after repeated exits/cancels.
+- Harden PTY teardown and resize signaling so VoiceTerm targets the full backend process group (wrapper + descendants), not just the direct child PID, reducing orphan `codex`/`claude` processes after repeated exits/cancels.
 - Ensure Claude IPC piped-mode cancellation/disconnect paths terminate and reap child processes to prevent stale process accumulation across many runs.
 - Reduce JetBrains overlay flicker by ignoring no-op SIGWINCH updates (unchanged rows/cols), avoiding redundant PTY resize signaling and HUD redraw clears.
 - Reduce recording-mode flicker by avoiding full status-banner clears on steady-state redraws; writer now clears only when banner height shrinks.
@@ -119,7 +132,7 @@ Note: Some historical entries reference internal documents that are not publishe
 ## [1.0.55] - 2026-02-13
 
 ### UX
-- Add project-scoped voice macro expansion from `.voxterm/macros.yaml` before transcript injection, including trigger-to-command mappings and template macros with `{TRANSCRIPT}` remainder substitution.
+- Add project-scoped voice macro expansion from `.voiceterm/macros.yaml` before transcript injection, including trigger-to-command mappings and template macros with `{TRANSCRIPT}` remainder substitution.
 - Support per-macro send-mode overrides (`auto`/`insert`) so selected macros can stay in insert behavior even when global send mode is auto.
 - Add a runtime `Macros` ON/OFF setting in the Settings panel to control macro expansion without changing send mode behavior.
 - Keep status/HUD text aligned with baseline `auto`/`insert` semantics (no extra review/intent labels).
@@ -202,18 +215,18 @@ Note: Some historical entries reference internal documents that are not publishe
 
 ### UX
 - Prevent HUD freeze (REC duration, live dB meter, queue/heartbeat status) when PTY output is continuously active by running periodic overlay tasks independently of the `select!` timeout branch.
-- Render the HUD/launcher immediately on startup so users always see VoxTerm controls without waiting for the first status update.
-- Hidden HUD now shows a branded `VoxTerm` launcher row with a clickable `open` button and `Ctrl+U` hint while idle.
+- Render the HUD/launcher immediately on startup so users always see VoiceTerm controls without waiting for the first status update.
+- Hidden HUD now shows a branded `VoiceTerm` launcher row with a clickable `open` button and `Ctrl+U` hint while idle.
 - Improve terminal compatibility for controls by parsing parameterized CSI arrow sequences and additional mouse protocols (URXVT + X10, alongside SGR).
 - Allow Left/Right + Enter HUD button navigation even when mouse clicking is toggled off.
 - Treat HUD latency as post-capture processing time and hide the badge when metrics are incomplete instead of showing a misleading estimate.
 
 ### Diagnostics
-- Add `VOXTERM_DEBUG_INPUT=1` to log raw input byte sequences and decoded input events for IDE terminal compatibility debugging.
+- Add `VOICETERM_DEBUG_INPUT=1` to log raw input byte sequences and decoded input events for IDE terminal compatibility debugging.
 - Add `latency_audit|...` debug log lines with displayed/capture/STT/elapsed timing fields per transcript.
 
 ### Tests
-- Validate the fix with local `voxterm` build/test checks to cover the queue + busy-output regression path.
+- Validate the fix with local `voiceterm` build/test checks to cover the queue + busy-output regression path.
 - Add parser coverage for URXVT/X10 mouse events, partial X10 buffering, and parameterized CSI arrow sequences.
 - Add hidden-HUD coverage for the idle launcher button/row behavior.
 - Add unit coverage for latency calculation behavior (prefer STT timing, fallback from capture, hide when metrics are missing).
@@ -261,7 +274,7 @@ Note: Some historical entries reference internal documents that are not publishe
 ## [1.0.45] - 2026-02-08
 
 ### Documentation
-- Document `VOXTERM_NO_STARTUP_BANNER` in install and troubleshooting guides.
+- Document `VOICETERM_NO_STARTUP_BANNER` in install and troubleshooting guides.
 - Audit and refresh docs: clarify terminal injection vs backend submission, expand CLI flag coverage, and update troubleshooting/Whisper wording.
 - Replace the Usage guide hero image with the logo and remove the stale hero asset.
 - Address doc audit gaps: sensitivity labels, backend list, missing flags, archive links, model sizing notes, and Whisper search path notes.
@@ -279,10 +292,10 @@ Note: Some historical entries reference internal documents that are not publishe
 ## [1.0.44] - 2026-02-06
 
 ### UX
-- Show the startup banner when launching via wrapper scripts; set `VOXTERM_NO_STARTUP_BANNER` to suppress it.
+- Show the startup banner when launching via wrapper scripts; set `VOICETERM_NO_STARTUP_BANNER` to suppress it.
 
 ### Documentation
-- Document `VOXTERM_NO_STARTUP_BANNER` in CLI environment variables.
+- Document `VOICETERM_NO_STARTUP_BANNER` in CLI environment variables.
 
 ## [1.0.43] - 2026-02-06
 
@@ -292,7 +305,7 @@ Note: Some historical entries reference internal documents that are not publishe
 - IPC mode now streams Claude output via PTY and reports transcript duration in `transcript` events.
 
 ### Diagnostics
-- Add JSON structured tracing logs (default: `voxterm_trace.jsonl` in the temp directory) when logging is enabled.
+- Add JSON structured tracing logs (default: `voiceterm_trace.jsonl` in the temp directory) when logging is enabled.
 
 ### Documentation
 - Reorder README sections for readability with a Quick Nav, early Requirements, and a grouped UI Tour.
@@ -452,7 +465,7 @@ Note: Some historical entries reference internal documents that are not publishe
 
 ### Reorganization
 - Major codebase reorganization: `rust_tui/` → `src/`, `docs/` → `guides/` + `dev/`
-- Rename Rust crate from `rust_tui` to `voxterm` to match project name
+- Rename Rust crate from `rust_tui` to `voiceterm` to match project name
 - Add Makefile for common developer commands
 - Add `dev/scripts/mutants.py` for interactive mutation testing
 
@@ -463,7 +476,7 @@ Note: Some historical entries reference internal documents that are not publishe
 - Align macOS app version metadata with the 1.0.33 release
 
 ### UX
-- Status banner top border now shows a VoxTerm label with theme-matched Vox/Term colors instead of the theme name
+- Status banner top border now shows a VoiceTerm label with theme-matched Vox/Term colors instead of the theme name
 
 ### Documentation
 - Add `guides/WHISPER.md` for model selection guidance
@@ -507,13 +520,13 @@ Note: Some historical entries reference internal documents that are not publishe
 ## [1.0.30] - 2026-02-02
 
 ### Branding (Breaking)
-- Rename the project to VoxTerm across the CLI, docs, and UI strings.
-- New primary command: `voxterm`.
-- New env var prefix: `VOXTERM_*`.
-- New config path: `~/.config/voxterm/`.
-- New model path: `~/.local/share/voxterm/models`.
-- New log files: `voxterm_tui.log` and `voxterm_crash.log`.
-- macOS app renamed to `VoxTerm.app`.
+- Rename the project to VoiceTerm across the CLI, docs, and UI strings.
+- New primary command: `voiceterm`.
+- New env var prefix: `VOICETERM_*`.
+- New config path: `~/.config/voiceterm/`.
+- New model path: `~/.local/share/voiceterm/models`.
+- New log files: `voiceterm_tui.log` and `voiceterm_crash.log`.
+- macOS app renamed to `VoiceTerm.app`.
 
 ### Privacy
 - Avoid logging full panic details to the debug log unless `--log-content` is enabled.
@@ -588,7 +601,7 @@ Note: Some historical entries reference internal documents that are not publishe
 ## [1.0.24] - 2026-01-29
 
 ### Build + Release
-- **Version bump**: update `rust_tui/Cargo.toml` to 1.0.24 and align `VoxTerm.app` Info.plist.
+- **Version bump**: update `rust_tui/Cargo.toml` to 1.0.24 and align `VoiceTerm.app` Info.plist.
 
 ### Refactor
 - **Rust modularization**: split large modules (`ipc`, `pty_session`, `codex`, `audio`, `config`, `app`, and overlay helpers) into focused submodules with tests preserved.
@@ -603,7 +616,7 @@ Note: Some historical entries reference internal documents that are not publishe
 
 ### Docs
 - **README layout**: move macOS app (folder picker) section below UI modes.
-- **macOS app version**: align `VoxTerm.app` Info.plist to 1.0.23.
+- **macOS app version**: align `VoiceTerm.app` Info.plist to 1.0.23.
 - **Auto-voice status copy**: clarify that "Auto-voice enabled" means auto-voice is on while idle.
 - **Usage guidance**: tighten wording for mode selection and long-dictation tips.
 - **Usage layout**: add a mode matrix table that shows how listening and send modes combine.
@@ -630,14 +643,14 @@ Note: Some historical entries reference internal documents that are not publishe
 
 ### Docs
 - **macOS app visibility**: restore the folder-picker app path in README/Quick Start/Install docs.
-- **macOS app version**: align `VoxTerm.app` Info.plist to 1.0.22.
+- **macOS app version**: align `VoiceTerm.app` Info.plist to 1.0.22.
 
 ## [1.0.21] - 2026-01-29
 
 ### Build + Release
 - **Whisper crates compatibility**: align `whisper-rs` to the latest compatible 0.14.x release to avoid `links = "whisper"` conflicts.
 - **Status redraw refactor**: reduce argument fanout in the overlay status redraw helper (clippy clean).
-- **macOS app version**: align `VoxTerm.app` Info.plist to 1.0.21.
+- **macOS app version**: align `VoiceTerm.app` Info.plist to 1.0.21.
 
 ## [1.0.20] - 2026-01-29
 
@@ -671,7 +684,7 @@ Note: Some historical entries reference internal documents that are not publishe
 ### Docs
 - **README refresh**: streamlined quick start and moved deep sections into focused docs.
 - **New guides**: added install, usage, CLI flags, troubleshooting, and development docs.
-- **CLI flags**: consolidated into a single doc with voxterm and rust_tui sections, plus missing flags and log env vars.
+- **CLI flags**: consolidated into a single doc with voiceterm and rust_tui sections, plus missing flags and log env vars.
 
 ## [1.0.19] - 2026-01-29
 
@@ -692,15 +705,15 @@ Note: Some historical entries reference internal documents that are not publishe
 ## [1.0.16] - 2026-01-29
 
 ### Changes
-- **Binary rename**: `voxterm` is now the only user-facing command (no `codex-overlay`).
-- **Prompt log path**: configured via `--prompt-log` or `VOXTERM_PROMPT_LOG` (no default unless set).
-- **Env cleanup**: Legacy overlay prompt env vars are no longer supported; use `VOXTERM_PROMPT_*`.
-- **Docs/scripts**: update build/run instructions to use `voxterm`.
+- **Binary rename**: `voiceterm` is now the only user-facing command (no `codex-overlay`).
+- **Prompt log path**: configured via `--prompt-log` or `VOICETERM_PROMPT_LOG` (no default unless set).
+- **Env cleanup**: Legacy overlay prompt env vars are no longer supported; use `VOICETERM_PROMPT_*`.
+- **Docs/scripts**: update build/run instructions to use `voiceterm`.
 
 ## [1.0.15] - 2026-01-29
 
 ### Fixes
-- **Overlay build fix**: remove stray duplicate block that broke compilation in `voxterm` (source: `src/bin/voxterm/`).
+- **Overlay build fix**: remove stray duplicate block that broke compilation in `voiceterm` (source: `src/bin/voiceterm/`).
 
 ## [1.0.14] - 2026-01-29
 
@@ -736,7 +749,7 @@ Note: Some historical entries reference internal documents that are not publishe
 ## [1.0.9] - 2026-01-25
 
 ### Build Fixes
-- **Clippy cleanup in voxterm**: resolve collapsible-if, map_or, clamp, and question-mark lints under `-D warnings` (source: `src/bin/voxterm/`).
+- **Clippy cleanup in voiceterm**: resolve collapsible-if, map_or, clamp, and question-mark lints under `-D warnings` (source: `src/bin/voiceterm/`).
 
 ## [1.0.8] - 2026-01-25
 
@@ -772,7 +785,7 @@ Note: Some historical entries reference internal documents that are not publishe
 ### Fast Local Transcription Feature
 - **Benchmarked STT latency**: ~250ms processing after speech ends (tested with real microphone input).
 - **Added feature to README**: "Fast local transcription - ~250ms processing after speech ends, no cloud API calls".
-- **Verified code path**: latency_measurement binary uses identical code path as voxterm (same voice::start_voice_job → stt::Transcriber).
+- **Verified code path**: latency_measurement binary uses identical code path as voiceterm (same voice::start_voice_job → stt::Transcriber).
 
 ### Bug Fixes
 - **Filter [BLANK_AUDIO]**: Whisper's `[BLANK_AUDIO]` token is now filtered from transcripts, preventing spam in auto-voice mode when user stops talking.
@@ -787,15 +800,15 @@ Note: Some historical entries reference internal documents that are not publishe
 - **README screenshot**: added startup screenshot to img/startup.png.
 
 ### Startup UX Polish (2026-01-24) - COMPLETE
-- **VoxTerm banner**: `start.sh` now uses the Rust launch banner from the legacy CLI.
+- **VoiceTerm banner**: `start.sh` now uses the Rust launch banner from the legacy CLI.
 - **Compact quickstart tables**: launch output shows quick controls + common commands in green tables.
 - **Adaptive layout**: smaller banner + dual-color columns keep tables visible in shorter terminals.
 - **Startup output test**: `scripts/tests/startup_output_test.sh` guards line widths.
 
 ### Simplified Install Flow (2026-01-23) - COMPLETE
-- **New installer**: added `scripts/install.sh` plus `scripts/setup.sh install` to download the Whisper model, build the Rust overlay, and install a `voxterm` wrapper.
+- **New installer**: added `scripts/install.sh` plus `scripts/setup.sh install` to download the Whisper model, build the Rust overlay, and install a `voiceterm` wrapper.
 - **Overlay-first defaults**: `scripts/setup.sh` now defaults to `install` so it builds the Rust overlay by default.
-- **Docs updated**: README + QUICK_START now point to `./scripts/install.sh` and `voxterm` for the simplest path.
+- **Docs updated**: README + QUICK_START now point to `./scripts/install.sh` and `voiceterm` for the simplest path.
 
 ### Rust-Only Docs + Launchers (2026-01-23) - COMPLETE
 - **Docs sweep**: removed legacy CLI references from user-facing docs and the audit.
@@ -807,13 +820,13 @@ Note: Some historical entries reference internal documents that are not publishe
 - **Startup hints**: `start.sh` prints the key controls and common flag examples for non-programmers.
 
 ### Homebrew Runtime Fixes (2026-01-23) - COMPLETE
-- **Prebuilt overlay reuse**: `start.sh` now uses `voxterm` from PATH when available, skipping builds in Homebrew installs.
-- **User-writable model storage**: model downloads fall back to `~/.local/share/voxterm/models` when the repo/libexec is not writable.
+- **Prebuilt overlay reuse**: `start.sh` now uses `voiceterm` from PATH when available, skipping builds in Homebrew installs.
+- **User-writable model storage**: model downloads fall back to `~/.local/share/voiceterm/models` when the repo/libexec is not writable.
 - **Homebrew detection**: Homebrew installs always use the user model directory instead of libexec, even if libexec is writable.
-- **Install wrapper safety**: skip existing global `voxterm` commands and prefer safe locations unless overridden.
+- **Install wrapper safety**: skip existing global `voiceterm` commands and prefer safe locations unless overridden.
 
 ### Rust Overlay Mode + Packaging (2026-01-22) - COMPLETE
-- **Added Rust overlay mode**: new `voxterm` binary runs Codex in a PTY, forwards raw ANSI output, and injects voice transcripts as keystrokes.
+- **Added Rust overlay mode**: new `voiceterm` binary runs Codex in a PTY, forwards raw ANSI output, and injects voice transcripts as keystrokes.
 - **Prompt-aware auto-voice**: prompt detection with idle fallback plus configurable regex overrides for auto-voice triggering.
 - **Serialized output writer**: PTY output + status line rendering go through a single writer thread to avoid terminal corruption.
 - **PTY passthrough improvements**: new raw PTY session that answers DSR/DA queries without stripping ANSI.
@@ -823,14 +836,14 @@ Note: Some historical entries reference internal documents that are not publishe
 - **Repo hygiene**: internal architecture/archive/reference directories are now ignored by git and removed from the tracked set.
 
 ### Project Cleanup + macOS Launcher (2026-01-11) - COMPLETE
-- **Added macOS app launcher**: `VoxTerm.app` now in repo alongside `start.sh` and `start.bat` for cross-platform consistency.
+- **Added macOS app launcher**: `VoiceTerm.app` now in repo alongside `start.sh` and `start.bat` for cross-platform consistency.
 - **Major project structure cleanup**:
   - Removed duplicate files from `rust_tui/` (CHANGELOG, docs/, screenshots, etc.)
   - Moved rust_tui test scripts to `rust_tui/scripts/`
   - Consolidated scripts: deleted redundant launchers (`run_tui.sh`, `launch_tui.py`, `run_in_pty.py`)
   - Moved benchmark scripts to `scripts/tests/`
   - Deleted legacy folders (`stubs/`, `tst/`)
-  - Kept `voxterm.py` as legacy Python fallback
+  - Kept `voiceterm.py` as legacy Python fallback
 - **Updated all README diagrams** to match actual project structure.
 - **Updated .gitignore** to exclude internal dev docs (`PROJECT_OVERVIEW.md`, `agents.md`, etc.)
 - **Fixed Cargo.toml** reference to deleted test file.
@@ -907,7 +920,7 @@ Note: Some historical entries reference internal documents that are not publishe
 - Relocated root-level guides (`ARCHITECTURE.md`, `MASTER_DOC.md`, `plan.md`) into the internal references set, corrected the historical architecture baseline to the internal archive (2025-11-11), and updated navigation pointers accordingly.
 - Updated the new references (`quick_start.md`, `testing.md`, `python_legacy.md`) to reflect the current Rust pipeline (Ctrl+R voice key, `cargo run` workflow, native audio tests) and annotated the legacy plan in `dev/archive/MVP_PLAN_2024.md`.
 - Added a concise root `README.md`, introduced the “You Are Here” section in `PROJECT_OVERVIEW.md`, renamed `docs/guides/` → `docs/references/` (`quick_start.md`, `testing.md`, `python_legacy.md`, `milestones.md`, `troubleshooting.md`), and archived superseded guides under `dev/archive/OBSOLETE_GUIDES_2025-11-12/`.
-- Updated helper scripts (`rust_tui/test_performance.sh`, `test_voice.sh`, `simple_test.sh`, `final_test.sh`) to rely on `cargo run`, Ctrl+R instructions, and the shared `${TMPDIR}/voxterm_tui.log`.
+- Updated helper scripts (`rust_tui/test_performance.sh`, `test_voice.sh`, `simple_test.sh`, `final_test.sh`) to rely on `cargo run`, Ctrl+R instructions, and the shared `${TMPDIR}/voiceterm_tui.log`.
 - Extended `agents.md` with an end-of-session checklist so every workday records architecture notes, changelog entries, and the “You Are Here” pointer.
 - Consolidated the CI/CD references into a single `docs/references/cicd_plan.md`, merging the previous implementation + dependency guides and archiving the superseded files under `dev/archive/OBSOLETE_REFERENCES_2025-11-12/`.
 - Expanded `docs/references/cicd_plan.md` with appendices covering phase-by-phase scripts, tooling/dependency matrices, rollback/cost controls, and troubleshooting so it fully supersedes the archived references.

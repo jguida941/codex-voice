@@ -48,6 +48,6 @@ Use an atomic boolean flag pattern:
 
 ## Links
 
-- `src/src/bin/voxterm/main.rs:46-47` - Atomic flag definition
-- `src/src/bin/voxterm/main.rs:55-61` - Signal handler
-- `src/src/bin/voxterm/main.rs:329-334` - Polling logic
+- `src/src/bin/voiceterm/main.rs:46-47` - Atomic flag definition
+- `src/src/bin/voiceterm/main.rs:55-61` - Signal handler
+- `src/src/bin/voiceterm/main.rs:329-334` - Polling logic

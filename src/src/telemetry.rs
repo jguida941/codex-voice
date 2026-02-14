@@ -10,9 +10,9 @@ use tracing_subscriber::fmt::time::UtcTime;
 static TRACING_INIT: OnceLock<()> = OnceLock::new();
 
 pub(crate) fn tracing_log_path() -> PathBuf {
-    env::var("VOXTERM_TRACE_LOG")
+    env::var("VOICETERM_TRACE_LOG")
         .map(PathBuf::from)
-        .unwrap_or_else(|_| env::temp_dir().join("voxterm_trace.jsonl"))
+        .unwrap_or_else(|_| env::temp_dir().join("voiceterm_trace.jsonl"))
 }
 
 pub(crate) fn init_tracing(config: &AppConfig) {
