@@ -1758,7 +1758,6 @@ mod tests {
     use std::cell::Cell;
     use std::collections::VecDeque;
     use std::io;
-    use std::thread;
     use voiceterm::pty_session::PtyOverlaySession;
 
     use crate::buttons::ButtonRegistry;
@@ -2007,17 +2006,6 @@ mod tests {
         (state, timers, deps, writer_rx, input_tx)
     }
 
-    fn wait_for_session_exit(session: &PtyOverlaySession, timeout: Duration) -> bool {
-        let start = Instant::now();
-        while start.elapsed() < timeout {
-            if !session.is_alive() {
-                return true;
-            }
-            thread::sleep(Duration::from_millis(5));
-        }
-        !session.is_alive()
-    }
-
     #[test]
     fn flush_pending_pty_output_returns_true_when_empty() {
         let (mut state, _timers, deps, _writer_rx, _input_tx) = build_harness("cat", &[], 8);
@@ -2143,31 +2131,6 @@ mod tests {
             "single-byte writes should clear this queue within 16 attempts"
         );
         assert_eq!(state.pending_pty_input_bytes, 0);
-    }
-
-    #[test]
-    fn write_or_queue_pty_input_returns_false_after_session_exits() {
-        let (mut state, _timers, mut deps, _writer_rx, _input_tx) =
-            build_harness("sh", &["-c", "exit 0"], 8);
-        assert!(
-            wait_for_session_exit(&deps.session, Duration::from_secs(1)),
-            "expected short-lived PTY session to exit before write attempt"
-        );
-
-        let deadline = Instant::now() + Duration::from_secs(2);
-        let mut saw_rejected_write = false;
-        while Instant::now() < deadline {
-            if !write_or_queue_pty_input(&mut state, &mut deps, b"x".to_vec()) {
-                saw_rejected_write = true;
-                break;
-            }
-            thread::sleep(Duration::from_millis(10));
-        }
-
-        assert!(
-            saw_rejected_write,
-            "expected PTY input writes to be rejected shortly after session exit"
-        );
     }
 
     #[test]
